@@ -1,4 +1,4 @@
-# SolVote — Decentralized Prediction Polls on Solana
+# InstinctFi — Decentralized Prediction Polls on Solana
 
 > Vote on polls by buying option-coins. Winners take the entire losing pool.
 

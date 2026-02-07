@@ -1,4 +1,4 @@
-# 🗳️ SolPredict — Decentralized Prediction Polling dApp
+# 🗳️ InstinctFi — Decentralized Prediction Polling dApp
 
 ### SuberTeam Mini Hackathon Submission Report
 
@@ -25,7 +25,7 @@
 
 ## 1. Project Overview
 
-**SolPredict** is a decentralized prediction polling platform built on the **Solana blockchain** using the **Anchor framework**. Users connect their **Phantom wallet**, receive a **$5,000 signup bonus**, and can create or participate in prediction polls by purchasing "option-coins." When a poll ends, the winning option is determined, and the prize pool is distributed proportionally to the winners.
+**InstinctFi** is a decentralized prediction polling platform built on the **Solana blockchain** using the **Anchor framework**. Users connect their **Phantom wallet**, receive a **$5,000 signup bonus**, and can create or participate in prediction polls by purchasing "option-coins." When a poll ends, the winning option is determined, and the prize pool is distributed proportionally to the winners.
 
 The platform uses an internal dollar-denominated accounting system (stored in cents) to provide familiar UX while leveraging Solana's on-chain program architecture for transparent, tamper-proof poll logic.
 
@@ -40,7 +40,7 @@ Traditional polling and prediction platforms suffer from:
 - **No skin in the game** — Free polls don't incentivize thoughtful predictions
 - **No rewards** — Users have no financial motivation to participate accurately
 
-**SolPredict** solves these by putting poll creation, voting, settlement, and reward distribution on Solana's blockchain, ensuring transparency, immutability, and trustless execution.
+**InstinctFi** solves these by putting poll creation, voting, settlement, and reward distribution on Solana's blockchain, ensuring transparency, immutability, and trustless execution.
 
 ---
 
@@ -291,7 +291,7 @@ formatDollarsShort(cents: number)     // 150000 → "$1.5K"
 
 ### 8.1 First-Time User
 ```
-1. Visit SolPredict → See landing page with "Connect Phantom" button
+1. Visit InstinctFi → See landing page with "Connect Phantom" button
 2. Click "Connect Phantom" → Phantom popup asks for approval
 3. Approve → Auto-signup triggers:
    • UserAccount created with $5,000 balance

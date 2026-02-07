@@ -8,7 +8,7 @@ import { Toaster } from "react-hot-toast";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SolVote — Decentralized Prediction Polls",
+  title: "InstinctFi — Decentralized Prediction Polls",
   description:
     "Vote on prediction polls with play money. Winners take the losing pool. Powered by Solana.",
 };
