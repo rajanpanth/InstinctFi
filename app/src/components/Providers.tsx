@@ -6,11 +6,13 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
   ReactNode,
 } from "react";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 // ─── Constants (all dollar amounts in CENTS, $1 = 100) ─────────────────────
-export const CENTS = 100; // $1 = 100 cents
+export const CENTS = 100;
 const SIGNUP_BONUS = 500_000; // $5,000
 const WEEKLY_REWARD = 100_000; // $1,000
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -49,7 +51,7 @@ export type DemoPoll = {
   creatorInvestmentCents: number;
   platformFeeCents: number;
   creatorRewardCents: number;
-  status: number; // 0=active, 1=settled
+  status: number;
   winningOption: number;
   totalVoters: number;
   createdAt: number;
@@ -65,9 +67,9 @@ export type DemoVote = {
 
 export type UserAccount = {
   wallet: string;
-  balance: number; // cents
+  balance: number;
   signupBonusClaimed: boolean;
-  lastWeeklyRewardTs: number; // ms
+  lastWeeklyRewardTs: number;
   totalVotesCast: number;
   totalPollsVoted: number;
   pollsWon: number;
@@ -91,26 +93,19 @@ export type UserAccount = {
 };
 
 type AppContextType = {
-  // Auth
   walletConnected: boolean;
   walletAddress: string | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
-
-  // User account
   userAccount: UserAccount | null;
   signup: () => void;
   claimWeeklyReward: () => boolean;
-
-  // Polls
   polls: DemoPoll[];
   votes: DemoVote[];
   createPoll: (poll: Omit<DemoPoll, "id">) => DemoPoll | null;
   castVote: (pollId: string, optionIndex: number, numCoins: number) => boolean;
   settlePoll: (pollId: string) => boolean;
   claimReward: (pollId: string) => number;
-
-  // Leaderboard
   allUsers: UserAccount[];
 };
 
@@ -122,38 +117,207 @@ export function useApp() {
   return ctx;
 }
 
+// ─── DB ↔ App mapping helpers ───────────────────────────────────────────────
+
+function dbToUser(r: any): UserAccount {
+  return {
+    wallet: r.wallet,
+    balance: Number(r.balance),
+    signupBonusClaimed: r.signup_bonus_claimed,
+    lastWeeklyRewardTs: Number(r.last_weekly_reward_ts),
+    totalVotesCast: Number(r.total_votes_cast),
+    totalPollsVoted: Number(r.total_polls_voted),
+    pollsWon: Number(r.polls_won),
+    pollsCreated: Number(r.polls_created),
+    totalSpentCents: Number(r.total_spent_cents),
+    totalWinningsCents: Number(r.total_winnings_cents),
+    weeklyWinningsCents: Number(r.weekly_winnings_cents),
+    monthlyWinningsCents: Number(r.monthly_winnings_cents),
+    weeklySpentCents: Number(r.weekly_spent_cents),
+    monthlySpentCents: Number(r.monthly_spent_cents),
+    weeklyVotesCast: Number(r.weekly_votes_cast),
+    monthlyVotesCast: Number(r.monthly_votes_cast),
+    weeklyPollsWon: Number(r.weekly_polls_won),
+    monthlyPollsWon: Number(r.monthly_polls_won),
+    weeklyPollsVoted: Number(r.weekly_polls_voted),
+    monthlyPollsVoted: Number(r.monthly_polls_voted),
+    creatorEarningsCents: Number(r.creator_earnings_cents),
+    weeklyResetTs: Number(r.weekly_reset_ts),
+    monthlyResetTs: Number(r.monthly_reset_ts),
+    createdAt: Number(r.created_at),
+  };
+}
+
+function userToDb(u: UserAccount) {
+  return {
+    wallet: u.wallet,
+    balance: u.balance,
+    signup_bonus_claimed: u.signupBonusClaimed,
+    last_weekly_reward_ts: u.lastWeeklyRewardTs,
+    total_votes_cast: u.totalVotesCast,
+    total_polls_voted: u.totalPollsVoted,
+    polls_won: u.pollsWon,
+    polls_created: u.pollsCreated,
+    total_spent_cents: u.totalSpentCents,
+    total_winnings_cents: u.totalWinningsCents,
+    weekly_winnings_cents: u.weeklyWinningsCents,
+    monthly_winnings_cents: u.monthlyWinningsCents,
+    weekly_spent_cents: u.weeklySpentCents,
+    monthly_spent_cents: u.monthlySpentCents,
+    weekly_votes_cast: u.weeklyVotesCast,
+    monthly_votes_cast: u.monthlyVotesCast,
+    weekly_polls_won: u.weeklyPollsWon,
+    monthly_polls_won: u.monthlyPollsWon,
+    weekly_polls_voted: u.weeklyPollsVoted,
+    monthly_polls_voted: u.monthlyPollsVoted,
+    creator_earnings_cents: u.creatorEarningsCents,
+    weekly_reset_ts: u.weeklyResetTs,
+    monthly_reset_ts: u.monthlyResetTs,
+    created_at: u.createdAt,
+  };
+}
+
+function dbToPoll(r: any): DemoPoll {
+  return {
+    id: r.id,
+    pollId: Number(r.poll_id),
+    creator: r.creator,
+    title: r.title,
+    description: r.description,
+    category: r.category,
+    options: r.options,
+    voteCounts: (r.vote_counts || []).map(Number),
+    unitPriceCents: Number(r.unit_price_cents),
+    endTime: Number(r.end_time),
+    totalPoolCents: Number(r.total_pool_cents),
+    creatorInvestmentCents: Number(r.creator_investment_cents),
+    platformFeeCents: Number(r.platform_fee_cents),
+    creatorRewardCents: Number(r.creator_reward_cents),
+    status: Number(r.status),
+    winningOption: Number(r.winning_option),
+    totalVoters: Number(r.total_voters),
+    createdAt: Number(r.created_at),
+  };
+}
+
+function pollToDb(p: DemoPoll) {
+  return {
+    id: p.id,
+    poll_id: p.pollId,
+    creator: p.creator,
+    title: p.title,
+    description: p.description,
+    category: p.category,
+    options: p.options,
+    vote_counts: p.voteCounts,
+    unit_price_cents: p.unitPriceCents,
+    end_time: p.endTime,
+    total_pool_cents: p.totalPoolCents,
+    creator_investment_cents: p.creatorInvestmentCents,
+    platform_fee_cents: p.platformFeeCents,
+    creator_reward_cents: p.creatorRewardCents,
+    status: p.status,
+    winning_option: p.winningOption,
+    total_voters: p.totalVoters,
+    created_at: p.createdAt,
+  };
+}
+
+function dbToVote(r: any): DemoVote {
+  return {
+    pollId: r.poll_id,
+    voter: r.voter,
+    votesPerOption: (r.votes_per_option || []).map(Number),
+    totalStakedCents: Number(r.total_staked_cents),
+    claimed: r.claimed,
+  };
+}
+
+function voteToDb(v: DemoVote) {
+  return {
+    poll_id: v.pollId,
+    voter: v.voter,
+    votes_per_option: v.votesPerOption,
+    total_staked_cents: v.totalStakedCents,
+    claimed: v.claimed,
+  };
+}
+
 // ─── Provider ───────────────────────────────────────────────────────────────
 
 export function Providers({ children }: { children: ReactNode }) {
-  // ── localStorage helpers ──
-  const loadJSON = <T,>(key: string, fallback: T): T => {
-    if (typeof window === "undefined") return fallback;
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch {
-      return fallback;
-    }
-  };
-
   // ── Wallet state ──
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
-  // ── User accounts (keyed by wallet) — hydrated from localStorage ──
-  const [users, setUsers] = useState<UserAccount[]>(() => loadJSON("sp_users", []));
-  const [polls, setPolls] = useState<DemoPoll[]>(() => loadJSON("sp_polls", []));
-  const [votes, setVotes] = useState<DemoVote[]>(() => loadJSON("sp_votes", []));
+  // ── App data ──
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [polls, setPolls] = useState<DemoPoll[]>([]);
+  const [votes, setVotes] = useState<DemoVote[]>([]);
+  const fetchingRef = useRef(false);
 
-  // ── Persist state to localStorage on every change ──
-  useEffect(() => { localStorage.setItem("sp_users", JSON.stringify(users)); }, [users]);
-  useEffect(() => { localStorage.setItem("sp_polls", JSON.stringify(polls)); }, [polls]);
-  useEffect(() => { localStorage.setItem("sp_votes", JSON.stringify(votes)); }, [votes]);
-
-  // Current user account
   const userAccount = walletAddress
     ? users.find((u) => u.wallet === walletAddress) ?? null
     : null;
+
+  // ── Fetch all data from Supabase ──
+  const fetchAll = useCallback(async () => {
+    if (!isSupabaseConfigured || fetchingRef.current) return;
+    fetchingRef.current = true;
+    try {
+      const [uRes, pRes, vRes] = await Promise.all([
+        supabase.from("users").select("*"),
+        supabase.from("polls").select("*").order("created_at", { ascending: false }),
+        supabase.from("votes").select("*"),
+      ]);
+      if (uRes.data) setUsers(uRes.data.map(dbToUser));
+      if (pRes.data) setPolls(pRes.data.map(dbToPoll));
+      if (vRes.data) setVotes(vRes.data.map(dbToVote));
+    } catch (e) {
+      console.error("Fetch failed:", e);
+    }
+    fetchingRef.current = false;
+  }, []);
+
+  // ── On mount: fetch data + subscribe to real-time ──
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    fetchAll();
+
+    const channel = supabase
+      .channel("db-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "users" }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, () => fetchAll())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchAll]);
+
+  // ── DB write helpers (fire-and-forget, errors are logged) ──
+  const dbUpsertUser = (user: UserAccount) => {
+    if (!isSupabaseConfigured) return;
+    supabase.from("users").upsert(userToDb(user), { onConflict: "wallet" }).then(({ error }) => {
+      if (error) console.error("DB user upsert error:", error);
+    });
+  };
+
+  const dbUpsertPoll = (poll: DemoPoll) => {
+    if (!isSupabaseConfigured) return;
+    supabase.from("polls").upsert(pollToDb(poll), { onConflict: "id" }).then(({ error }) => {
+      if (error) console.error("DB poll upsert error:", error);
+    });
+  };
+
+  const dbUpsertVote = (vote: DemoVote) => {
+    if (!isSupabaseConfigured) return;
+    supabase.from("votes").upsert(voteToDb(vote), { onConflict: "poll_id,voter" }).then(({ error }) => {
+      if (error) console.error("DB vote upsert error:", error);
+    });
+  };
 
   // ── Auto-reconnect Phantom on load ──
   useEffect(() => {
@@ -165,9 +329,7 @@ export function Providers({ children }: { children: ReactNode }) {
           setWalletAddress(resp.publicKey.toString());
           setWalletConnected(true);
         }
-      } catch {
-        // user hasn't previously connected
-      }
+      } catch {}
     };
     tryReconnect();
   }, []);
@@ -197,10 +359,27 @@ export function Providers({ children }: { children: ReactNode }) {
     setWalletAddress(null);
   }, []);
 
+  // ── Helper: update user in local state + DB ──
+  const updateUser = useCallback(
+    (wallet: string, updater: (u: UserAccount) => UserAccount) => {
+      setUsers((prev) => {
+        const updated = prev.map((u) => {
+          if (u.wallet !== wallet) return u;
+          const newU = updater(u);
+          dbUpsertUser(newU); // fire-and-forget DB write
+          return newU;
+        });
+        return updated;
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   // ── Signup — creates UserAccount with $5,000 bonus ──
   const signup = useCallback(() => {
     if (!walletAddress) return;
-    if (users.find((u) => u.wallet === walletAddress)) return; // already signed up
+    if (users.find((u) => u.wallet === walletAddress)) return;
 
     const now = Date.now();
     const newUser: UserAccount = {
@@ -230,6 +409,8 @@ export function Providers({ children }: { children: ReactNode }) {
       createdAt: now,
     };
     setUsers((prev) => [...prev, newUser]);
+    dbUpsertUser(newUser);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress, users]);
 
   // ── Auto-signup when connected ──
@@ -247,23 +428,13 @@ export function Providers({ children }: { children: ReactNode }) {
     if (!user) return false;
     if (now - user.lastWeeklyRewardTs < WEEK_MS) return false;
 
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.wallet === walletAddress
-          ? { ...u, balance: u.balance + WEEKLY_REWARD, lastWeeklyRewardTs: now }
-          : u
-      )
-    );
+    updateUser(walletAddress, (u) => ({
+      ...u,
+      balance: u.balance + WEEKLY_REWARD,
+      lastWeeklyRewardTs: now,
+    }));
     return true;
-  }, [walletAddress, users]);
-
-  // ── Helper: update user field ──
-  const updateUser = useCallback(
-    (wallet: string, updater: (u: UserAccount) => UserAccount) => {
-      setUsers((prev) => prev.map((u) => (u.wallet === wallet ? updater(u) : u)));
-    },
-    []
-  );
+  }, [walletAddress, users, updateUser]);
 
   // ── Reset weekly/monthly leaderboard periods ──
   useEffect(() => {
@@ -271,6 +442,7 @@ export function Providers({ children }: { children: ReactNode }) {
     setUsers((prev) =>
       prev.map((u) => {
         let updated = { ...u };
+        let changed = false;
         if (now - u.weeklyResetTs >= WEEK_MS) {
           updated.weeklyWinningsCents = 0;
           updated.weeklySpentCents = 0;
@@ -278,6 +450,7 @@ export function Providers({ children }: { children: ReactNode }) {
           updated.weeklyPollsWon = 0;
           updated.weeklyPollsVoted = 0;
           updated.weeklyResetTs = now;
+          changed = true;
         }
         if (now - u.monthlyResetTs >= 30 * 24 * 60 * 60 * 1000) {
           updated.monthlyWinningsCents = 0;
@@ -286,10 +459,13 @@ export function Providers({ children }: { children: ReactNode }) {
           updated.monthlyPollsWon = 0;
           updated.monthlyPollsVoted = 0;
           updated.monthlyResetTs = now;
+          changed = true;
         }
+        if (changed) dbUpsertUser(updated);
         return updated;
       })
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Create poll ──
@@ -318,6 +494,8 @@ export function Providers({ children }: { children: ReactNode }) {
       };
 
       setPolls((prev) => [...prev, newPoll]);
+      dbUpsertPoll(newPoll);
+
       updateUser(walletAddress, (u) => ({
         ...u,
         balance: u.balance - poll.creatorInvestmentCents,
@@ -326,6 +504,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
       return newPoll;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [walletAddress, users, updateUser]
   );
 
@@ -341,50 +520,43 @@ export function Providers({ children }: { children: ReactNode }) {
       const cost = numCoins * poll.unitPriceCents;
       if (cost > user.balance) return false;
 
-      setPolls((prev) =>
-        prev.map((p) => {
-          if (p.id !== pollId) return p;
-          const newVoteCounts = [...p.voteCounts];
-          newVoteCounts[optionIndex] += numCoins;
-          return {
-            ...p,
-            voteCounts: newVoteCounts,
-            totalPoolCents: p.totalPoolCents + cost,
-            totalVoters: p.totalVoters + 1,
-          };
-        })
-      );
+      // Update poll
+      const updatedPoll = {
+        ...poll,
+        voteCounts: poll.voteCounts.map((c, i) => (i === optionIndex ? c + numCoins : c)),
+        totalPoolCents: poll.totalPoolCents + cost,
+        totalVoters: poll.totalVoters + 1,
+      };
+      setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
+      dbUpsertPoll(updatedPoll);
 
-      setVotes((prev) => {
-        const existing = prev.find(
-          (v) => v.pollId === pollId && v.voter === walletAddress
+      // Update or create vote
+      const existing = votes.find((v) => v.pollId === pollId && v.voter === walletAddress);
+      if (existing) {
+        const updatedVote: DemoVote = {
+          ...existing,
+          votesPerOption: existing.votesPerOption.map((c, i) => (i === optionIndex ? c + numCoins : c)),
+          totalStakedCents: existing.totalStakedCents + cost,
+        };
+        setVotes((prev) =>
+          prev.map((v) => (v.pollId === pollId && v.voter === walletAddress ? updatedVote : v))
         );
-        if (existing) {
-          return prev.map((v) => {
-            if (v.pollId !== pollId || v.voter !== walletAddress) return v;
-            const newVotes = [...v.votesPerOption];
-            newVotes[optionIndex] += numCoins;
-            return {
-              ...v,
-              votesPerOption: newVotes,
-              totalStakedCents: v.totalStakedCents + cost,
-            };
-          });
-        }
+        dbUpsertVote(updatedVote);
+      } else {
         const votesPerOption = new Array(poll.options.length).fill(0);
         votesPerOption[optionIndex] = numCoins;
-        return [
-          ...prev,
-          {
-            pollId,
-            voter: walletAddress,
-            votesPerOption,
-            totalStakedCents: cost,
-            claimed: false,
-          },
-        ];
-      });
+        const newVote: DemoVote = {
+          pollId,
+          voter: walletAddress,
+          votesPerOption,
+          totalStakedCents: cost,
+          claimed: false,
+        };
+        setVotes((prev) => [...prev, newVote]);
+        dbUpsertVote(newVote);
+      }
 
+      // Update user
       updateUser(walletAddress, (u) => ({
         ...u,
         balance: u.balance - cost,
@@ -401,7 +573,8 @@ export function Providers({ children }: { children: ReactNode }) {
 
       return true;
     },
-    [walletAddress, users, polls, updateUser]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [walletAddress, users, polls, votes, updateUser]
   );
 
   // ── Settle poll ──
@@ -419,13 +592,13 @@ export function Providers({ children }: { children: ReactNode }) {
         }
       });
 
-      setPolls((prev) =>
-        prev.map((p) =>
-          p.id === pollId
-            ? { ...p, status: 1, winningOption: maxVotes > 0 ? winningIdx : 255 }
-            : p
-        )
-      );
+      const updatedPoll = {
+        ...poll,
+        status: 1,
+        winningOption: maxVotes > 0 ? winningIdx : 255,
+      };
+      setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
+      dbUpsertPoll(updatedPoll);
 
       // Credit creator reward
       if (poll.creator) {
@@ -438,6 +611,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
       return true;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [polls, updateUser]
   );
 
@@ -448,9 +622,7 @@ export function Providers({ children }: { children: ReactNode }) {
       const poll = polls.find((p) => p.id === pollId);
       if (!poll || poll.status !== 1 || poll.winningOption === 255) return 0;
 
-      const voteRecord = votes.find(
-        (v) => v.pollId === pollId && v.voter === walletAddress
-      );
+      const voteRecord = votes.find((v) => v.pollId === pollId && v.voter === walletAddress);
       if (!voteRecord || voteRecord.claimed) return 0;
 
       const userWinningVotes = voteRecord.votesPerOption[poll.winningOption] || 0;
@@ -460,13 +632,11 @@ export function Providers({ children }: { children: ReactNode }) {
       const distributable = poll.totalPoolCents;
       const reward = Math.floor((userWinningVotes / totalWinningVotes) * distributable);
 
+      const updatedVote = { ...voteRecord, claimed: true };
       setVotes((prev) =>
-        prev.map((v) =>
-          v.pollId === pollId && v.voter === walletAddress
-            ? { ...v, claimed: true }
-            : v
-        )
+        prev.map((v) => (v.pollId === pollId && v.voter === walletAddress ? updatedVote : v))
       );
+      dbUpsertVote(updatedVote);
 
       updateUser(walletAddress, (u) => ({
         ...u,
@@ -481,6 +651,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
       return reward;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [walletAddress, polls, votes, updateUser]
   );
 
