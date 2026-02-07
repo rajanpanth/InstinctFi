@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 13, 14, 36;
+  --background-end-rgb: 26, 27, 46;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--background-start-rgb)),
+    rgb(var(--background-end-rgb))
+  );
+  min-height: 100vh;
+}
+
+/* Wallet adapter overrides */
+.wallet-adapter-button {
+  background-color: #4c6ef5 !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+
+.wallet-adapter-button:hover {
+  background-color: #4263eb !important;
+}
+
+.wallet-adapter-modal-wrapper {
+  background-color: #1a1b2e !important;
+}

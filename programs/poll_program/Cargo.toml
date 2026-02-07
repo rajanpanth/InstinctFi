@@ -1,0 +1,19 @@
+[package]
+name = "poll_program"
+version = "0.1.0"
+description = "Poll creation and management"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "poll_program"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cbs = []
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"

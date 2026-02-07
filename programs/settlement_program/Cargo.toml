@@ -1,0 +1,21 @@
+[package]
+name = "settlement_program"
+version = "0.1.0"
+description = "Poll settlement and reward distribution"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "settlement_program"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cbs = []
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"
+poll_program = { path = "../poll_program", features = ["no-entrypoint"] }
+vote_program = { path = "../vote_program", features = ["no-entrypoint"] }
