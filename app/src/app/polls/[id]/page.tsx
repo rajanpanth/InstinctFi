@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useApp, formatDollars } from "@/components/Providers";
+import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
 import PollImage from "@/components/PollImage";
 import WalletConnectModal from "@/components/WalletConnectModal";
 import EditPollModal from "@/components/EditPollModal";
@@ -30,11 +30,20 @@ export default function PollDetailPage() {
 
   const poll = polls.find((p) => p.id === pollId);
 
+  const emptyPoll: DemoPoll = {
+    id: "", pollId: 0, title: "", description: "", category: "",
+    creator: "", options: [], optionImages: [], voteCounts: [],
+    totalPoolCents: 0, unitPriceCents: 0, totalVoters: 0,
+    endTime: 0, status: 0, winningOption: 255, imageUrl: "",
+    createdAt: 0, creatorInvestmentCents: 0, platformFeeCents: 0,
+    creatorRewardCents: 0,
+  };
+
   const {
     selectedOption, numCoins, setNumCoins,
     cost, totalVotes, isEnded, isSettled, isCreator, canVote,
     vote, selectOption, submitVote,
-  } = useVote(poll ?? { id: "", pollId: 0, title: "", description: "", category: "", creator: "", options: [] as string[], optionImages: [] as string[], voteCounts: [] as number[], totalPoolCents: 0, unitPriceCents: 0, totalVoters: 0, endTime: 0, status: 0, winningOption: 255, imageUrl: "", createdAt: 0, creatorInvestmentCents: 0, platformFeeCents: 0, creatorRewardCents: 0 });
+  } = useVote(poll ?? emptyPoll);
 
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -152,7 +161,7 @@ export default function PollDetailPage() {
               {poll.category}
             </span>
             <div className="flex items-center gap-2">
-              <ShareButton pollId={poll.id} pollTitle={poll.title} expanded />
+              <ShareButton pollId={poll.id} pollTitle={poll.title} />
               <span
                 className={`px-3 py-1 rounded-lg text-xs font-semibold ${
                   isSettled

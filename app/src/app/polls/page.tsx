@@ -42,7 +42,7 @@ export default function PollsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Reset to page 1 when filters change
   const handleCategoryChange = (cat: string) => { setSelectedCategory(cat); setPage(1); };
