@@ -267,6 +267,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const [votes, setVotes] = useState<DemoVote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const fetchingRef = useRef(false);
+  const initialFetchDone = useRef(false);
 
   const userAccount = walletAddress
     ? users.find((u) => u.wallet === walletAddress) ?? null
@@ -289,6 +290,7 @@ export function Providers({ children }: { children: ReactNode }) {
       console.error("Fetch failed:", e);
     }
     setIsLoading(false);
+    initialFetchDone.current = true;
     fetchingRef.current = false;
   }, []);
 
@@ -392,6 +394,8 @@ export function Providers({ children }: { children: ReactNode }) {
   // ── Signup — creates UserAccount with $5,000 bonus ──
   const signup = useCallback(() => {
     if (!walletAddress) return;
+    // IMPORTANT: Don't create a new user until we've checked the DB
+    if (!initialFetchDone.current) return;
     if (users.find((u) => u.wallet === walletAddress)) return;
 
     const now = Date.now();
@@ -426,14 +430,15 @@ export function Providers({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress, users]);
 
-  // ── Auto-signup when connected ──
+  // ── Auto-signup when connected (only after initial DB fetch completes) ──
   useEffect(() => {
+    if (!initialFetchDone.current) return;
     if (walletConnected && walletAddress && !users.find((u) => u.wallet === walletAddress)) {
       signup();
     }
-  }, [walletConnected, walletAddress, signup, users]);
+  }, [walletConnected, walletAddress, signup, users, isLoading]);
 
-  // ── Claim daily reward ($100 every 24h) ──
+  // ── Claim daily reward ($100 every 24h) — persists to DB ──
   const claimDailyReward = useCallback((): boolean => {
     if (!walletAddress) return false;
     const now = Date.now();
@@ -441,16 +446,33 @@ export function Providers({ children }: { children: ReactNode }) {
     if (!user) return false;
     if (now - user.lastWeeklyRewardTs < DAY_MS) return false;
 
-    updateUser(walletAddress, (u) => ({
-      ...u,
-      balance: u.balance + DAILY_REWARD,
+    const updatedUser = {
+      ...user,
+      balance: user.balance + DAILY_REWARD,
       lastWeeklyRewardTs: now,
-    }));
-    return true;
-  }, [walletAddress, users, updateUser]);
+    };
 
-  // ── Reset weekly/monthly leaderboard periods ──
+    // Update local state immediately
+    setUsers((prev) => prev.map((u) => u.wallet === walletAddress ? updatedUser : u));
+
+    // Persist to DB (awaited, with error handling)
+    if (isSupabaseConfigured) {
+      supabase.from("users").upsert(userToDb(updatedUser), { onConflict: "wallet" }).then(({ error }) => {
+        if (error) {
+          console.error("Failed to persist daily claim:", error);
+          toast.error("Claim failed to save — try again");
+          // Rollback local state
+          setUsers((prev) => prev.map((u) => u.wallet === walletAddress ? user : u));
+        }
+      });
+    }
+
+    return true;
+  }, [walletAddress, users]);
+
+  // ── Reset weekly/monthly leaderboard periods (only after DB loaded) ──
   useEffect(() => {
+    if (!initialFetchDone.current) return;
     const now = Date.now();
     setUsers((prev) =>
       prev.map((u) => {
@@ -479,7 +501,7 @@ export function Providers({ children }: { children: ReactNode }) {
       })
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoading]);
 
   // ── Create poll ──
   const createPoll = useCallback(
