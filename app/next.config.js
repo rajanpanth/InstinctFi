@@ -1,9 +1,5 @@
-const path = require("path");
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
-  outputFileTracingRoot: path.join(__dirname, "../"),
   // Allow images from Supabase storage
   images: {
     remotePatterns: [
