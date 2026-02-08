@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { DemoPoll, useApp } from "./Providers";
+import { CATEGORIES } from "@/lib/constants";
 import ImageUpload from "./ImageUpload";
 import { uploadPollImage, sanitizeImageUrl } from "@/lib/uploadImage";
 import toast from "react-hot-toast";
@@ -147,23 +148,6 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
     }
   };
 
-  const categories = [
-    "Crypto",
-    "Sports",
-    "Politics",
-    "Tech",
-    "Entertainment",
-    "Finance",
-    "Science",
-    "Gaming",
-    "Economics",
-    "Mentions",
-    "Companies",
-    "Financials",
-    "Tech & Science",
-    "Other",
-  ];
-
   return (
     <div
       ref={overlayRef}
@@ -231,7 +215,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
               onChange={(e) => setCategory(e.target.value)}
               className="w-full px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white"
             >
-              {categories.map((c) => (
+              {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>

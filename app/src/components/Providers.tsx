@@ -466,23 +466,29 @@ export function Providers({ children }: { children: ReactNode }) {
         return false;
       }
       console.error('Wallet verification error:', e);
-      return true; // Allow connection on unexpected errors to avoid blocking
+      return false; // Deny on unexpected errors — user can retry
     }
   };
 
-  // ── Auto-reconnect Phantom on load (trusted = no re-verification needed) ──
+  // ── Auto-reconnect Phantom on load (with signature verification) ──
   useEffect(() => {
     const tryReconnect = async () => {
       try {
         const solana = (window as any).solana;
         if (solana?.isPhantom) {
           const resp = await solana.connect({ onlyIfTrusted: true });
+          const verified = await verifyWalletOwnership(resp.publicKey);
+          if (!verified) {
+            await solana.disconnect();
+            return;
+          }
           setWalletAddress(resp.publicKey.toString());
           setWalletConnected(true);
         }
       } catch {}
     };
     tryReconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Connect wallet (with signature verification) ──
@@ -723,6 +729,7 @@ export function Providers({ children }: { children: ReactNode }) {
       const creatorReward = Math.max(Math.floor(poll.creatorInvestmentCents / 100), 1);
       const poolSeed = poll.creatorInvestmentCents - platformFee - creatorReward;
 
+      const nowSec = Math.floor(Date.now() / 1000);
       const newPoll: DemoPoll = {
         ...poll,
         id,
@@ -733,7 +740,7 @@ export function Providers({ children }: { children: ReactNode }) {
         status: 0,
         winningOption: 255,
         totalVoters: 0,
-        createdAt: Math.floor(Date.now() / 1000),
+        createdAt: nowSec,
       };
 
       setPolls((prev) => [...prev, newPoll]);
@@ -834,7 +841,7 @@ export function Providers({ children }: { children: ReactNode }) {
     [walletAddress, polls, updateUser]
   );
 
-  // ── Cast vote ──
+  // ── Cast vote (atomic RPC) ──
   const castVote = useCallback(
     async (pollId: string, optionIndex: number, numCoins: number): Promise<boolean> => {
       if (!walletAddress) return false;
@@ -846,15 +853,41 @@ export function Providers({ children }: { children: ReactNode }) {
       const cost = numCoins * poll.unitPriceCents;
       if (cost > user.balance) return false;
 
-      // Atomically deduct balance in DB first (prevents double-spend)
-      const spend = await dbSpendBalance(walletAddress, cost);
-      if (!spend.success) return false;
-      updateLocalBalance(walletAddress, spend.newBalance);
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.rpc('cast_vote_atomic', {
+            p_wallet: walletAddress,
+            p_poll_id: pollId,
+            p_option_index: optionIndex,
+            p_num_coins: numCoins,
+          });
+          if (error) {
+            console.error('cast_vote_atomic RPC error:', error);
+            toast.error('Vote failed — please try again');
+            return false;
+          }
+          if (!data?.success) {
+            const errMsg = data?.error || 'unknown';
+            if (errMsg === 'insufficient_balance') toast.error('Insufficient balance');
+            else if (errMsg === 'poll_ended') toast.error('Poll has ended');
+            else if (errMsg === 'creator_cannot_vote') toast.error('You cannot vote on your own poll');
+            else console.error('cast_vote_atomic failed:', errMsg);
+            return false;
+          }
+          // Update local balance from server response
+          updateLocalBalance(walletAddress, Number(data.new_balance));
+          // Remaining state will sync via realtime
+          return true;
+        } catch (e) {
+          console.error('castVote exception:', e);
+          toast.error('Vote failed');
+          return false;
+        }
+      }
 
-      // Check for existing vote record (for correct totalVoters count)
+      // ── Fallback: no DB (local-only mode) ──
       const existing = votes.find((v) => v.pollId === pollId && v.voter === walletAddress);
 
-      // Update poll
       const updatedPoll = {
         ...poll,
         voteCounts: poll.voteCounts.map((c, i) => (i === optionIndex ? c + numCoins : c)),
@@ -862,9 +895,7 @@ export function Providers({ children }: { children: ReactNode }) {
         totalVoters: poll.totalVoters + (existing ? 0 : 1),
       };
       setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
-      dbUpsertPoll(updatedPoll);
 
-      // Update or create vote
       if (existing) {
         const updatedVote: DemoVote = {
           ...existing,
@@ -874,26 +905,17 @@ export function Providers({ children }: { children: ReactNode }) {
         setVotes((prev) =>
           prev.map((v) => (v.pollId === pollId && v.voter === walletAddress ? updatedVote : v))
         );
-        dbUpsertVote(updatedVote);
       } else {
         const votesPerOption = new Array(poll.options.length).fill(0);
         votesPerOption[optionIndex] = numCoins;
-        const newVote: DemoVote = {
-          pollId,
-          voter: walletAddress,
-          votesPerOption,
-          totalStakedCents: cost,
-          claimed: false,
-        };
+        const newVote: DemoVote = { pollId, voter: walletAddress, votesPerOption, totalStakedCents: cost, claimed: false };
         setVotes((prev) => [...prev, newVote]);
-        dbUpsertVote(newVote);
       }
 
-      // Update user stats (balance already handled by RPC)
-      // Only increment totalPollsVoted when this is the first vote on this poll
       const isFirstVoteOnPoll = !existing;
-      updateUser(walletAddress, (u) => ({
+      setUsers(prev => prev.map(u => u.wallet !== walletAddress ? u : {
         ...u,
+        balance: u.balance - cost,
         totalVotesCast: u.totalVotesCast + numCoins,
         totalPollsVoted: u.totalPollsVoted + (isFirstVoteOnPoll ? 1 : 0),
         totalSpentCents: u.totalSpentCents + cost,
@@ -908,15 +930,41 @@ export function Providers({ children }: { children: ReactNode }) {
       return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletAddress, users, polls, votes, updateUser]
+    [walletAddress, users, polls, votes]
   );
 
-  // ── Settle poll ──
+  // ── Settle poll (atomic RPC — credits creator reward + platform fee) ──
   const settlePoll = useCallback(
     async (pollId: string): Promise<boolean> => {
       const poll = polls.find((p) => p.id === pollId);
       if (!poll || poll.status !== 0) return false;
 
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.rpc('settle_poll_atomic', { p_poll_id: pollId });
+          if (error) {
+            console.error('settle_poll_atomic RPC error:', error);
+            toast.error('Settlement failed — please try again');
+            return false;
+          }
+          if (!data?.success) {
+            console.error('settle_poll_atomic failed:', data?.error);
+            return false;
+          }
+          // State syncs via realtime; optimistically update local
+          setPolls(prev => prev.map(p => p.id === pollId
+            ? { ...p, status: 1, winningOption: Number(data.winning_option) }
+            : p
+          ));
+          return true;
+        } catch (e) {
+          console.error('settlePoll exception:', e);
+          toast.error('Settlement failed');
+          return false;
+        }
+      }
+
+      // Local-only fallback
       let maxVotes = 0;
       let winningIdx = 0;
       poll.voteCounts.forEach((count, i) => {
@@ -932,25 +980,26 @@ export function Providers({ children }: { children: ReactNode }) {
         winningOption: maxVotes > 0 ? winningIdx : 255,
       };
       setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
-      dbUpsertPoll(updatedPoll);
 
-      // Atomically credit creator reward
-      if (poll.creator && poll.creatorRewardCents > 0) {
-        const credit = await dbCreditBalance(poll.creator, poll.creatorRewardCents);
-        if (credit.success) updateLocalBalance(poll.creator, credit.newBalance);
-        updateUser(poll.creator, (u) => ({
-          ...u,
-          creatorEarningsCents: u.creatorEarningsCents + poll.creatorRewardCents,
-        }));
+      // Credit creator reward + platform fee locally
+      if (poll.creator) {
+        const totalCredit = poll.creatorRewardCents + poll.platformFeeCents;
+        if (totalCredit > 0) {
+          setUsers(prev => prev.map(u => u.wallet !== poll.creator ? u : {
+            ...u,
+            balance: u.balance + totalCredit,
+            creatorEarningsCents: u.creatorEarningsCents + poll.creatorRewardCents,
+          }));
+        }
       }
 
       return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [polls, updateUser]
+    [polls]
   );
 
-  // ── Claim reward ──
+  // ── Claim reward (atomic RPC) ──
   const claimReward = useCallback(
     async (pollId: string): Promise<number> => {
       if (!walletAddress) return 0;
@@ -963,23 +1012,45 @@ export function Providers({ children }: { children: ReactNode }) {
       const userWinningVotes = voteRecord.votesPerOption[poll.winningOption] || 0;
       if (userWinningVotes === 0) return 0;
 
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.rpc('claim_reward_atomic', {
+            p_wallet: walletAddress,
+            p_poll_id: pollId,
+          });
+          if (error) {
+            console.error('claim_reward_atomic RPC error:', error);
+            toast.error('Claim failed — please try again');
+            return 0;
+          }
+          if (!data?.success) {
+            const errMsg = data?.error || 'unknown';
+            if (errMsg === 'already_claimed') toast.error('Already claimed');
+            else if (errMsg === 'did_not_win') toast.error('You did not win this poll');
+            else console.error('claim_reward_atomic failed:', errMsg);
+            return 0;
+          }
+          const reward = Number(data.reward);
+          // State syncs via realtime; mark claimed locally for instant UI
+          setVotes(prev => prev.map(v =>
+            v.pollId === pollId && v.voter === walletAddress ? { ...v, claimed: true } : v
+          ));
+          return reward;
+        } catch (e) {
+          console.error('claimReward exception:', e);
+          toast.error('Claim failed');
+          return 0;
+        }
+      }
+
+      // Local-only fallback
       const totalWinningVotes = poll.voteCounts[poll.winningOption];
       const distributable = poll.totalPoolCents;
       const reward = Math.floor((userWinningVotes / totalWinningVotes) * distributable);
 
-      // Atomically credit reward to balance
-      const credit = await dbCreditBalance(walletAddress, reward);
-      if (!credit.success) return 0;
-      updateLocalBalance(walletAddress, credit.newBalance);
-
-      const updatedVote = { ...voteRecord, claimed: true };
-      setVotes((prev) =>
-        prev.map((v) => (v.pollId === pollId && v.voter === walletAddress ? updatedVote : v))
-      );
-      dbUpsertVote(updatedVote);
-
-      updateUser(walletAddress, (u) => ({
+      setUsers(prev => prev.map(u => u.wallet !== walletAddress ? u : {
         ...u,
+        balance: u.balance + reward,
         totalWinningsCents: u.totalWinningsCents + reward,
         weeklyWinningsCents: u.weeklyWinningsCents + reward,
         monthlyWinningsCents: u.monthlyWinningsCents + reward,
@@ -988,10 +1059,14 @@ export function Providers({ children }: { children: ReactNode }) {
         monthlyPollsWon: u.monthlyPollsWon + 1,
       }));
 
+      setVotes(prev => prev.map(v =>
+        v.pollId === pollId && v.voter === walletAddress ? { ...v, claimed: true } : v
+      ));
+
       return reward;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletAddress, polls, votes, updateUser]
+    [walletAddress, polls, votes]
   );
 
   return (

@@ -1,24 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
 import PollCard from "@/components/PollCard";
 import SkeletonCard from "@/components/SkeletonCard";
+import { CATEGORY_META } from "@/lib/constants";
 
-const CATEGORY_SECTIONS = [
-  { label: "Politics", icon: "🏛️", color: "text-blue-400" },
-  { label: "Crypto", icon: "₿", color: "text-amber-400" },
-  { label: "Sports", icon: "⚽", color: "text-green-400" },
-  { label: "Science", icon: "🔬", color: "text-purple-400" },
-  { label: "Tech", icon: "💻", color: "text-cyan-400" },
-  { label: "Entertainment", icon: "🎬", color: "text-pink-400" },
-  { label: "Economics", icon: "📈", color: "text-emerald-400" },
-  { label: "Mentions", icon: "💬", color: "text-sky-400" },
-  { label: "Companies", icon: "🏢", color: "text-indigo-400" },
-  { label: "Financials", icon: "💰", color: "text-yellow-400" },
-  { label: "Tech & Science", icon: "🧬", color: "text-teal-400" },
-];
+const CATEGORY_SECTIONS = CATEGORY_META.filter(c => c.label !== "Trending");
 
 function getTrendingPolls(polls: DemoPoll[], limit = 6): DemoPoll[] {
   return [...polls]
@@ -39,9 +29,32 @@ function getPollsByCategory(polls: DemoPoll[], category: string, limit = 4): Dem
 }
 
 export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-8">
+        {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const { walletConnected, connectWallet, polls, userAccount, isLoading } = useApp();
+  const searchParams = useSearchParams();
+  const catFilter = searchParams.get("cat");
 
   const trending = useMemo(() => getTrendingPolls(polls), [polls]);
+
+  // If a category filter is active, show only that category
+  const filteredPolls = useMemo(() => {
+    if (!catFilter || catFilter === "Trending") return null;
+    return polls
+      .filter((p) => p.category === catFilter)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [polls, catFilter]);
+
   const categorySections = useMemo(
     () =>
       CATEGORY_SECTIONS.map((cat) => ({
@@ -106,6 +119,33 @@ export default function Home() {
       )}
 
       {/* ── Trending Polls ── */}
+      {/* ── Category Filter Active ── */}
+      {filteredPolls ? (
+        <section>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <span>{CATEGORY_META.find(c => c.label === catFilter)?.icon}</span>
+              <span className={CATEGORY_META.find(c => c.label === catFilter)?.color}>{catFilter}</span>
+            </h2>
+            <Link href="/" className="text-sm text-primary-400 hover:text-primary-300 font-medium transition-colors">
+              &larr; All Categories
+            </Link>
+          </div>
+          {filteredPolls.length === 0 ? (
+            <div className="text-center py-16 text-gray-500">
+              <p className="text-lg mb-2">No polls in {catFilter}</p>
+              <p className="text-sm">Be the first to create one!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredPolls.map((poll) => (
+                <PollCard key={poll.id} poll={poll} />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <>
       {isLoading ? (
         <section>
           <div className="flex items-center justify-between mb-5">
@@ -156,6 +196,8 @@ export default function Home() {
           </div>
         </section>
       ))}
+        </>
+      )}
 
       {/* ── Empty state ── */}
       {polls.length === 0 && (

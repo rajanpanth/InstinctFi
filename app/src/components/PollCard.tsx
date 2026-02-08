@@ -2,6 +2,7 @@
 
 import { useState, useEffect, memo } from "react";
 import { DemoPoll, DemoVote, useApp, formatDollars, formatDollarsShort } from "./Providers";
+import Link from "next/link";
 import { sanitizeImageUrl } from "@/lib/uploadImage";
 import EditPollModal from "./EditPollModal";
 import DeletePollModal from "./DeletePollModal";
@@ -72,6 +73,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
   const [voteSuccess, setVoteSuccess] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showSettleConfirm, setShowSettleConfirm] = useState(false);
 
   const now = Math.floor(Date.now() / 1000);
   const isEnded = now >= poll.endTime;
@@ -121,8 +123,6 @@ const PollCard = memo(function PollCard({ poll }: Props) {
     if (userAccount && cost > userAccount.balance) return toast.error("Insufficient balance");
 
     setVoteLoading(true);
-    // Simulate small delay for UX
-    await new Promise((r) => setTimeout(r, 300));
     const ok = await castVote(poll.id, votingOption, numCoins);
     setVoteLoading(false);
 
@@ -136,6 +136,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
   };
 
   const handleSettle = async () => {
+    setShowSettleConfirm(false);
     if (await settlePoll(poll.id)) toast.success("Poll settled!");
     else toast.error("Settlement failed");
   };
@@ -179,7 +180,9 @@ const PollCard = memo(function PollCard({ poll }: Props) {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold leading-snug line-clamp-2">{poll.title}</h3>
+              <Link href={`/polls/${poll.id}`} className="hover:underline">
+                <h3 className="text-sm font-semibold leading-snug line-clamp-2">{poll.title}</h3>
+              </Link>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[10px] px-1.5 py-0.5 bg-primary-600/20 text-primary-400 rounded font-medium">{poll.category}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
@@ -347,9 +350,23 @@ const PollCard = memo(function PollCard({ poll }: Props) {
               <div className="bg-yellow-600/10 border border-yellow-600/25 rounded-xl p-3 mt-3">
                 <p className="text-sm font-medium text-yellow-400 mb-1">Ready to Settle</p>
                 <p className="text-xs text-gray-400 mb-2">Anyone can trigger settlement. Most votes wins.</p>
-                <button onClick={handleSettle} className="w-full py-2.5 bg-accent-500 hover:bg-accent-600 text-dark-900 rounded-xl text-sm font-semibold transition-colors">
-                  Settle Poll
-                </button>
+                {showSettleConfirm ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-yellow-300">Are you sure? This action is irreversible.</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowSettleConfirm(false)} className="flex-1 py-2 text-sm border border-gray-700 text-gray-400 rounded-xl hover:bg-dark-700 transition-colors">
+                        Cancel
+                      </button>
+                      <button onClick={handleSettle} className="flex-1 py-2 bg-accent-500 hover:bg-accent-600 text-dark-900 rounded-xl text-sm font-semibold transition-colors">
+                        Confirm Settle
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowSettleConfirm(true)} className="w-full py-2.5 bg-accent-500 hover:bg-accent-600 text-dark-900 rounded-xl text-sm font-semibold transition-colors">
+                    Settle Poll
+                  </button>
+                )}
               </div>
             )}
 

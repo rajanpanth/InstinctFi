@@ -129,22 +129,37 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
         <div className="px-5 pb-5 space-y-4">
           {/* Buy / Sell tabs */}
           <div className="flex bg-dark-900 rounded-xl p-1 gap-1">
-            {(["buy", "sell"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setSelectedTab(tab)}
-                className={`flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all ${
-                  selectedTab === tab
-                    ? "bg-dark-700 text-white shadow"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+            <button
+              onClick={() => setSelectedTab("buy")}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all ${
+                selectedTab === "buy"
+                  ? "bg-dark-700 text-white shadow"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Buy
+            </button>
+            <button
+              onClick={() => setSelectedTab("sell")}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all ${
+                selectedTab === "sell"
+                  ? "bg-dark-700 text-white shadow"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Sell
+            </button>
           </div>
 
+          {selectedTab === "sell" && (
+            <div className="bg-dark-900 border border-gray-700 rounded-xl p-4 text-center">
+              <p className="text-gray-400 text-sm">Selling is not available yet.</p>
+              <p className="text-gray-500 text-xs mt-1">Coming soon!</p>
+            </div>
+          )}
+
           {/* Yes / No buttons */}
+          {selectedTab === "buy" && (
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setSelectedSide("yes")}
@@ -167,8 +182,10 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
               No {noPrice}&cent;
             </button>
           </div>
+          )}
 
           {/* Amount input */}
+          {selectedTab === "buy" && (
           <div className="bg-dark-900 border border-gray-700 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -195,11 +212,13 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
               <span className="text-sm font-medium text-gray-300">{formatDollars(cost)}</span>
             </div>
           </div>
+          )}
 
           {/* Buy button */}
+          {selectedTab === "buy" && (
           <button
             onClick={handleBuy}
-            disabled={!walletConnected && false}
+            disabled={!walletConnected}
             className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
               walletConnected
                 ? "bg-blue-600 hover:bg-blue-700 text-white"
@@ -207,11 +226,10 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
             }`}
           >
             {walletConnected
-              ? selectedTab === "buy"
-                ? `Buy ${numCoins > 0 ? numCoins + " Coins" : ""}`
-                : "Sell"
+              ? `Buy ${numCoins > 0 ? numCoins + " Coins" : ""}`
               : "Connect Wallet"}
           </button>
+          )}
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@ import { useState } from "react";
 type Period = "weekly" | "monthly" | "allTime";
 
 export default function LeaderboardPage() {
-  const { allUsers, walletConnected, connectWallet, walletAddress } = useApp();
+  const { allUsers, walletAddress } = useApp();
   const [period, setPeriod] = useState<Period>("allTime");
   const [sortBy, setSortBy] = useState<"winnings" | "pollsWon" | "votes" | "creatorEarnings">("winnings");
 
@@ -62,17 +62,6 @@ export default function LeaderboardPage() {
   };
 
   const netProfit = (u: UserAccount) => getWinnings(u) - getSpent(u);
-
-  if (!walletConnected) {
-    return (
-      <div className="text-center py-20">
-        <p className="text-gray-400 text-lg mb-4">Connect your Phantom wallet to view the leaderboard</p>
-        <button onClick={connectWallet} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-semibold transition-colors">
-          Connect Phantom
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div>

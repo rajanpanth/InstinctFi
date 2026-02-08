@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp, formatDollars } from "./Providers";
+import { CATEGORY_META } from "@/lib/constants";
 import toast from "react-hot-toast";
 
 /* ── Compact claim timer for navbar ── */
@@ -89,20 +90,11 @@ function NavClaimTimer({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim:
   );
 }
 
-const CATEGORIES = [
-  { label: "Trending", icon: "🔥", href: "/?cat=Trending" },
-  { label: "Politics", icon: "🏛️", href: "/?cat=Politics" },
-  { label: "Sports", icon: "⚽", href: "/?cat=Sports" },
-  { label: "Culture", icon: "🎭", href: "/?cat=Culture" },
-  { label: "Crypto", icon: "₿", href: "/?cat=Crypto" },
-  { label: "Climate", icon: "🌍", href: "/?cat=Climate" },
-  { label: "Economics", icon: "📈", href: "/?cat=Economics" },
-  { label: "Science", icon: "🔬", href: "/?cat=Science" },
-  { label: "Mentions", icon: "💬", href: "/?cat=Mentions" },
-  { label: "Companies", icon: "🏢", href: "/?cat=Companies" },
-  { label: "Financials", icon: "💰", href: "/?cat=Financials" },
-  { label: "Tech & Science", icon: "🧬", href: "/?cat=Tech & Science" },
-];
+const NAV_CATEGORIES = CATEGORY_META.map(c => ({
+  label: c.label,
+  icon: c.icon,
+  href: c.label === "Trending" ? "/" : `/?cat=${encodeURIComponent(c.label)}`,
+}));
 
 export function Navbar() {
   const {
@@ -239,7 +231,7 @@ export function Navbar() {
       <div className="border-t border-gray-800/50">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-2">
-            {CATEGORIES.map((cat) => (
+            {NAV_CATEGORIES.map((cat) => (
               <Link
                 key={cat.label}
                 href={cat.href}

@@ -101,7 +101,7 @@ export default function WalletConnectModal({ isOpen, onClose }: Props) {
           <div className="mt-6 grid grid-cols-2 gap-3 text-left">
             <div className="flex items-start gap-2">
               <span className="text-green-400 mt-0.5 shrink-0">&#10003;</span>
-              <span className="text-xs text-gray-400">$1,000 weekly rewards</span>
+              <span className="text-xs text-gray-400">$100 daily rewards</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-green-400 mt-0.5 shrink-0">&#10003;</span>

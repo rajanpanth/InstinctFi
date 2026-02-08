@@ -2,25 +2,13 @@
 
 import { useState } from "react";
 import { useApp, formatDollars, CENTS } from "@/components/Providers";
+import { CATEGORIES } from "@/lib/constants";
 import ImageUpload from "@/components/ImageUpload";
 import { uploadPollImage } from "@/lib/uploadImage";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
-const CATEGORIES = [
-  "Crypto",
-  "Sports",
-  "Politics",
-  "Tech",
-  "Entertainment",
-  "Science",
-  "Economics",
-  "Mentions",
-  "Companies",
-  "Financials",
-  "Tech & Science",
-  "Other",
-];
+const MAX_OPTIONS = 6;
 
 export default function CreatePollPage() {
   const { walletConnected, walletAddress, userAccount, createPoll, connectWallet } = useApp();
@@ -41,7 +29,7 @@ export default function CreatePollPage() {
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
-  // ── Option image states (for first 2 options) ──
+  // ── Option image states (for all options) ──
   const [optionImageFiles, setOptionImageFiles] = useState<(File | null)[]>([null, null]);
   const [optionImagePreviews, setOptionImagePreviews] = useState<(string | null)[]>([null, null]);
   const [optionImageErrors, setOptionImageErrors] = useState<(string | null)[]>([null, null]);
@@ -108,11 +96,21 @@ export default function CreatePollPage() {
 
   // ── Option handlers ──
   const addOption = () => {
-    if (options.length < 6) setOptions([...options, ""]);
+    if (options.length < MAX_OPTIONS) {
+      setOptions([...options, ""]);
+      setOptionImageFiles(prev => [...prev, null]);
+      setOptionImagePreviews(prev => [...prev, null]);
+      setOptionImageErrors(prev => [...prev, null]);
+    }
   };
 
   const removeOption = (idx: number) => {
-    if (options.length > 2) setOptions(options.filter((_, i) => i !== idx));
+    if (options.length > 2) {
+      setOptions(options.filter((_, i) => i !== idx));
+      setOptionImageFiles(prev => prev.filter((_, i) => i !== idx));
+      setOptionImagePreviews(prev => prev.filter((_, i) => i !== idx));
+      setOptionImageErrors(prev => prev.filter((_, i) => i !== idx));
+    }
   };
 
   const updateOption = (idx: number, val: string) => {
@@ -158,9 +156,9 @@ export default function CreatePollPage() {
         setImageUploading(false);
       }
 
-      // Upload option images
+      // Upload option images (all options)
       const optionImageUrls: string[] = [];
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < options.length; i++) {
         const file = optionImageFiles[i];
         if (file) {
           try {
@@ -317,8 +315,8 @@ export default function CreatePollPage() {
                     </button>
                   )}
                 </div>
-                {/* Option image upload for first 2 options */}
-                {i < 2 && (
+                {/* Option image upload for each option */}
+                {i < options.length && (
                   <div className="ml-8">
                     <label className="block text-xs text-gray-500 mb-1.5">
                       Option {String.fromCharCode(65 + i)} Avatar <span className="text-gray-600">(optional)</span>
@@ -368,7 +366,7 @@ export default function CreatePollPage() {
               </div>
             ))}
           </div>
-          {options.length < 6 && (
+          {options.length < MAX_OPTIONS && (
             <button
               type="button"
               onClick={addOption}
