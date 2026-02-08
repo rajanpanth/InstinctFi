@@ -14,6 +14,11 @@ const CATEGORIES = [
   "Tech",
   "Entertainment",
   "Science",
+  "Economics",
+  "Mentions",
+  "Companies",
+  "Financials",
+  "Tech & Science",
   "Other",
 ];
 
@@ -214,8 +219,8 @@ export default function CreatePollPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-2">Create a Poll</h1>
-      <p className="text-gray-500 text-sm mb-8">Set up a prediction market for others to vote on.</p>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-2">Create a Poll</h1>
+      <p className="text-gray-500 text-sm mb-6 sm:mb-8">Set up a prediction market for others to vote on.</p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Main Poll Image (optional) */}
@@ -378,7 +383,7 @@ export default function CreatePollPage() {
         </div>
 
         {/* Pricing */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Unit Price ($)</label>
             <input

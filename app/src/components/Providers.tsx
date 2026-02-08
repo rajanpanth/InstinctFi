@@ -10,11 +10,13 @@ import React, {
   ReactNode,
 } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import toast from "react-hot-toast";
 
 // ─── Constants (all dollar amounts in CENTS, $1 = 100) ─────────────────────
 export const CENTS = 100;
 const SIGNUP_BONUS = 500_000; // $5,000
-const WEEKLY_REWARD = 100_000; // $1,000
+const DAILY_REWARD = 10_000; // $100
+const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Format cents → $X,XXX.XX */
@@ -101,7 +103,8 @@ type AppContextType = {
   disconnectWallet: () => void;
   userAccount: UserAccount | null;
   signup: () => void;
-  claimWeeklyReward: () => boolean;
+  claimDailyReward: () => boolean;
+  isLoading: boolean;
   polls: DemoPoll[];
   votes: DemoVote[];
   createPoll: (poll: Omit<DemoPoll, "id">) => DemoPoll | null;
@@ -262,6 +265,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [polls, setPolls] = useState<DemoPoll[]>([]);
   const [votes, setVotes] = useState<DemoVote[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const fetchingRef = useRef(false);
 
   const userAccount = walletAddress
@@ -284,6 +288,7 @@ export function Providers({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error("Fetch failed:", e);
     }
+    setIsLoading(false);
     fetchingRef.current = false;
   }, []);
 
@@ -309,21 +314,21 @@ export function Providers({ children }: { children: ReactNode }) {
   const dbUpsertUser = (user: UserAccount) => {
     if (!isSupabaseConfigured) return;
     supabase.from("users").upsert(userToDb(user), { onConflict: "wallet" }).then(({ error }) => {
-      if (error) console.error("DB user upsert error:", error);
+      if (error) { console.error("DB user upsert error:", error); toast.error("Failed to sync user data"); }
     });
   };
 
   const dbUpsertPoll = (poll: DemoPoll) => {
     if (!isSupabaseConfigured) return;
     supabase.from("polls").upsert(pollToDb(poll), { onConflict: "id" }).then(({ error }) => {
-      if (error) console.error("DB poll upsert error:", error);
+      if (error) { console.error("DB poll upsert error:", error); toast.error("Failed to save poll"); }
     });
   };
 
   const dbUpsertVote = (vote: DemoVote) => {
     if (!isSupabaseConfigured) return;
     supabase.from("votes").upsert(voteToDb(vote), { onConflict: "poll_id,voter" }).then(({ error }) => {
-      if (error) console.error("DB vote upsert error:", error);
+      if (error) { console.error("DB vote upsert error:", error); toast.error("Failed to save vote"); }
     });
   };
 
@@ -428,17 +433,17 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, [walletConnected, walletAddress, signup, users]);
 
-  // ── Claim weekly reward ($1,000) ──
-  const claimWeeklyReward = useCallback((): boolean => {
+  // ── Claim daily reward ($100 every 24h) ──
+  const claimDailyReward = useCallback((): boolean => {
     if (!walletAddress) return false;
     const now = Date.now();
     const user = users.find((u) => u.wallet === walletAddress);
     if (!user) return false;
-    if (now - user.lastWeeklyRewardTs < WEEK_MS) return false;
+    if (now - user.lastWeeklyRewardTs < DAY_MS) return false;
 
     updateUser(walletAddress, (u) => ({
       ...u,
-      balance: u.balance + WEEKLY_REWARD,
+      balance: u.balance + DAILY_REWARD,
       lastWeeklyRewardTs: now,
     }));
     return true;
@@ -609,18 +614,20 @@ export function Providers({ children }: { children: ReactNode }) {
       const cost = numCoins * poll.unitPriceCents;
       if (cost > user.balance) return false;
 
+      // Check for existing vote record (for correct totalVoters count)
+      const existing = votes.find((v) => v.pollId === pollId && v.voter === walletAddress);
+
       // Update poll
       const updatedPoll = {
         ...poll,
         voteCounts: poll.voteCounts.map((c, i) => (i === optionIndex ? c + numCoins : c)),
         totalPoolCents: poll.totalPoolCents + cost,
-        totalVoters: poll.totalVoters + 1,
+        totalVoters: poll.totalVoters + (existing ? 0 : 1),
       };
       setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
       dbUpsertPoll(updatedPoll);
 
       // Update or create vote
-      const existing = votes.find((v) => v.pollId === pollId && v.voter === walletAddress);
       if (existing) {
         const updatedVote: DemoVote = {
           ...existing,
@@ -753,7 +760,8 @@ export function Providers({ children }: { children: ReactNode }) {
         disconnectWallet,
         userAccount,
         signup,
-        claimWeeklyReward,
+        claimDailyReward,
+        isLoading,
         polls,
         votes,
         createPoll,

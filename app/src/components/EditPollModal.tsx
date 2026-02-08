@@ -156,6 +156,11 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
     "Finance",
     "Science",
     "Gaming",
+    "Economics",
+    "Mentions",
+    "Companies",
+    "Financials",
+    "Tech & Science",
     "Other",
   ];
 

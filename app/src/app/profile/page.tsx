@@ -1,6 +1,39 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useApp, formatDollars } from "@/components/Providers";
+
+/* ── Countdown hook for daily claim ── */
+function useDailyCountdown(lastClaimTs: number) {
+  const [timeLeft, setTimeLeft] = useState("");
+  const [canClaim, setCanClaim] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const tick = () => {
+      const nextClaim = lastClaimTs + DAY_MS;
+      const diff = nextClaim - Date.now();
+      if (diff <= 0) {
+        setCanClaim(true);
+        setTimeLeft("Ready!");
+        setProgress(100);
+        return;
+      }
+      setCanClaim(false);
+      setProgress(Math.min(100, ((DAY_MS - diff) / DAY_MS) * 100));
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [lastClaimTs]);
+
+  return { timeLeft, canClaim, progress };
+}
 
 export default function ProfilePage() {
   const {
@@ -10,7 +43,7 @@ export default function ProfilePage() {
     polls,
     votes,
     connectWallet,
-    claimWeeklyReward,
+    claimDailyReward,
   } = useApp();
 
   if (!walletConnected) {
@@ -34,49 +67,38 @@ export default function ProfilePage() {
 
   const netProfit = u ? u.totalWinningsCents - u.totalSpentCents : 0;
 
-  // Weekly reward availability
-  const now = Math.floor(Date.now() / 1000);
-  const weeklyAvailable = u ? now - u.lastWeeklyRewardTs >= 604800 : false;
-
   return (
     <div className="max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Profile</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8">Profile</h1>
 
       {/* Wallet Card */}
-      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-8 mb-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <div className="text-sm text-gray-400 mb-1">Connected Wallet</div>
-            <div className="font-mono text-lg">{shortAddr(addr)}</div>
+            <div className="font-mono text-sm sm:text-lg break-all">{shortAddr(addr)}</div>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <div className="text-sm text-gray-400 mb-1">Balance</div>
-            <div className="text-2xl font-bold text-accent-400">
+            <div className="text-xl sm:text-2xl font-bold text-accent-400">
               {u ? formatDollars(u.balance) : "$0.00"}
             </div>
           </div>
         </div>
 
-        {/* Weekly Reward */}
-        <div className="mb-6 p-4 bg-dark-800/50 rounded-xl flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium">Weekly Reward</div>
-            <div className="text-xs text-gray-500">
-              {weeklyAvailable ? "Available now!" : `Next in ${u ? Math.max(0, Math.ceil((604800 - (now - u.lastWeeklyRewardTs)) / 3600)) : 0}h`}
+        {/* Signup Bonus Badge */}
+        {u?.signupBonusClaimed && (
+          <div className="mb-4 p-3 bg-purple-600/10 border border-purple-500/20 rounded-xl flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center text-lg shrink-0">🎁</div>
+            <div>
+              <div className="text-sm font-medium text-purple-300">Welcome Bonus Claimed</div>
+              <div className="text-xs text-gray-500">$5,000 credited on signup</div>
             </div>
           </div>
-          <button
-            onClick={claimWeeklyReward}
-            disabled={!weeklyAvailable}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              weeklyAvailable
-                ? "bg-green-600 hover:bg-green-700 text-white"
-                : "bg-gray-700 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            Claim $1,000
-          </button>
-        </div>
+        )}
+
+        {/* Daily Reward */}
+        {u && <DailyClaimCard lastClaimTs={u.lastWeeklyRewardTs} onClaim={claimDailyReward} />}
 
         {/* Stats grid */}
         {u && (
@@ -98,7 +120,7 @@ export default function ProfilePage() {
       </div>
 
       {/* My Polls */}
-      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-8 mb-6">
+      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
         <h2 className="font-semibold text-lg mb-4">My Created Polls</h2>
         {myPolls.length === 0 ? (
           <p className="text-gray-500 text-sm">No polls created yet.</p>
@@ -124,7 +146,7 @@ export default function ProfilePage() {
       </div>
 
       {/* My Vote History */}
-      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-8">
+      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8">
         <h2 className="font-semibold text-lg mb-4">My Vote History</h2>
         {myVotes.length === 0 ? (
           <p className="text-gray-500 text-sm">No votes cast yet.</p>
@@ -165,6 +187,71 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
         {value}
       </div>
       <div className="text-xs text-gray-500 mt-1">{label}</div>
+    </div>
+  );
+}
+
+/* ── Daily Claim Card ── */
+function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim: () => boolean }) {
+  const { timeLeft, canClaim, progress } = useDailyCountdown(lastClaimTs);
+  const [claimed, setClaimed] = useState(false);
+
+  const handleClaim = () => {
+    const ok = onClaim();
+    if (ok) setClaimed(true);
+    setTimeout(() => setClaimed(false), 2000);
+  };
+
+  return (
+    <div className={`mb-6 rounded-xl border overflow-hidden transition-all ${
+      canClaim
+        ? "bg-gradient-to-r from-green-600/10 to-emerald-600/10 border-green-500/30"
+        : "bg-dark-800/50 border-gray-700/50"
+    }`}>
+      <div className="p-3 sm:p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg shrink-0 ${
+              canClaim ? "bg-green-600/20 animate-pulse" : "bg-dark-700"
+            }`}>
+              💰
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Daily Reward</div>
+              <div className="text-xs text-gray-500">Claim $100 every 24 hours</div>
+            </div>
+          </div>
+          <button
+            onClick={handleClaim}
+            disabled={!canClaim}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+              claimed
+                ? "bg-green-600 text-white scale-95"
+                : canClaim
+                ? "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20 hover:scale-105"
+                : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
+            }`}
+          >
+            {claimed ? "✓ Claimed!" : canClaim ? "Claim $100" : timeLeft}
+          </button>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1.5 bg-dark-700 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-1000 ${
+              canClaim ? "bg-green-500" : "bg-primary-600/60"
+            }`}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1.5">
+          <span className="text-[10px] text-gray-600">Last claimed</span>
+          <span className="text-[10px] text-gray-600">
+            {canClaim ? "Ready now!" : `${timeLeft} remaining`}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
