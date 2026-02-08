@@ -11,6 +11,8 @@ import React, {
 } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import toast from "react-hot-toast";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
 
 // ─── Constants (all dollar amounts in CENTS, $1 = 100) ─────────────────────
 export const CENTS = 100;
@@ -103,16 +105,16 @@ type AppContextType = {
   disconnectWallet: () => void;
   userAccount: UserAccount | null;
   signup: () => void;
-  claimDailyReward: () => boolean;
+  claimDailyReward: () => Promise<boolean>;
   isLoading: boolean;
   polls: DemoPoll[];
   votes: DemoVote[];
-  createPoll: (poll: Omit<DemoPoll, "id">) => DemoPoll | null;
+  createPoll: (poll: Omit<DemoPoll, "id">) => Promise<DemoPoll | null>;
   editPoll: (pollId: string, updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">>) => boolean;
-  deletePoll: (pollId: string) => boolean;
-  castVote: (pollId: string, optionIndex: number, numCoins: number) => boolean;
-  settlePoll: (pollId: string) => boolean;
-  claimReward: (pollId: string) => number;
+  deletePoll: (pollId: string) => Promise<boolean>;
+  castVote: (pollId: string, optionIndex: number, numCoins: number) => Promise<boolean>;
+  settlePoll: (pollId: string) => Promise<boolean>;
+  claimReward: (pollId: string) => Promise<number>;
   allUsers: UserAccount[];
 };
 
@@ -294,7 +296,62 @@ export function Providers({ children }: { children: ReactNode }) {
     fetchingRef.current = false;
   }, []);
 
-  // ── On mount: fetch data + subscribe to real-time ──
+  // ── Incremental real-time sync handlers ──
+  const handleUserChange = useCallback((payload: any) => {
+    const { eventType, new: newRow, old: oldRow } = payload;
+    if (eventType === 'DELETE' && oldRow?.wallet) {
+      setUsers(prev => prev.filter(u => u.wallet !== oldRow.wallet));
+    } else if (newRow) {
+      const updated = dbToUser(newRow);
+      setUsers(prev => {
+        const idx = prev.findIndex(u => u.wallet === updated.wallet);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = updated;
+          return next;
+        }
+        return [...prev, updated];
+      });
+    }
+  }, []);
+
+  const handlePollChange = useCallback((payload: any) => {
+    const { eventType, new: newRow, old: oldRow } = payload;
+    if (eventType === 'DELETE' && oldRow?.id) {
+      setPolls(prev => prev.filter(p => p.id !== oldRow.id));
+    } else if (newRow) {
+      const updated = dbToPoll(newRow);
+      setPolls(prev => {
+        const idx = prev.findIndex(p => p.id === updated.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = updated;
+          return next;
+        }
+        return [updated, ...prev]; // new polls go to the front
+      });
+    }
+  }, []);
+
+  const handleVoteChange = useCallback((payload: any) => {
+    const { eventType, new: newRow, old: oldRow } = payload;
+    if (eventType === 'DELETE' && oldRow?.id) {
+      setVotes(prev => prev.filter(v => !(v.pollId === oldRow.poll_id && v.voter === oldRow.voter)));
+    } else if (newRow) {
+      const updated = dbToVote(newRow);
+      setVotes(prev => {
+        const idx = prev.findIndex(v => v.pollId === updated.pollId && v.voter === updated.voter);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = updated;
+          return next;
+        }
+        return [...prev, updated];
+      });
+    }
+  }, []);
+
+  // ── On mount: fetch data + subscribe to incremental real-time ──
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
@@ -302,22 +359,66 @@ export function Providers({ children }: { children: ReactNode }) {
 
     const channel = supabase
       .channel("db-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "users" }, () => fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, () => fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "users" }, handleUserChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, handlePollChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, handleVoteChange)
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchAll]);
+  }, [fetchAll, handleUserChange, handlePollChange, handleVoteChange]);
 
-  // ── DB write helpers (fire-and-forget, errors are logged) ──
-  const dbUpsertUser = (user: UserAccount) => {
-    if (!isSupabaseConfigured) return;
-    supabase.from("users").upsert(userToDb(user), { onConflict: "wallet" }).then(({ error }) => {
-      if (error) { console.error("DB user upsert error:", error); toast.error("Failed to sync user data"); }
-    });
+  // ── DB write helpers ──
+
+  // Atomic balance deduction via RPC (no unsafe fallback)
+  const dbSpendBalance = async (wallet: string, amount: number): Promise<{ success: boolean; newBalance: number }> => {
+    if (!isSupabaseConfigured) {
+      const user = users.find(u => u.wallet === wallet);
+      if (!user || user.balance < amount) return { success: false, newBalance: user?.balance ?? 0 };
+      return { success: true, newBalance: user.balance - amount };
+    }
+    try {
+      const { data, error } = await supabase.rpc('spend_balance', { p_wallet: wallet, p_amount: amount });
+      if (error) {
+        console.error('spend_balance RPC error:', error);
+        return { success: false, newBalance: 0 };
+      }
+      if (data?.success) {
+        return { success: true, newBalance: Number(data.new_balance) };
+      }
+      return { success: false, newBalance: Number(data?.balance ?? 0) };
+    } catch (e) {
+      console.error('spend_balance exception:', e);
+      return { success: false, newBalance: 0 };
+    }
+  };
+
+  // Atomic balance credit via RPC (no unsafe fallback)
+  const dbCreditBalance = async (wallet: string, amount: number): Promise<{ success: boolean; newBalance: number }> => {
+    if (!isSupabaseConfigured) {
+      const user = users.find(u => u.wallet === wallet);
+      return { success: true, newBalance: (user?.balance ?? 0) + amount };
+    }
+    try {
+      const { data, error } = await supabase.rpc('credit_balance', { p_wallet: wallet, p_amount: amount });
+      if (error) {
+        console.error('credit_balance RPC error:', error);
+        return { success: false, newBalance: 0 };
+      }
+      if (data?.success) {
+        return { success: true, newBalance: Number(data.new_balance) };
+      }
+      return { success: false, newBalance: 0 };
+    } catch (e) {
+      console.error('credit_balance exception:', e);
+      return { success: false, newBalance: 0 };
+    }
+  };
+
+  // Helper: update local user balance from DB result
+  const updateLocalBalance = (wallet: string, newBalance: number) => {
+    setUsers(prev => prev.map(u => u.wallet === wallet ? { ...u, balance: newBalance } : u));
   };
 
   const dbUpsertPoll = (poll: DemoPoll) => {
@@ -334,7 +435,42 @@ export function Providers({ children }: { children: ReactNode }) {
     });
   };
 
-  // ── Auto-reconnect Phantom on load ──
+  // ── Wallet signature verification ──
+  const verifyWalletOwnership = async (publicKey: any): Promise<boolean> => {
+    try {
+      const solana = (window as any).solana;
+      if (!solana?.signMessage) return true; // Skip if signMessage not supported (older wallets)
+
+      const nonce = crypto.getRandomValues(new Uint8Array(32));
+      const timestamp = Date.now();
+      const message = `InstinctFi auth\nWallet: ${publicKey.toString()}\nNonce: ${Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')}\nTimestamp: ${timestamp}`;
+      const encodedMessage = new TextEncoder().encode(message);
+      const signed = await solana.signMessage(encodedMessage, 'utf8');
+
+      // Verify the signature matches the claimed public key
+      const verified = nacl.sign.detached.verify(
+        encodedMessage,
+        signed.signature,
+        bs58.decode(publicKey.toString())
+      );
+
+      if (!verified) {
+        toast.error('Wallet verification failed — signature mismatch');
+        return false;
+      }
+      return true;
+    } catch (e: any) {
+      // User rejected the signature request
+      if (e?.code === 4001 || e?.message?.includes('rejected')) {
+        toast.error('Signature rejected — please sign to verify wallet ownership');
+        return false;
+      }
+      console.error('Wallet verification error:', e);
+      return true; // Allow connection on unexpected errors to avoid blocking
+    }
+  };
+
+  // ── Auto-reconnect Phantom on load (trusted = no re-verification needed) ──
   useEffect(() => {
     const tryReconnect = async () => {
       try {
@@ -349,12 +485,18 @@ export function Providers({ children }: { children: ReactNode }) {
     tryReconnect();
   }, []);
 
-  // ── Connect wallet ──
+  // ── Connect wallet (with signature verification) ──
   const connectWallet = useCallback(async () => {
     try {
       const solana = (window as any).solana;
       if (solana?.isPhantom) {
         const resp = await solana.connect();
+        // Verify the wallet owner actually controls the private key
+        const verified = await verifyWalletOwnership(resp.publicKey);
+        if (!verified) {
+          await solana.disconnect();
+          return;
+        }
         setWalletAddress(resp.publicKey.toString());
         setWalletConnected(true);
       } else {
@@ -374,14 +516,29 @@ export function Providers({ children }: { children: ReactNode }) {
     setWalletAddress(null);
   }, []);
 
-  // ── Helper: update user in local state + DB ──
+  // ── Helper: update user stats in local state + DB (balance excluded from DB writes) ──
   const updateUser = useCallback(
     (wallet: string, updater: (u: UserAccount) => UserAccount) => {
       setUsers((prev) => {
         const updated = prev.map((u) => {
           if (u.wallet !== wallet) return u;
           const newU = updater(u);
-          dbUpsertUser(newU); // fire-and-forget DB write
+          // Diff-based DB write: only update changed fields, NEVER write balance
+          if (isSupabaseConfigured) {
+            const oldDb = userToDb(u) as Record<string, any>;
+            const newDb = userToDb(newU) as Record<string, any>;
+            const diff: Record<string, any> = {};
+            for (const key of Object.keys(newDb)) {
+              if (key !== 'wallet' && key !== 'balance' && newDb[key] !== oldDb[key]) {
+                diff[key] = newDb[key];
+              }
+            }
+            if (Object.keys(diff).length > 0) {
+              supabase.from("users").update(diff).eq("wallet", wallet).then(({ error }) => {
+                if (error) console.error("DB user update error:", error);
+              });
+            }
+          }
           return newU;
         });
         return updated;
@@ -391,42 +548,56 @@ export function Providers({ children }: { children: ReactNode }) {
     []
   );
 
-  // ── Signup — creates UserAccount with $5,000 bonus ──
-  const signup = useCallback(() => {
+  // ── Signup — creates UserAccount with $5,000 bonus (only once, never overwrites) ──
+  const signup = useCallback(async () => {
     if (!walletAddress) return;
-    // IMPORTANT: Don't create a new user until we've checked the DB
     if (!initialFetchDone.current) return;
     if (users.find((u) => u.wallet === walletAddress)) return;
 
-    const now = Date.now();
-    const newUser: UserAccount = {
-      wallet: walletAddress,
-      balance: SIGNUP_BONUS,
-      signupBonusClaimed: true,
-      lastWeeklyRewardTs: now,
-      totalVotesCast: 0,
-      totalPollsVoted: 0,
-      pollsWon: 0,
-      pollsCreated: 0,
-      totalSpentCents: 0,
-      totalWinningsCents: 0,
-      weeklyWinningsCents: 0,
-      monthlyWinningsCents: 0,
-      weeklySpentCents: 0,
-      monthlySpentCents: 0,
-      weeklyVotesCast: 0,
-      monthlyVotesCast: 0,
-      weeklyPollsWon: 0,
-      monthlyPollsWon: 0,
-      weeklyPollsVoted: 0,
-      monthlyPollsVoted: 0,
-      creatorEarningsCents: 0,
-      weeklyResetTs: now,
-      monthlyResetTs: now,
-      createdAt: now,
-    };
-    setUsers((prev) => [...prev, newUser]);
-    dbUpsertUser(newUser);
+    if (isSupabaseConfigured) {
+      try {
+        // Try atomic RPC first: INSERT ON CONFLICT DO NOTHING + return user
+        const { data: rpcData, error: rpcError } = await supabase.rpc('signup_user', { p_wallet: walletAddress });
+        if (!rpcError && rpcData) {
+          const user = dbToUser(rpcData);
+          setUsers(prev => {
+            if (prev.find(u => u.wallet === walletAddress)) return prev.map(u => u.wallet === walletAddress ? user : u);
+            return [...prev, user];
+          });
+          return;
+        }
+        // Fallback: upsert with ignoreDuplicates + select
+        const now = Date.now();
+        await supabase.from('users').upsert({
+          wallet: walletAddress, balance: SIGNUP_BONUS, signup_bonus_claimed: true,
+          last_weekly_reward_ts: now, created_at: now, weekly_reset_ts: now, monthly_reset_ts: now,
+        }, { onConflict: 'wallet', ignoreDuplicates: true });
+        const { data: userData } = await supabase.from('users').select('*').eq('wallet', walletAddress).single();
+        if (userData) {
+          const user = dbToUser(userData);
+          setUsers(prev => {
+            if (prev.find(u => u.wallet === walletAddress)) return prev.map(u => u.wallet === walletAddress ? user : u);
+            return [...prev, user];
+          });
+        }
+      } catch (e) {
+        console.error('Signup failed:', e);
+      }
+    } else {
+      // No DB: create locally
+      const now = Date.now();
+      const newUser: UserAccount = {
+        wallet: walletAddress, balance: SIGNUP_BONUS, signupBonusClaimed: true,
+        lastWeeklyRewardTs: now, totalVotesCast: 0, totalPollsVoted: 0, pollsWon: 0,
+        pollsCreated: 0, totalSpentCents: 0, totalWinningsCents: 0,
+        weeklyWinningsCents: 0, monthlyWinningsCents: 0, weeklySpentCents: 0,
+        monthlySpentCents: 0, weeklyVotesCast: 0, monthlyVotesCast: 0,
+        weeklyPollsWon: 0, monthlyPollsWon: 0, weeklyPollsVoted: 0,
+        monthlyPollsVoted: 0, creatorEarningsCents: 0, weeklyResetTs: now,
+        monthlyResetTs: now, createdAt: now,
+      };
+      setUsers((prev) => [...prev, newUser]);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress, users]);
 
@@ -438,36 +609,54 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, [walletConnected, walletAddress, signup, users, isLoading]);
 
-  // ── Claim daily reward ($100 every 24h) — persists to DB ──
-  const claimDailyReward = useCallback((): boolean => {
+  // ── Claim daily reward ($100 every 24h) — server-enforced via RPC ──
+  const claimDailyReward = useCallback(async (): Promise<boolean> => {
     if (!walletAddress) return false;
-    const now = Date.now();
     const user = users.find((u) => u.wallet === walletAddress);
     if (!user) return false;
+
+    // Quick client-side check to avoid unnecessary RPC calls
+    const now = Date.now();
     if (now - user.lastWeeklyRewardTs < DAY_MS) return false;
 
-    const updatedUser = {
-      ...user,
-      balance: user.balance + DAILY_REWARD,
-      lastWeeklyRewardTs: now,
-    };
-
-    // Update local state immediately
-    setUsers((prev) => prev.map((u) => u.wallet === walletAddress ? updatedUser : u));
-
-    // Persist to DB (awaited, with error handling)
     if (isSupabaseConfigured) {
-      supabase.from("users").upsert(userToDb(updatedUser), { onConflict: "wallet" }).then(({ error }) => {
-        if (error) {
-          console.error("Failed to persist daily claim:", error);
-          toast.error("Claim failed to save — try again");
-          // Rollback local state
-          setUsers((prev) => prev.map((u) => u.wallet === walletAddress ? user : u));
+      try {
+        // Atomic server-side claim (checks 24h, deducts, updates timestamp)
+        const { data, error } = await supabase.rpc('claim_daily_reward', { p_wallet: walletAddress });
+        if (!error && data?.success) {
+          setUsers(prev => prev.map(u => u.wallet === walletAddress
+            ? { ...u, balance: Number(data.new_balance), lastWeeklyRewardTs: Number(data.last_claim_ts) }
+            : u
+          ));
+          return true;
         }
-      });
+        if (data && !data.success) {
+          // Server says too early — sync local state with server values
+          if (data.last_claim_ts) {
+            setUsers(prev => prev.map(u => u.wallet === walletAddress
+              ? { ...u, lastWeeklyRewardTs: Number(data.last_claim_ts), balance: Number(data.balance ?? u.balance) }
+              : u
+            ));
+          }
+          return false;
+        }
+        // RPC failed — do NOT fall back to non-atomic SELECT+UPDATE (TOCTOU risk)
+        console.error('claim_daily_reward RPC unavailable — ensure the RPC function is installed in Supabase');
+        toast.error('Claim service unavailable — please try again later');
+        return false;
+      } catch (e) {
+        console.error('Daily claim error:', e);
+        toast.error('Claim failed');
+        return false;
+      }
+    } else {
+      // No DB: local only
+      setUsers(prev => prev.map(u => u.wallet === walletAddress
+        ? { ...u, balance: u.balance + DAILY_REWARD, lastWeeklyRewardTs: now }
+        : u
+      ));
+      return true;
     }
-
-    return true;
   }, [walletAddress, users]);
 
   // ── Reset weekly/monthly leaderboard periods (only after DB loaded) ──
@@ -496,7 +685,21 @@ export function Providers({ children }: { children: ReactNode }) {
           updated.monthlyResetTs = now;
           changed = true;
         }
-        if (changed) dbUpsertUser(updated);
+        if (changed && isSupabaseConfigured) {
+          const dbUpdate = userToDb(updated) as Record<string, any>;
+          const dbOld = userToDb(u) as Record<string, any>;
+          const diff: Record<string, any> = {};
+          for (const key of Object.keys(dbUpdate)) {
+            if (key !== 'wallet' && key !== 'balance' && dbUpdate[key] !== dbOld[key]) {
+              diff[key] = dbUpdate[key];
+            }
+          }
+          if (Object.keys(diff).length > 0) {
+            supabase.from("users").update(diff).eq("wallet", u.wallet).then(({ error }) => {
+              if (error) console.error("DB weekly/monthly reset error:", error);
+            });
+          }
+        }
         return updated;
       })
     );
@@ -505,10 +708,15 @@ export function Providers({ children }: { children: ReactNode }) {
 
   // ── Create poll ──
   const createPoll = useCallback(
-    (poll: Omit<DemoPoll, "id">): DemoPoll | null => {
+    async (poll: Omit<DemoPoll, "id">): Promise<DemoPoll | null> => {
       if (!walletAddress) return null;
       const user = users.find((u) => u.wallet === walletAddress);
       if (!user || user.balance < poll.creatorInvestmentCents) return null;
+
+      // Atomically deduct creator investment from balance
+      const spend = await dbSpendBalance(walletAddress, poll.creatorInvestmentCents);
+      if (!spend.success) return null;
+      updateLocalBalance(walletAddress, spend.newBalance);
 
       const id = `poll_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const platformFee = Math.max(Math.floor(poll.creatorInvestmentCents / 100), 1);
@@ -533,7 +741,6 @@ export function Providers({ children }: { children: ReactNode }) {
 
       updateUser(walletAddress, (u) => ({
         ...u,
-        balance: u.balance - poll.creatorInvestmentCents,
         pollsCreated: u.pollsCreated + 1,
       }));
 
@@ -588,7 +795,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   // ── Delete poll (creator-only, zero votes, active, not ended — refund investment) ──
   const deletePoll = useCallback(
-    (pollId: string): boolean => {
+    async (pollId: string): Promise<boolean> => {
       if (!walletAddress) return false;
       const poll = polls.find((p) => p.id === pollId);
       if (!poll) return false;
@@ -601,10 +808,13 @@ export function Providers({ children }: { children: ReactNode }) {
       const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
       if (totalVotes > 0) return false;
 
-      // Refund creator investment
+      // Atomically refund creator investment
+      const credit = await dbCreditBalance(walletAddress, poll.creatorInvestmentCents);
+      if (!credit.success) return false;
+      updateLocalBalance(walletAddress, credit.newBalance);
+
       updateUser(walletAddress, (u) => ({
         ...u,
-        balance: u.balance + poll.creatorInvestmentCents,
         pollsCreated: Math.max(0, u.pollsCreated - 1),
       }));
 
@@ -626,7 +836,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   // ── Cast vote ──
   const castVote = useCallback(
-    (pollId: string, optionIndex: number, numCoins: number): boolean => {
+    async (pollId: string, optionIndex: number, numCoins: number): Promise<boolean> => {
       if (!walletAddress) return false;
       const user = users.find((u) => u.wallet === walletAddress);
       const poll = polls.find((p) => p.id === pollId);
@@ -635,6 +845,11 @@ export function Providers({ children }: { children: ReactNode }) {
 
       const cost = numCoins * poll.unitPriceCents;
       if (cost > user.balance) return false;
+
+      // Atomically deduct balance in DB first (prevents double-spend)
+      const spend = await dbSpendBalance(walletAddress, cost);
+      if (!spend.success) return false;
+      updateLocalBalance(walletAddress, spend.newBalance);
 
       // Check for existing vote record (for correct totalVoters count)
       const existing = votes.find((v) => v.pollId === pollId && v.voter === walletAddress);
@@ -674,19 +889,20 @@ export function Providers({ children }: { children: ReactNode }) {
         dbUpsertVote(newVote);
       }
 
-      // Update user
+      // Update user stats (balance already handled by RPC)
+      // Only increment totalPollsVoted when this is the first vote on this poll
+      const isFirstVoteOnPoll = !existing;
       updateUser(walletAddress, (u) => ({
         ...u,
-        balance: u.balance - cost,
         totalVotesCast: u.totalVotesCast + numCoins,
-        totalPollsVoted: u.totalPollsVoted + 1,
+        totalPollsVoted: u.totalPollsVoted + (isFirstVoteOnPoll ? 1 : 0),
         totalSpentCents: u.totalSpentCents + cost,
         weeklyVotesCast: u.weeklyVotesCast + numCoins,
         monthlyVotesCast: u.monthlyVotesCast + numCoins,
         weeklySpentCents: u.weeklySpentCents + cost,
         monthlySpentCents: u.monthlySpentCents + cost,
-        weeklyPollsVoted: u.weeklyPollsVoted + 1,
-        monthlyPollsVoted: u.monthlyPollsVoted + 1,
+        weeklyPollsVoted: u.weeklyPollsVoted + (isFirstVoteOnPoll ? 1 : 0),
+        monthlyPollsVoted: u.monthlyPollsVoted + (isFirstVoteOnPoll ? 1 : 0),
       }));
 
       return true;
@@ -697,7 +913,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   // ── Settle poll ──
   const settlePoll = useCallback(
-    (pollId: string): boolean => {
+    async (pollId: string): Promise<boolean> => {
       const poll = polls.find((p) => p.id === pollId);
       if (!poll || poll.status !== 0) return false;
 
@@ -718,12 +934,13 @@ export function Providers({ children }: { children: ReactNode }) {
       setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
       dbUpsertPoll(updatedPoll);
 
-      // Credit creator reward
-      if (poll.creator) {
+      // Atomically credit creator reward
+      if (poll.creator && poll.creatorRewardCents > 0) {
+        const credit = await dbCreditBalance(poll.creator, poll.creatorRewardCents);
+        if (credit.success) updateLocalBalance(poll.creator, credit.newBalance);
         updateUser(poll.creator, (u) => ({
           ...u,
           creatorEarningsCents: u.creatorEarningsCents + poll.creatorRewardCents,
-          balance: u.balance + poll.creatorRewardCents,
         }));
       }
 
@@ -735,7 +952,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   // ── Claim reward ──
   const claimReward = useCallback(
-    (pollId: string): number => {
+    async (pollId: string): Promise<number> => {
       if (!walletAddress) return 0;
       const poll = polls.find((p) => p.id === pollId);
       if (!poll || poll.status !== 1 || poll.winningOption === 255) return 0;
@@ -750,6 +967,11 @@ export function Providers({ children }: { children: ReactNode }) {
       const distributable = poll.totalPoolCents;
       const reward = Math.floor((userWinningVotes / totalWinningVotes) * distributable);
 
+      // Atomically credit reward to balance
+      const credit = await dbCreditBalance(walletAddress, reward);
+      if (!credit.success) return 0;
+      updateLocalBalance(walletAddress, credit.newBalance);
+
       const updatedVote = { ...voteRecord, claimed: true };
       setVotes((prev) =>
         prev.map((v) => (v.pollId === pollId && v.voter === walletAddress ? updatedVote : v))
@@ -758,7 +980,6 @@ export function Providers({ children }: { children: ReactNode }) {
 
       updateUser(walletAddress, (u) => ({
         ...u,
-        balance: u.balance + reward,
         totalWinningsCents: u.totalWinningsCents + reward,
         weeklyWinningsCents: u.weeklyWinningsCents + reward,
         monthlyWinningsCents: u.monthlyWinningsCents + reward,

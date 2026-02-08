@@ -178,7 +178,7 @@ export default function CreatePollPage() {
         }
       }
 
-      const poll = createPoll({
+      const poll = await createPoll({
         pollId: Date.now(),
         creator: walletAddress!,
         title: title.trim(),

@@ -45,9 +45,9 @@ export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Pr
 
   if (!isOpen) return null;
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     setDeleting(true);
-    const success = deletePoll(poll.id);
+    const success = await deletePoll(poll.id);
     setDeleting(false);
 
     if (success) {

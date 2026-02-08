@@ -123,7 +123,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
     setVoteLoading(true);
     // Simulate small delay for UX
     await new Promise((r) => setTimeout(r, 300));
-    const ok = castVote(poll.id, votingOption, numCoins);
+    const ok = await castVote(poll.id, votingOption, numCoins);
     setVoteLoading(false);
 
     if (ok) {
@@ -135,13 +135,13 @@ const PollCard = memo(function PollCard({ poll }: Props) {
     }
   };
 
-  const handleSettle = () => {
-    if (settlePoll(poll.id)) toast.success("Poll settled!");
+  const handleSettle = async () => {
+    if (await settlePoll(poll.id)) toast.success("Poll settled!");
     else toast.error("Settlement failed");
   };
 
-  const handleClaim = () => {
-    const reward = claimReward(poll.id);
+  const handleClaim = async () => {
+    const reward = await claimReward(poll.id);
     if (reward > 0) toast.success(`Claimed ${formatDollars(reward)}!`);
     else toast.error("No reward to claim");
   };

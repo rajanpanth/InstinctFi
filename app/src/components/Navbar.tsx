@@ -7,11 +7,12 @@ import { useApp, formatDollars } from "./Providers";
 import toast from "react-hot-toast";
 
 /* ── Compact claim timer for navbar ── */
-function NavClaimTimer({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim: () => boolean }) {
+function NavClaimTimer({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim: () => Promise<boolean> }) {
   const [timeLeft, setTimeLeft] = useState("");
   const [canClaim, setCanClaim] = useState(false);
   const [pct, setPct] = useState(0);
   const [claimed, setClaimed] = useState(false);
+  const [claiming, setClaiming] = useState(false);
 
   useEffect(() => {
     const DAY_MS = 24 * 60 * 60 * 1000;
@@ -35,12 +36,18 @@ function NavClaimTimer({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim:
     return () => clearInterval(id);
   }, [lastClaimTs]);
 
-  const handleClaim = () => {
-    const ok = onClaim();
-    if (ok) {
-      setClaimed(true);
-      toast.success("Claimed $100!");
-      setTimeout(() => setClaimed(false), 2000);
+  const handleClaim = async () => {
+    if (claiming) return;
+    setClaiming(true);
+    try {
+      const ok = await onClaim();
+      if (ok) {
+        setClaimed(true);
+        toast.success("Claimed $100!");
+        setTimeout(() => setClaimed(false), 2000);
+      }
+    } finally {
+      setClaiming(false);
     }
   };
 

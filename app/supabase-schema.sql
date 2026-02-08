@@ -77,6 +77,116 @@ create policy "Allow all on polls" on polls for all using (true) with check (tru
 create policy "Allow all on votes" on votes for all using (true) with check (true);
 
 -- 5. Enable Realtime on all tables
+-- Set replica identity to FULL so real-time DELETE events include old row data
+alter table users replica identity full;
+alter table polls replica identity full;
+alter table votes replica identity full;
+
 alter publication supabase_realtime add table users;
 alter publication supabase_realtime add table polls;
 alter publication supabase_realtime add table votes;
+
+-- ============================================================
+-- 6. RPC Functions for atomic balance & claim operations
+-- ============================================================
+
+-- Atomic signup: inserts user only if not exists, always returns the user record
+create or replace function signup_user(p_wallet text)
+returns json as $$
+declare
+  v_user record;
+  v_now bigint;
+begin
+  v_now := (extract(epoch from now()) * 1000)::bigint;
+
+  insert into users (wallet, balance, signup_bonus_claimed, last_weekly_reward_ts, created_at, weekly_reset_ts, monthly_reset_ts)
+  values (p_wallet, 500000, true, v_now, v_now, v_now, v_now)
+  on conflict (wallet) do nothing;
+
+  select * into v_user from users where wallet = p_wallet;
+
+  return row_to_json(v_user);
+end;
+$$ language plpgsql;
+
+-- Atomic daily reward claim ($100 every 24 hours, server-enforced)
+create or replace function claim_daily_reward(p_wallet text)
+returns json as $$
+declare
+  v_user record;
+  v_now bigint;
+  v_day_ms bigint := 86400000; -- 24 hours in milliseconds
+begin
+  v_now := (extract(epoch from now()) * 1000)::bigint;
+
+  -- Lock the row to prevent concurrent claims
+  select * into v_user from users where wallet = p_wallet for update;
+
+  if not found then
+    return json_build_object('success', false, 'error', 'user_not_found');
+  end if;
+
+  if v_now - v_user.last_weekly_reward_ts < v_day_ms then
+    return json_build_object(
+      'success', false,
+      'error', 'too_early',
+      'remaining_ms', v_day_ms - (v_now - v_user.last_weekly_reward_ts),
+      'last_claim_ts', v_user.last_weekly_reward_ts,
+      'balance', v_user.balance
+    );
+  end if;
+
+  update users
+  set balance = balance + 10000,
+      last_weekly_reward_ts = v_now
+  where wallet = p_wallet
+  returning * into v_user;
+
+  return json_build_object(
+    'success', true,
+    'new_balance', v_user.balance,
+    'last_claim_ts', v_user.last_weekly_reward_ts
+  );
+end;
+$$ language plpgsql;
+
+-- Atomic balance deduction (for voting, poll creation)
+create or replace function spend_balance(p_wallet text, p_amount bigint)
+returns json as $$
+declare
+  v_user record;
+begin
+  -- Lock row to prevent double-spend
+  select * into v_user from users where wallet = p_wallet for update;
+
+  if not found then
+    return json_build_object('success', false, 'error', 'user_not_found');
+  end if;
+
+  if v_user.balance < p_amount then
+    return json_build_object('success', false, 'error', 'insufficient_balance', 'balance', v_user.balance);
+  end if;
+
+  update users set balance = balance - p_amount where wallet = p_wallet
+  returning * into v_user;
+
+  return json_build_object('success', true, 'new_balance', v_user.balance);
+end;
+$$ language plpgsql;
+
+-- Atomic balance credit (for rewards, refunds)
+create or replace function credit_balance(p_wallet text, p_amount bigint)
+returns json as $$
+declare
+  v_user record;
+begin
+  update users set balance = balance + p_amount where wallet = p_wallet
+  returning * into v_user;
+
+  if not found then
+    return json_build_object('success', false, 'error', 'user_not_found');
+  end if;
+
+  return json_build_object('success', true, 'new_balance', v_user.balance);
+end;
+$$ language plpgsql;

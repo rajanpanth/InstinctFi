@@ -78,7 +78,7 @@ export default function PollDetailPage() {
   const canVote = !isEnded && !isSettled && !isCreator && walletConnected;
   const canManage = isCreator && totalVotes === 0 && !isEnded && !isSettled;
 
-  const handleVote = () => {
+  const handleVote = async () => {
     if (!walletConnected) {
       setShowWalletModal(true);
       return;
@@ -87,7 +87,7 @@ export default function PollDetailPage() {
     if (numCoins <= 0) return toast.error("Buy at least 1 coin");
     if (userAccount && cost > userAccount.balance) return toast.error("Insufficient balance");
 
-    const success = castVote(pollId, selectedOption, numCoins);
+    const success = await castVote(pollId, selectedOption, numCoins);
     if (success) {
       toast.success(`Voted ${numCoins} coin(s) for "${poll.options[selectedOption]}"`);
       setSelectedOption(null);
@@ -105,14 +105,14 @@ export default function PollDetailPage() {
     if (canVote) setSelectedOption(index);
   };
 
-  const handleSettle = () => {
-    const success = settlePoll(pollId);
+  const handleSettle = async () => {
+    const success = await settlePoll(pollId);
     if (success) toast.success("Poll settled!");
     else toast.error("Settlement failed");
   };
 
-  const handleClaim = () => {
-    const reward = claimReward(pollId);
+  const handleClaim = async () => {
+    const reward = await claimReward(pollId);
     if (reward > 0) {
       toast.success(`Claimed ${formatDollars(reward)}!`);
     } else {

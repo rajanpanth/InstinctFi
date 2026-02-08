@@ -192,14 +192,21 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
 }
 
 /* ── Daily Claim Card ── */
-function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim: () => boolean }) {
+function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim: () => Promise<boolean> }) {
   const { timeLeft, canClaim, progress } = useDailyCountdown(lastClaimTs);
   const [claimed, setClaimed] = useState(false);
+  const [claiming, setClaiming] = useState(false);
 
-  const handleClaim = () => {
-    const ok = onClaim();
-    if (ok) setClaimed(true);
-    setTimeout(() => setClaimed(false), 2000);
+  const handleClaim = async () => {
+    if (claiming) return;
+    setClaiming(true);
+    try {
+      const ok = await onClaim();
+      if (ok) setClaimed(true);
+      setTimeout(() => setClaimed(false), 2000);
+    } finally {
+      setClaiming(false);
+    }
   };
 
   return (

@@ -74,7 +74,7 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
     if (userAccount && cost > userAccount.balance)
       return toast.error("Insufficient balance");
 
-    const success = castVote(poll.id, optionIndex, numCoins);
+    const success = await castVote(poll.id, optionIndex, numCoins);
     if (success) {
       toast.success(
         `Bought ${numCoins} coin(s) on "${optLabel}"`
