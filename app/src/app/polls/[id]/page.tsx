@@ -34,7 +34,7 @@ export default function PollDetailPage() {
     selectedOption, numCoins, setNumCoins,
     cost, totalVotes, isEnded, isSettled, isCreator, canVote,
     vote, selectOption, submitVote,
-  } = useVote(poll ?? { id: "", title: "", description: "", category: "", creator: "", options: [], optionImages: [], voteCounts: [], totalPoolCents: 0, unitPriceCents: 0, totalVoters: 0, endTime: 0, status: 0, winningOption: 255, imageUrl: "" });
+  } = useVote(poll ?? { id: "", pollId: 0, title: "", description: "", category: "", creator: "", options: [] as string[], optionImages: [] as string[], voteCounts: [] as number[], totalPoolCents: 0, unitPriceCents: 0, totalVoters: 0, endTime: 0, status: 0, winningOption: 255, imageUrl: "", createdAt: 0, creatorInvestmentCents: 0, platformFeeCents: 0, creatorRewardCents: 0 });
 
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
