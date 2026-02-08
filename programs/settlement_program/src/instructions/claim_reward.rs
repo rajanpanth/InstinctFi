@@ -4,13 +4,13 @@ use poll_program::state::PollAccount;
 use vote_program::state::VoteAccount;
 use crate::errors::SettlementError;
 
-/// Claim reward for a winning voter (dollar-based internal accounting).
+/// Claim reward for a winning voter.
 ///
 /// Reward formula:
-///   reward_cents = (user_winning_votes / total_winning_votes) * distributable_pool_cents
+///   reward = (user_winning_votes / total_winning_votes) * distributable_pool
 ///
 /// Where distributable_pool = total_pool_cents (fees carved out at creation).
-/// No SOL transfer — reward tracked on-chain; frontend credits UserAccount balance.
+/// The reward amount is stored on the VoteAccount for the frontend to credit.
 pub fn handler(
     ctx: Context<ClaimReward>,
     _poll_id: u64,
@@ -30,27 +30,27 @@ pub fn handler(
 
     let total_winning_votes = poll.vote_counts[winning_idx];
 
-    // ── Distributable pool (cents) ──
+    // ── Distributable pool ──
     let distributable = poll.total_pool_cents;
 
     // ── User's share ──
-    let reward_cents = (user_winning_votes as u128)
+    let reward_amount = (user_winning_votes as u128)
         .checked_mul(distributable as u128)
         .ok_or(SettlementError::Overflow)?
         .checked_div(total_winning_votes as u128)
         .ok_or(SettlementError::Overflow)? as u64;
 
-    // Mark as claimed (no SOL transfer - frontend credits balance)
+    // Store reward and mark as claimed
+    vote_account.reward_amount = reward_amount;
     vote_account.claimed = true;
 
     msg!(
-        "Claim: user={} poll={} votes={}/{} reward=${}.{}",
+        "Claim: user={} poll={} votes={}/{} reward={}",
         ctx.accounts.claimer.key(),
-        poll.poll_id,
+        _poll_id,
         user_winning_votes,
         total_winning_votes,
-        reward_cents / 100,
-        reward_cents % 100,
+        reward_amount,
     );
 
     Ok(())
@@ -65,7 +65,7 @@ pub struct ClaimReward<'info> {
     #[account(mut)]
     pub claimer: Signer<'info>,
 
-    /// The settled poll
+    /// The settled poll (read-only, no mutation needed)
     #[account(
         seeds = [b"poll", poll_account.creator.as_ref(), &poll_id.to_le_bytes()],
         bump = poll_account.bump,
@@ -73,17 +73,7 @@ pub struct ClaimReward<'info> {
     )]
     pub poll_account: Account<'info, PollAccount>,
 
-    /// Treasury PDA for this poll (kept for compatibility)
-    #[account(
-        mut,
-        seeds = [b"treasury", poll_account.key().as_ref()],
-        bump = poll_account.treasury_bump,
-        seeds::program = poll_program::ID,
-    )]
-    /// CHECK: Treasury PDA vault
-    pub treasury: SystemAccount<'info>,
-
-    /// Vote record for this user on this poll
+    /// Vote record for this user on this poll (owned by vote_program)
     #[account(
         mut,
         seeds = [b"vote", poll_account.key().as_ref(), claimer.key().as_ref()],
@@ -94,3 +84,4 @@ pub struct ClaimReward<'info> {
 
     pub system_program: Program<'info, System>,
 }
+

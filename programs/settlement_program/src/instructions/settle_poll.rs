@@ -6,11 +6,12 @@ use crate::errors::SettlementError;
 /// Settle a poll after its end time.
 /// Determines the winning option by highest vote count.
 /// Ties go to the lower index (first option wins).
+/// Uses CPI to poll_program::settle_poll_cpi to update the poll state.
 pub fn handler(
     ctx: Context<SettlePoll>,
-    _poll_id: u64,
+    poll_id: u64,
 ) -> Result<()> {
-    let poll = &mut ctx.accounts.poll_account;
+    let poll = &ctx.accounts.poll_account;
     let clock = Clock::get()?;
 
     // ── Guards ──
@@ -19,35 +20,31 @@ pub fn handler(
 
     // ── Determine winner: option with most votes ──
     let mut max_votes: u64 = 0;
-    let mut winning_idx: u8 = 0;
-    let mut has_votes = false;
+    let mut winning_idx: u8 = 255;
 
     for (i, &count) in poll.vote_counts.iter().enumerate() {
         if count > max_votes {
             max_votes = count;
             winning_idx = i as u8;
-            has_votes = true;
         }
     }
 
-    if !has_votes {
-        poll.status = PollAccount::STATUS_SETTLED;
-        poll.winning_option = 255;
-        msg!("Poll {} settled with no votes", poll.poll_id);
-        return Ok(());
-    }
+    // If no votes, winning_idx stays 255
 
-    poll.status = PollAccount::STATUS_SETTLED;
-    poll.winning_option = winning_idx;
+    // ── Settle via CPI to poll_program ──
+    let cpi_program = ctx.accounts.poll_program.to_account_info();
+    let cpi_accounts = poll_program::cpi::accounts::SettlePollCpi {
+        settler: ctx.accounts.settler.to_account_info(),
+        poll_account: ctx.accounts.poll_account.to_account_info(),
+    };
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    poll_program::cpi::settle_poll_cpi(cpi_ctx, poll_id, winning_idx)?;
 
     msg!(
-        "Poll {} settled. Winner: option {} ('{}') with {} votes. Pool: ${}.{}",
-        poll.poll_id,
+        "Poll {} settled. Winner: option {} with {} votes.",
+        poll_id,
         winning_idx,
-        poll.options[winning_idx as usize],
         max_votes,
-        poll.total_pool_cents / 100,
-        poll.total_pool_cents % 100,
     );
 
     Ok(())
@@ -62,7 +59,7 @@ pub struct SettlePoll<'info> {
     #[account(mut)]
     pub settler: Signer<'info>,
 
-    /// The poll to settle
+    /// The poll to settle (read via cross-program seeds, mutated via CPI)
     #[account(
         mut,
         seeds = [b"poll", poll_account.creator.as_ref(), &poll_id.to_le_bytes()],
@@ -71,5 +68,11 @@ pub struct SettlePoll<'info> {
     )]
     pub poll_account: Account<'info, PollAccount>,
 
+    /// The poll_program for CPI calls
+    /// CHECK: Verified by address constraint
+    #[account(address = poll_program::ID)]
+    pub poll_program: AccountInfo<'info>,
+
     pub system_program: Program<'info, System>,
 }
+

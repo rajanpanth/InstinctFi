@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d0e24"/>
+      <stop offset="100%" style="stop-color:#1a1b2e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818cf8"/>
+      <stop offset="100%" style="stop-color:#6366f1"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="120" height="120" rx="24" fill="url(#bg)"/>
+  <!-- Border glow -->
+  <rect x="2" y="2" width="116" height="116" rx="22" fill="none" stroke="url(#accent)" stroke-width="1.5" opacity="0.4"/>
+  <!-- Letter I -->
+  <text x="30" y="82" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="60" fill="white" letter-spacing="-2">I</text>
+  <!-- Lightning bolt / slash separator -->
+  <polygon points="62,28 52,62 64,62 54,92" fill="url(#accent)" opacity="0.9"/>
+  <!-- Letter F -->
+  <text x="68" y="82" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="60" fill="white" letter-spacing="-2">F</text>
+</svg>

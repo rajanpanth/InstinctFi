@@ -74,7 +74,7 @@ impl UserAccount {
     /// Check & credit weekly reward if eligible
     pub fn maybe_credit_weekly_reward(&mut self, now: i64) -> bool {
         if self.is_demo && (now - self.last_weekly_reward_ts >= Self::WEEK_SECONDS) {
-            self.demo_balance += Self::WEEKLY_REWARD;
+            self.demo_balance = self.demo_balance.checked_add(Self::WEEKLY_REWARD).unwrap_or(u64::MAX);
             self.last_weekly_reward_ts = now;
             return true;
         }

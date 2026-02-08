@@ -9,79 +9,108 @@ import React, {
   useRef,
   ReactNode,
 } from "react";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import {
+  connection,
+  sendTransaction,
+  formatSOL,
+  formatSOLShort,
+  getWalletBalance,
+  requestAirdrop,
+  fetchAllPolls,
+  fetchAllUsers,
+  fetchVotesForUser,
+  fetchUserAccount,
+  buildInitializeUserIx,
+  buildCreatePollIx,
+  buildEditPollIx,
+  buildDeletePollIx,
+  buildCastVoteIx,
+  buildSettlePollIx,
+  buildClaimRewardIx,
+  getUserPDA,
+  getPollPDA,
+  getTreasuryPDA,
+  getVotePDA,
+  solToLamports,
+  lamportsToSol,
+  PROGRAM_DEPLOYED,
+  type OnChainPoll,
+  type OnChainUser,
+  type OnChainVote,
+} from "@/lib/program";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { isAdminWallet } from "@/lib/constants";
 import toast from "react-hot-toast";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 
-// ─── Constants (all dollar amounts in CENTS, $1 = 100) ─────────────────────
-export const CENTS = 100;
-const SIGNUP_BONUS = 500_000; // $5,000
-const DAILY_REWARD = 10_000; // $100
-const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+// ─── Constants ─────────────────────────────────────────────────────────────
+// SOL_UNIT converts user-facing SOL values to lamports (1 SOL = 1e9 lamports)
+export const SOL_UNIT = LAMPORTS_PER_SOL;
 
-/** Format cents → $X,XXX.XX */
-export function formatDollars(cents: number): string {
-  const dollars = cents / 100;
-  return dollars.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  });
-}
+/** @deprecated Use SOL_UNIT instead. Kept for backward compat. */
+export const CENTS = SOL_UNIT;
 
-/** Format cents → compact $X.Xk */
-export function formatDollarsShort(cents: number): string {
-  const d = cents / 100;
-  if (d >= 1000) return `$${(d / 1000).toFixed(1)}k`;
-  return `$${d.toFixed(2)}`;
-}
+/** Maximum coins a single user can stake on one poll */
+export const MAX_COINS_PER_POLL = 100;
+
+/** Format lamports → "X.XXXX SOL" */
+export { formatSOL as formatDollars };
+export { formatSOLShort as formatDollarsShort };
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+/**
+ * NAMING CONVENTION — "*Cents" fields
+ * ------------------------------------
+ * For backward compatibility the type fields still use the "*Cents" suffix,
+ * but every value is stored in **lamports** (1 SOL = 1 000 000 000 lamports).
+ * Use `formatDollars()` / `formatDollarsShort()` (aliases for `formatSOL`)
+ * to display them as human-readable SOL strings.
+ */
 
 export type DemoPoll = {
-  id: string;
-  pollId: number;
-  creator: string;
+  id: string;                    // Poll PDA address (base58)
+  pollId: number;                // Unique poll ID
+  creator: string;               // Creator wallet address
   title: string;
   description: string;
   category: string;
   imageUrl: string;
-  optionImages: string[];
+  optionImages: string[];        // Off-chain only (Supabase)
   options: string[];
   voteCounts: number[];
-  unitPriceCents: number;
-  endTime: number;
-  totalPoolCents: number;
-  creatorInvestmentCents: number;
-  platformFeeCents: number;
-  creatorRewardCents: number;
-  status: number;
-  winningOption: number;
+  unitPriceCents: number;        // LAMPORTS per option-coin
+  endTime: number;               // Unix timestamp
+  totalPoolCents: number;        // LAMPORTS in distributable pool
+  creatorInvestmentCents: number; // LAMPORTS invested by creator
+  platformFeeCents: number;      // LAMPORTS platform fee
+  creatorRewardCents: number;    // LAMPORTS creator reward
+  status: number;                // 0 = Active, 1 = Settled
+  winningOption: number;         // 255 = unset
   totalVoters: number;
   createdAt: number;
 };
 
 export type DemoVote = {
-  pollId: string;
-  voter: string;
+  pollId: string;                // Poll PDA address (base58)
+  voter: string;                 // Voter wallet address
   votesPerOption: number[];
-  totalStakedCents: number;
+  totalStakedCents: number;      // LAMPORTS total staked
   claimed: boolean;
 };
 
 export type UserAccount = {
   wallet: string;
-  balance: number;
-  signupBonusClaimed: boolean;
+  balance: number;               // Real SOL balance in LAMPORTS
+  signupBonusClaimed: boolean;   // Whether on-chain user account exists
   lastWeeklyRewardTs: number;
   totalVotesCast: number;
   totalPollsVoted: number;
   pollsWon: number;
   pollsCreated: number;
-  totalSpentCents: number;
-  totalWinningsCents: number;
+  totalSpentCents: number;       // LAMPORTS
+  totalWinningsCents: number;    // LAMPORTS
   weeklyWinningsCents: number;
   monthlyWinningsCents: number;
   weeklySpentCents: number;
@@ -110,10 +139,10 @@ type AppContextType = {
   polls: DemoPoll[];
   votes: DemoVote[];
   createPoll: (poll: Omit<DemoPoll, "id">) => Promise<DemoPoll | null>;
-  editPoll: (pollId: string, updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">>) => boolean;
+  editPoll: (pollId: string, updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">>) => Promise<boolean>;
   deletePoll: (pollId: string) => Promise<boolean>;
   castVote: (pollId: string, optionIndex: number, numCoins: number) => Promise<boolean>;
-  settlePoll: (pollId: string) => Promise<boolean>;
+  settlePoll: (pollId: string, winningOption?: number) => Promise<boolean>;
   claimReward: (pollId: string) => Promise<number>;
   allUsers: UserAccount[];
 };
@@ -126,92 +155,101 @@ export function useApp() {
   return ctx;
 }
 
-// ─── DB ↔ App mapping helpers ───────────────────────────────────────────────
+// ─── Helpers: Convert on-chain → frontend types ────────────────────────────
 
-function dbToUser(r: any): UserAccount {
+function onChainPollToDemo(p: OnChainPoll, optionImages?: string[]): DemoPoll {
   return {
-    wallet: r.wallet,
-    balance: Number(r.balance),
-    signupBonusClaimed: r.signup_bonus_claimed,
-    lastWeeklyRewardTs: Number(r.last_weekly_reward_ts),
-    totalVotesCast: Number(r.total_votes_cast),
-    totalPollsVoted: Number(r.total_polls_voted),
-    pollsWon: Number(r.polls_won),
-    pollsCreated: Number(r.polls_created),
-    totalSpentCents: Number(r.total_spent_cents),
-    totalWinningsCents: Number(r.total_winnings_cents),
-    weeklyWinningsCents: Number(r.weekly_winnings_cents),
-    monthlyWinningsCents: Number(r.monthly_winnings_cents),
-    weeklySpentCents: Number(r.weekly_spent_cents),
-    monthlySpentCents: Number(r.monthly_spent_cents),
-    weeklyVotesCast: Number(r.weekly_votes_cast),
-    monthlyVotesCast: Number(r.monthly_votes_cast),
-    weeklyPollsWon: Number(r.weekly_polls_won),
-    monthlyPollsWon: Number(r.monthly_polls_won),
-    weeklyPollsVoted: Number(r.weekly_polls_voted),
-    monthlyPollsVoted: Number(r.monthly_polls_voted),
-    creatorEarningsCents: Number(r.creator_earnings_cents),
-    weeklyResetTs: Number(r.weekly_reset_ts),
-    monthlyResetTs: Number(r.monthly_reset_ts),
-    createdAt: Number(r.created_at),
+    id: p.address.toString(),
+    pollId: p.pollId,
+    creator: p.creator.toString(),
+    title: p.title,
+    description: p.description,
+    category: p.category,
+    imageUrl: p.imageUrl,
+    optionImages: optionImages || p.options.map(() => ""),
+    options: p.options,
+    voteCounts: p.voteCounts,
+    unitPriceCents: p.unitPrice,
+    endTime: p.endTime,
+    totalPoolCents: p.totalPool,
+    creatorInvestmentCents: p.creatorInvestment,
+    platformFeeCents: p.platformFee,
+    creatorRewardCents: p.creatorReward,
+    status: p.status,
+    winningOption: p.winningOption,
+    totalVoters: p.totalVoters,
+    createdAt: p.createdAt,
   };
 }
 
-function userToDb(u: UserAccount) {
+function onChainVoteToDemo(v: OnChainVote): DemoVote {
   return {
-    wallet: u.wallet,
-    balance: u.balance,
-    signup_bonus_claimed: u.signupBonusClaimed,
-    last_weekly_reward_ts: u.lastWeeklyRewardTs,
-    total_votes_cast: u.totalVotesCast,
-    total_polls_voted: u.totalPollsVoted,
-    polls_won: u.pollsWon,
-    polls_created: u.pollsCreated,
-    total_spent_cents: u.totalSpentCents,
-    total_winnings_cents: u.totalWinningsCents,
-    weekly_winnings_cents: u.weeklyWinningsCents,
-    monthly_winnings_cents: u.monthlyWinningsCents,
-    weekly_spent_cents: u.weeklySpentCents,
-    monthly_spent_cents: u.monthlySpentCents,
-    weekly_votes_cast: u.weeklyVotesCast,
-    monthly_votes_cast: u.monthlyVotesCast,
-    weekly_polls_won: u.weeklyPollsWon,
-    monthly_polls_won: u.monthlyPollsWon,
-    weekly_polls_voted: u.weeklyPollsVoted,
-    monthly_polls_voted: u.monthlyPollsVoted,
-    creator_earnings_cents: u.creatorEarningsCents,
-    weekly_reset_ts: u.weeklyResetTs,
-    monthly_reset_ts: u.monthlyResetTs,
-    created_at: u.createdAt,
+    pollId: v.poll.toString(),
+    voter: v.voter.toString(),
+    votesPerOption: v.votesPerOption,
+    totalStakedCents: v.totalStaked,
+    claimed: v.claimed,
   };
 }
 
-function dbToPoll(r: any): DemoPoll {
+function onChainUserToAccount(u: OnChainUser, balance: number): UserAccount {
+  const now = Date.now();
   return {
-    id: r.id,
-    pollId: Number(r.poll_id),
-    creator: r.creator,
-    title: r.title,
-    description: r.description,
-    category: r.category,
-    imageUrl: r.image_url || "",
-    optionImages: r.option_images || [],
-    options: r.options,
-    voteCounts: (r.vote_counts || []).map(Number),
-    unitPriceCents: Number(r.unit_price_cents),
-    endTime: Number(r.end_time),
-    totalPoolCents: Number(r.total_pool_cents),
-    creatorInvestmentCents: Number(r.creator_investment_cents),
-    platformFeeCents: Number(r.platform_fee_cents),
-    creatorRewardCents: Number(r.creator_reward_cents),
-    status: Number(r.status),
-    winningOption: Number(r.winning_option),
-    totalVoters: Number(r.total_voters),
-    createdAt: Number(r.created_at),
+    wallet: u.authority.toString(),
+    balance,
+    signupBonusClaimed: true, // User account exists on-chain
+    lastWeeklyRewardTs: u.createdAt * 1000,
+    totalVotesCast: u.totalVotesCast,
+    totalPollsVoted: 0, // Not tracked on-chain individually
+    pollsWon: u.pollsWon,
+    pollsCreated: u.totalPollsCreated,
+    totalSpentCents: u.totalStaked,
+    totalWinningsCents: u.totalWinnings,
+    weeklyWinningsCents: u.totalWinnings,
+    monthlyWinningsCents: u.totalWinnings,
+    weeklySpentCents: u.totalStaked,
+    monthlySpentCents: u.totalStaked,
+    weeklyVotesCast: u.totalVotesCast,
+    monthlyVotesCast: u.totalVotesCast,
+    weeklyPollsWon: u.pollsWon,
+    monthlyPollsWon: u.pollsWon,
+    weeklyPollsVoted: 0,
+    monthlyPollsVoted: 0,
+    creatorEarningsCents: 0,
+    weeklyResetTs: now,
+    monthlyResetTs: now,
+    createdAt: u.createdAt * 1000,
   };
 }
 
-function pollToDb(p: DemoPoll) {
+/** Reset weekly/monthly counters if the period has elapsed */
+function withFreshPeriods(user: UserAccount): UserAccount {
+  const now = Date.now();
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+  let u = { ...user };
+  if (now - u.weeklyResetTs > WEEK_MS) {
+    u.weeklyWinningsCents = 0;
+    u.weeklySpentCents = 0;
+    u.weeklyVotesCast = 0;
+    u.weeklyPollsWon = 0;
+    u.weeklyPollsVoted = 0;
+    u.weeklyResetTs = now;
+  }
+  if (now - u.monthlyResetTs > MONTH_MS) {
+    u.monthlyWinningsCents = 0;
+    u.monthlySpentCents = 0;
+    u.monthlyVotesCast = 0;
+    u.monthlyPollsWon = 0;
+    u.monthlyPollsVoted = 0;
+    u.monthlyResetTs = now;
+  }
+  return u;
+}
+
+// ── Helpers: Convert DemoPoll ↔ Supabase row ────────────────────────────────
+
+function demoPollToRow(p: DemoPoll) {
   return {
     id: p.id,
     poll_id: p.pollId,
@@ -219,8 +257,8 @@ function pollToDb(p: DemoPoll) {
     title: p.title,
     description: p.description,
     category: p.category,
-    image_url: p.imageUrl || "",
-    option_images: p.optionImages || [],
+    image_url: p.imageUrl,
+    option_images: p.optionImages,
     options: p.options,
     vote_counts: p.voteCounts,
     unit_price_cents: p.unitPriceCents,
@@ -236,23 +274,38 @@ function pollToDb(p: DemoPoll) {
   };
 }
 
-function dbToVote(r: any): DemoVote {
+function rowToDemoPoll(r: any): DemoPoll {
+  return {
+    id: r.id,
+    pollId: Number(r.poll_id),
+    creator: r.creator,
+    title: r.title,
+    description: r.description || "",
+    category: r.category || "",
+    imageUrl: r.image_url || "",
+    optionImages: r.option_images || [],
+    options: r.options,
+    voteCounts: (r.vote_counts || []).map(Number),
+    unitPriceCents: Number(r.unit_price_cents),
+    endTime: Number(r.end_time),
+    totalPoolCents: Number(r.total_pool_cents),
+    creatorInvestmentCents: Number(r.creator_investment_cents),
+    platformFeeCents: Number(r.platform_fee_cents),
+    creatorRewardCents: Number(r.creator_reward_cents),
+    status: r.status,
+    winningOption: r.winning_option,
+    totalVoters: Number(r.total_voters),
+    createdAt: Number(r.created_at),
+  };
+}
+
+function rowToDemoVote(r: any): DemoVote {
   return {
     pollId: r.poll_id,
     voter: r.voter,
     votesPerOption: (r.votes_per_option || []).map(Number),
     totalStakedCents: Number(r.total_staked_cents),
     claimed: r.claimed,
-  };
-}
-
-function voteToDb(v: DemoVote) {
-  return {
-    poll_id: v.pollId,
-    voter: v.voter,
-    votes_per_option: v.votesPerOption,
-    total_staked_cents: v.totalStakedCents,
-    claimed: v.claimed,
   };
 }
 
@@ -263,183 +316,161 @@ export function Providers({ children }: { children: ReactNode }) {
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
-  // ── App data ──
-  const [users, setUsers] = useState<UserAccount[]>([]);
-  const [polls, setPolls] = useState<DemoPoll[]>([]);
-  const [votes, setVotes] = useState<DemoVote[]>([]);
+  // ── App data (load from localStorage in demo mode) ──
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    if (PROGRAM_DEPLOYED || typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("instinctfi_users");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [polls, setPolls] = useState<DemoPoll[]>(() => {
+    if (PROGRAM_DEPLOYED || typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("instinctfi_polls");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [votes, setVotes] = useState<DemoVote[]>(() => {
+    if (PROGRAM_DEPLOYED || typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("instinctfi_votes");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [isLoading, setIsLoading] = useState(true);
   const fetchingRef = useRef(false);
   const initialFetchDone = useRef(false);
+
+  // Persist polls/votes/users to localStorage in demo mode
+  useEffect(() => {
+    if (PROGRAM_DEPLOYED) return;
+    try { localStorage.setItem("instinctfi_polls", JSON.stringify(polls)); } catch {}
+  }, [polls]);
+  useEffect(() => {
+    if (PROGRAM_DEPLOYED) return;
+    try { localStorage.setItem("instinctfi_votes", JSON.stringify(votes)); } catch {}
+  }, [votes]);
+  useEffect(() => {
+    if (PROGRAM_DEPLOYED) return;
+    try { localStorage.setItem("instinctfi_users", JSON.stringify(users)); } catch {}
+  }, [users]);
+
+  // ── Off-chain option images cache (Supabase) ──
+  const optionImagesCache = useRef<Record<string, string[]>>({});
 
   const userAccount = walletAddress
     ? users.find((u) => u.wallet === walletAddress) ?? null
     : null;
 
-  // ── Fetch all data from Supabase ──
+  // ── Fetch all on-chain data ──
   const fetchAll = useCallback(async () => {
-    if (!isSupabaseConfigured || fetchingRef.current) return;
+    if (fetchingRef.current) return;
     fetchingRef.current = true;
     try {
-      const [uRes, pRes, vRes] = await Promise.all([
-        supabase.from("users").select("*"),
-        supabase.from("polls").select("*").order("created_at", { ascending: false }),
-        supabase.from("votes").select("*"),
-      ]);
-      if (uRes.data) setUsers(uRes.data.map(dbToUser));
-      if (pRes.data) setPolls(pRes.data.map(dbToPoll));
-      if (vRes.data) setVotes(vRes.data.map(dbToVote));
+      if (PROGRAM_DEPLOYED) {
+        // Fetch all polls from on-chain
+        const [onChainPolls, onChainUsers] = await Promise.all([
+          fetchAllPolls(),
+          fetchAllUsers(),
+        ]);
+
+        // Try to load option images from Supabase (off-chain enrichment)
+        let optionImagesMap: Record<string, string[]> = {};
+        if (isSupabaseConfigured) {
+          try {
+            const { data } = await supabase
+              .from("poll_images")
+              .select("poll_pda, option_images");
+            if (data) {
+              for (const row of data) {
+                optionImagesMap[row.poll_pda] = row.option_images || [];
+              }
+            }
+          } catch {
+            // Supabase optional — continue without option images
+          }
+        }
+        optionImagesCache.current = optionImagesMap;
+
+        // Convert to frontend types
+        const demoPolls = onChainPolls.map((p) =>
+          onChainPollToDemo(p, optionImagesMap[p.address.toString()])
+        );
+
+        // Fetch balances for all users
+        const usersWithBalances = await Promise.all(
+          onChainUsers.map(async (u) => {
+            try {
+              const bal = await getWalletBalance(u.authority);
+              return onChainUserToAccount(u, bal);
+            } catch {
+              return onChainUserToAccount(u, 0);
+            }
+          })
+        );
+
+        setPolls(demoPolls);
+        setUsers(usersWithBalances);
+
+        // If wallet connected, fetch votes for current user
+        if (walletAddress) {
+          try {
+            const userVotes = await fetchVotesForUser(new PublicKey(walletAddress));
+            setVotes(userVotes.map(onChainVoteToDemo));
+          } catch (e) {
+            console.warn("Failed to fetch votes:", e);
+          }
+        }
+      } else {
+        // Demo mode: load shared data from Supabase (balance is virtual, don't overwrite)
+        if (isSupabaseConfigured) {
+          try {
+            const [pollsRes, votesRes] = await Promise.all([
+              supabase.from("polls").select("*").order("created_at", { ascending: false }),
+              supabase.from("votes").select("*"),
+            ]);
+            if (pollsRes.data && pollsRes.data.length > 0) {
+              setPolls(pollsRes.data.map(rowToDemoPoll));
+            }
+            if (votesRes.data) {
+              setVotes(votesRes.data.map(rowToDemoVote));
+            }
+          } catch (e) {
+            console.warn("Failed to load from Supabase, using localStorage cache:", e);
+          }
+        }
+        // Virtual balance: don't touch it in demo mode — it's managed by bonuses/spending
+      }
     } catch (e) {
-      console.error("Fetch failed:", e);
+      console.error("Failed to fetch data:", e);
     }
     setIsLoading(false);
     initialFetchDone.current = true;
     fetchingRef.current = false;
-  }, []);
+  }, [walletAddress]);
 
-  // ── Incremental real-time sync handlers ──
-  const handleUserChange = useCallback((payload: any) => {
-    const { eventType, new: newRow, old: oldRow } = payload;
-    if (eventType === 'DELETE' && oldRow?.wallet) {
-      setUsers(prev => prev.filter(u => u.wallet !== oldRow.wallet));
-    } else if (newRow) {
-      const updated = dbToUser(newRow);
-      setUsers(prev => {
-        const idx = prev.findIndex(u => u.wallet === updated.wallet);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = updated;
-          return next;
-        }
-        return [...prev, updated];
-      });
-    }
-  }, []);
-
-  const handlePollChange = useCallback((payload: any) => {
-    const { eventType, new: newRow, old: oldRow } = payload;
-    if (eventType === 'DELETE' && oldRow?.id) {
-      setPolls(prev => prev.filter(p => p.id !== oldRow.id));
-    } else if (newRow) {
-      const updated = dbToPoll(newRow);
-      setPolls(prev => {
-        const idx = prev.findIndex(p => p.id === updated.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = updated;
-          return next;
-        }
-        return [updated, ...prev]; // new polls go to the front
-      });
-    }
-  }, []);
-
-  const handleVoteChange = useCallback((payload: any) => {
-    const { eventType, new: newRow, old: oldRow } = payload;
-    if (eventType === 'DELETE' && oldRow?.id) {
-      setVotes(prev => prev.filter(v => !(v.pollId === oldRow.poll_id && v.voter === oldRow.voter)));
-    } else if (newRow) {
-      const updated = dbToVote(newRow);
-      setVotes(prev => {
-        const idx = prev.findIndex(v => v.pollId === updated.pollId && v.voter === updated.voter);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = updated;
-          return next;
-        }
-        return [...prev, updated];
-      });
-    }
-  }, []);
-
-  // ── On mount: fetch data + subscribe to incremental real-time ──
+  // ── On mount: fetch all data ──
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-
     fetchAll();
 
-    const channel = supabase
-      .channel("db-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "users" }, handleUserChange)
-      .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, handlePollChange)
-      .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, handleVoteChange)
-      .subscribe();
+    // Poll for updates every 15 seconds (Solana doesn't have real-time push)
+    const interval = setInterval(fetchAll, 15_000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchAll, handleUserChange, handlePollChange, handleVoteChange]);
-
-  // ── DB write helpers ──
-
-  // Atomic balance deduction via RPC (no unsafe fallback)
-  const dbSpendBalance = async (wallet: string, amount: number): Promise<{ success: boolean; newBalance: number }> => {
-    if (!isSupabaseConfigured) {
-      const user = users.find(u => u.wallet === wallet);
-      if (!user || user.balance < amount) return { success: false, newBalance: user?.balance ?? 0 };
-      return { success: true, newBalance: user.balance - amount };
+  // ── Refresh after wallet connects/changes ──
+  useEffect(() => {
+    if (walletConnected && walletAddress) {
+      fetchAll();
     }
-    try {
-      const { data, error } = await supabase.rpc('spend_balance', { p_wallet: wallet, p_amount: amount });
-      if (error) {
-        console.error('spend_balance RPC error:', error);
-        return { success: false, newBalance: 0 };
-      }
-      if (data?.success) {
-        return { success: true, newBalance: Number(data.new_balance) };
-      }
-      return { success: false, newBalance: Number(data?.balance ?? 0) };
-    } catch (e) {
-      console.error('spend_balance exception:', e);
-      return { success: false, newBalance: 0 };
-    }
-  };
-
-  // Atomic balance credit via RPC (no unsafe fallback)
-  const dbCreditBalance = async (wallet: string, amount: number): Promise<{ success: boolean; newBalance: number }> => {
-    if (!isSupabaseConfigured) {
-      const user = users.find(u => u.wallet === wallet);
-      return { success: true, newBalance: (user?.balance ?? 0) + amount };
-    }
-    try {
-      const { data, error } = await supabase.rpc('credit_balance', { p_wallet: wallet, p_amount: amount });
-      if (error) {
-        console.error('credit_balance RPC error:', error);
-        return { success: false, newBalance: 0 };
-      }
-      if (data?.success) {
-        return { success: true, newBalance: Number(data.new_balance) };
-      }
-      return { success: false, newBalance: 0 };
-    } catch (e) {
-      console.error('credit_balance exception:', e);
-      return { success: false, newBalance: 0 };
-    }
-  };
-
-  // Helper: update local user balance from DB result
-  const updateLocalBalance = (wallet: string, newBalance: number) => {
-    setUsers(prev => prev.map(u => u.wallet === wallet ? { ...u, balance: newBalance } : u));
-  };
-
-  const dbUpsertPoll = (poll: DemoPoll) => {
-    if (!isSupabaseConfigured) return;
-    supabase.from("polls").upsert(pollToDb(poll), { onConflict: "id" }).then(({ error }) => {
-      if (error) { console.error("DB poll upsert error:", error); toast.error("Failed to save poll"); }
-    });
-  };
-
-  const dbUpsertVote = (vote: DemoVote) => {
-    if (!isSupabaseConfigured) return;
-    supabase.from("votes").upsert(voteToDb(vote), { onConflict: "poll_id,voter" }).then(({ error }) => {
-      if (error) { console.error("DB vote upsert error:", error); toast.error("Failed to save vote"); }
-    });
-  };
+  }, [walletConnected, walletAddress, fetchAll]);
 
   // ── Wallet signature verification ──
   const verifyWalletOwnership = async (publicKey: any): Promise<boolean> => {
     try {
       const solana = (window as any).solana;
-      if (!solana?.signMessage) return true; // Skip if signMessage not supported (older wallets)
+      if (!solana?.signMessage) return true;
 
       const nonce = crypto.getRandomValues(new Uint8Array(32));
       const timestamp = Date.now();
@@ -447,7 +478,6 @@ export function Providers({ children }: { children: ReactNode }) {
       const encodedMessage = new TextEncoder().encode(message);
       const signed = await solana.signMessage(encodedMessage, 'utf8');
 
-      // Verify the signature matches the claimed public key
       const verified = nacl.sign.detached.verify(
         encodedMessage,
         signed.signature,
@@ -455,35 +485,55 @@ export function Providers({ children }: { children: ReactNode }) {
       );
 
       if (!verified) {
-        toast.error('Wallet verification failed — signature mismatch');
+        toast.error('Wallet verification failed');
         return false;
       }
       return true;
     } catch (e: any) {
-      // User rejected the signature request
       if (e?.code === 4001 || e?.message?.includes('rejected')) {
         toast.error('Signature rejected — please sign to verify wallet ownership');
         return false;
       }
       console.error('Wallet verification error:', e);
-      return false; // Deny on unexpected errors — user can retry
+      return false;
     }
   };
 
-  // ── Auto-reconnect Phantom on load (with signature verification) ──
+  // ── Auto-reconnect Phantom ──
   useEffect(() => {
     const tryReconnect = async () => {
       try {
         const solana = (window as any).solana;
         if (solana?.isPhantom) {
+          // onlyIfTrusted: true means Phantom already approved this site — no popup
           const resp = await solana.connect({ onlyIfTrusted: true });
-          const verified = await verifyWalletOwnership(resp.publicKey);
-          if (!verified) {
-            await solana.disconnect();
-            return;
-          }
-          setWalletAddress(resp.publicKey.toString());
+          // Skip signMessage on auto-reconnect — trust is already established
+          const addr = resp.publicKey.toString();
+          setWalletAddress(addr);
           setWalletConnected(true);
+
+          // Placeholder user for instant UI
+          setUsers(prev => {
+            if (prev.find(u => u.wallet === addr)) return prev;
+            return [...prev, {
+              wallet: addr, balance: 0, signupBonusClaimed: false,
+              lastWeeklyRewardTs: 0, totalVotesCast: 0, totalPollsVoted: 0,
+              pollsWon: 0, pollsCreated: 0, totalSpentCents: 0,
+              totalWinningsCents: 0, weeklyWinningsCents: 0, monthlyWinningsCents: 0,
+              weeklySpentCents: 0, monthlySpentCents: 0, weeklyVotesCast: 0,
+              monthlyVotesCast: 0, weeklyPollsWon: 0, monthlyPollsWon: 0,
+              weeklyPollsVoted: 0, monthlyPollsVoted: 0, creatorEarningsCents: 0,
+              weeklyResetTs: Date.now(), monthlyResetTs: Date.now(),
+              createdAt: Date.now(),
+            }];
+          });
+
+          // In demo mode, don't overwrite virtual balance with devnet balance
+          if (PROGRAM_DEPLOYED) {
+            getWalletBalance(resp.publicKey).then(bal => {
+              setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
+            }).catch(() => {});
+          }
         }
       } catch {}
     };
@@ -491,20 +541,43 @@ export function Providers({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Connect wallet (with signature verification) ──
+  // ── Connect wallet ──
   const connectWallet = useCallback(async () => {
     try {
       const solana = (window as any).solana;
       if (solana?.isPhantom) {
         const resp = await solana.connect();
-        // Verify the wallet owner actually controls the private key
         const verified = await verifyWalletOwnership(resp.publicKey);
         if (!verified) {
           await solana.disconnect();
           return;
         }
-        setWalletAddress(resp.publicKey.toString());
+        const addr = resp.publicKey.toString();
+        setWalletAddress(addr);
         setWalletConnected(true);
+
+        // Immediately create a placeholder user so UI shows connected state
+        setUsers(prev => {
+          if (prev.find(u => u.wallet === addr)) return prev;
+          return [...prev, {
+            wallet: addr, balance: 0, signupBonusClaimed: false,
+            lastWeeklyRewardTs: 0, totalVotesCast: 0, totalPollsVoted: 0,
+            pollsWon: 0, pollsCreated: 0, totalSpentCents: 0,
+            totalWinningsCents: 0, weeklyWinningsCents: 0, monthlyWinningsCents: 0,
+            weeklySpentCents: 0, monthlySpentCents: 0, weeklyVotesCast: 0,
+            monthlyVotesCast: 0, weeklyPollsWon: 0, monthlyPollsWon: 0,
+            weeklyPollsVoted: 0, monthlyPollsVoted: 0, creatorEarningsCents: 0,
+            weeklyResetTs: Date.now(), monthlyResetTs: Date.now(),
+            createdAt: Date.now(),
+          }];
+        });
+
+        // Fetch real balance in background (only when program is deployed)
+        if (PROGRAM_DEPLOYED) {
+          getWalletBalance(resp.publicKey).then(bal => {
+            setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
+          }).catch(() => {});
+        }
       } else {
         window.open("https://phantom.app/", "_blank");
       }
@@ -522,265 +595,274 @@ export function Providers({ children }: { children: ReactNode }) {
     setWalletAddress(null);
   }, []);
 
-  // ── Helper: update user stats in local state + DB (balance excluded from DB writes) ──
-  const updateUser = useCallback(
-    (wallet: string, updater: (u: UserAccount) => UserAccount) => {
-      setUsers((prev) => {
-        const updated = prev.map((u) => {
-          if (u.wallet !== wallet) return u;
-          const newU = updater(u);
-          // Diff-based DB write: only update changed fields, NEVER write balance
-          if (isSupabaseConfigured) {
-            const oldDb = userToDb(u) as Record<string, any>;
-            const newDb = userToDb(newU) as Record<string, any>;
-            const diff: Record<string, any> = {};
-            for (const key of Object.keys(newDb)) {
-              if (key !== 'wallet' && key !== 'balance' && newDb[key] !== oldDb[key]) {
-                diff[key] = newDb[key];
-              }
-            }
-            if (Object.keys(diff).length > 0) {
-              supabase.from("users").update(diff).eq("wallet", wallet).then(({ error }) => {
-                if (error) console.error("DB user update error:", error);
-              });
-            }
-          }
-          return newU;
-        });
-        return updated;
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
-  // ── Signup — creates UserAccount with $5,000 bonus (only once, never overwrites) ──
+  // ── Signup: Initialize on-chain user account via Solana transaction ──
   const signup = useCallback(async () => {
     if (!walletAddress) return;
     if (!initialFetchDone.current) return;
-    if (users.find((u) => u.wallet === walletAddress)) return;
 
-    if (isSupabaseConfigured) {
-      try {
-        // Try atomic RPC first: INSERT ON CONFLICT DO NOTHING + return user
-        const { data: rpcData, error: rpcError } = await supabase.rpc('signup_user', { p_wallet: walletAddress });
-        if (!rpcError && rpcData) {
-          const user = dbToUser(rpcData);
-          setUsers(prev => {
-            if (prev.find(u => u.wallet === walletAddress)) return prev.map(u => u.wallet === walletAddress ? user : u);
-            return [...prev, user];
-          });
-          return;
+    if (!PROGRAM_DEPLOYED) {
+      // Demo mode: user already added as placeholder in connectWallet
+      // Upsert to Supabase + refresh SOL balance
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from("users").upsert({
+            wallet: walletAddress,
+            created_at: Date.now(),
+          }, { onConflict: "wallet" });
+        } catch (e) {
+          console.warn("Failed to sync user to Supabase:", e);
         }
-        // Fallback: upsert with ignoreDuplicates + select
-        const now = Date.now();
-        await supabase.from('users').upsert({
-          wallet: walletAddress, balance: SIGNUP_BONUS, signup_bonus_claimed: true,
-          last_weekly_reward_ts: now, created_at: now, weekly_reset_ts: now, monthly_reset_ts: now,
-        }, { onConflict: 'wallet', ignoreDuplicates: true });
-        const { data: userData } = await supabase.from('users').select('*').eq('wallet', walletAddress).single();
-        if (userData) {
-          const user = dbToUser(userData);
-          setUsers(prev => {
-            if (prev.find(u => u.wallet === walletAddress)) return prev.map(u => u.wallet === walletAddress ? user : u);
-            return [...prev, user];
-          });
-        }
-      } catch (e) {
-        console.error('Signup failed:', e);
       }
-    } else {
-      // No DB: create locally
-      const now = Date.now();
-      const newUser: UserAccount = {
-        wallet: walletAddress, balance: SIGNUP_BONUS, signupBonusClaimed: true,
-        lastWeeklyRewardTs: now, totalVotesCast: 0, totalPollsVoted: 0, pollsWon: 0,
-        pollsCreated: 0, totalSpentCents: 0, totalWinningsCents: 0,
-        weeklyWinningsCents: 0, monthlyWinningsCents: 0, weeklySpentCents: 0,
-        monthlySpentCents: 0, weeklyVotesCast: 0, monthlyVotesCast: 0,
-        weeklyPollsWon: 0, monthlyPollsWon: 0, weeklyPollsVoted: 0,
-        monthlyPollsVoted: 0, creatorEarningsCents: 0, weeklyResetTs: now,
-        monthlyResetTs: now, createdAt: now,
-      };
-      setUsers((prev) => [...prev, newUser]);
+
+      // Give 5 SOL welcome bonus on first connect (only once)
+      const existingUser = users.find(u => u.wallet === walletAddress);
+      if (existingUser && !existingUser.signupBonusClaimed) {
+        const welcomeBonus = 5 * LAMPORTS_PER_SOL;
+        setUsers(prev => prev.map(u =>
+          u.wallet === walletAddress
+            ? { ...u, balance: u.balance + welcomeBonus, signupBonusClaimed: true, lastWeeklyRewardTs: Date.now() }
+            : u
+        ));
+        toast.success("Welcome! Received 5 SOL bonus!", { id: "signup-bonus" });
+      }
+      // Virtual balance: no devnet balance fetch needed
+      return;
+    }
+
+    // Check if user account already exists on-chain
+    try {
+      const existing = await fetchUserAccount(new PublicKey(walletAddress));
+      if (existing) {
+        // Already initialized — just ensure user is in local state
+        const bal = await getWalletBalance(new PublicKey(walletAddress));
+        const user = onChainUserToAccount(existing, bal);
+        setUsers(prev => {
+          if (prev.find(u => u.wallet === walletAddress)) {
+            return prev.map(u => u.wallet === walletAddress ? user : u);
+          }
+          return [...prev, user];
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn("Failed to check user account:", e);
+    }
+
+    // Initialize on-chain user account
+    try {
+      const pubkey = new PublicKey(walletAddress);
+      const ix = await buildInitializeUserIx(pubkey);
+      const sig = await sendTransaction([ix], pubkey);
+      console.log("User initialized on-chain:", sig);
+      toast.success("Account created on Solana!");
+
+      // Refresh user data
+      const bal = await getWalletBalance(pubkey);
+      const onChainUser = await fetchUserAccount(pubkey);
+      if (onChainUser) {
+        const user = onChainUserToAccount(onChainUser, bal);
+        setUsers(prev => [...prev.filter(u => u.wallet !== walletAddress), user]);
+      }
+    } catch (e: any) {
+      console.error("Signup failed:", e);
+      // If the error is "already in use", the account already exists
+      if (e?.message?.includes("already in use") || e?.message?.includes("0x0")) {
+        const bal = await getWalletBalance(new PublicKey(walletAddress));
+        const onChainUser = await fetchUserAccount(new PublicKey(walletAddress));
+        if (onChainUser) {
+          const user = onChainUserToAccount(onChainUser, bal);
+          setUsers(prev => [...prev.filter(u => u.wallet !== walletAddress), user]);
+        }
+      } else {
+        toast.error("Failed to create account — make sure you have SOL for gas");
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletAddress, users]);
+  }, [walletAddress]);
 
-  // ── Auto-signup when connected (only after initial DB fetch completes) ──
+  // ── Auto-signup when connected ──
   useEffect(() => {
     if (!initialFetchDone.current) return;
     if (walletConnected && walletAddress && !users.find((u) => u.wallet === walletAddress)) {
       signup();
     }
-  }, [walletConnected, walletAddress, signup, users, isLoading]);
+  }, [walletConnected, walletAddress, signup, users]);
 
-  // ── Claim daily reward ($100 every 24h) — server-enforced via RPC ──
+  // ── Claim daily reward: Request devnet airdrop (replaces virtual bonus) ──
   const claimDailyReward = useCallback(async (): Promise<boolean> => {
     if (!walletAddress) return false;
-    const user = users.find((u) => u.wallet === walletAddress);
-    if (!user) return false;
 
-    // Quick client-side check to avoid unnecessary RPC calls
-    const now = Date.now();
-    if (now - user.lastWeeklyRewardTs < DAY_MS) return false;
-
-    if (isSupabaseConfigured) {
-      try {
-        // Atomic server-side claim (checks 24h, deducts, updates timestamp)
-        const { data, error } = await supabase.rpc('claim_daily_reward', { p_wallet: walletAddress });
-        if (!error && data?.success) {
-          setUsers(prev => prev.map(u => u.wallet === walletAddress
-            ? { ...u, balance: Number(data.new_balance), lastWeeklyRewardTs: Number(data.last_claim_ts) }
-            : u
-          ));
-          return true;
-        }
-        if (data && !data.success) {
-          // Server says too early — sync local state with server values
-          if (data.last_claim_ts) {
-            setUsers(prev => prev.map(u => u.wallet === walletAddress
-              ? { ...u, lastWeeklyRewardTs: Number(data.last_claim_ts), balance: Number(data.balance ?? u.balance) }
-              : u
-            ));
-          }
+    if (!PROGRAM_DEPLOYED) {
+      // Demo mode: 1 SOL every 24 hours
+      const user = users.find(u => u.wallet === walletAddress);
+      if (user) {
+        const hoursSinceLastClaim = (Date.now() - user.lastWeeklyRewardTs) / (1000 * 60 * 60);
+        if (hoursSinceLastClaim < 24) {
+          const hoursLeft = Math.ceil(24 - hoursSinceLastClaim);
+          toast.error(`Daily reward available in ${hoursLeft}h`, { id: "airdrop" });
           return false;
         }
-        // RPC failed — do NOT fall back to non-atomic SELECT+UPDATE (TOCTOU risk)
-        console.error('claim_daily_reward RPC unavailable — ensure the RPC function is installed in Supabase');
-        toast.error('Claim service unavailable — please try again later');
-        return false;
-      } catch (e) {
-        console.error('Daily claim error:', e);
-        toast.error('Claim failed');
-        return false;
       }
-    } else {
-      // No DB: local only
-      setUsers(prev => prev.map(u => u.wallet === walletAddress
-        ? { ...u, balance: u.balance + DAILY_REWARD, lastWeeklyRewardTs: now }
-        : u
+      const bonus = 1 * LAMPORTS_PER_SOL;
+      setUsers(prev => prev.map(u =>
+        u.wallet === walletAddress
+          ? { ...u, balance: u.balance + bonus, lastWeeklyRewardTs: Date.now() }
+          : u
+      ));
+      toast.success("Received 1 SOL daily reward!", { id: "airdrop" });
+      return true;
+    }
+
+    try {
+      toast.loading("Requesting devnet SOL airdrop...", { id: "airdrop" });
+      const pubkey = new PublicKey(walletAddress);
+      const balBefore = await getWalletBalance(pubkey);
+      const sig = await requestAirdrop(pubkey, 1);
+      console.log("Airdrop:", sig);
+
+      // Update local balance
+      const newBal = await getWalletBalance(pubkey);
+      const received = (newBal - balBefore) / LAMPORTS_PER_SOL;
+      toast.success(`Received ${received.toFixed(1)} SOL airdrop!`, { id: "airdrop" });
+      setUsers(prev => prev.map(u =>
+        u.wallet === walletAddress ? { ...u, balance: newBal } : u
       ));
       return true;
+    } catch (e: any) {
+      console.error("Airdrop failed:", e);
+      const msg = e?.message || "";
+      if (msg.includes("429") || msg.includes("Too Many")) {
+        toast.error("Rate limited — wait a minute and try again", { id: "airdrop" });
+      } else {
+        toast.error("Airdrop failed — devnet may be congested, try again later", { id: "airdrop" });
+      }
+      return false;
     }
   }, [walletAddress, users]);
 
-  // ── Reset weekly/monthly leaderboard periods (only after DB loaded) ──
-  useEffect(() => {
-    if (!initialFetchDone.current) return;
-    const now = Date.now();
-    setUsers((prev) =>
-      prev.map((u) => {
-        let updated = { ...u };
-        let changed = false;
-        if (now - u.weeklyResetTs >= WEEK_MS) {
-          updated.weeklyWinningsCents = 0;
-          updated.weeklySpentCents = 0;
-          updated.weeklyVotesCast = 0;
-          updated.weeklyPollsWon = 0;
-          updated.weeklyPollsVoted = 0;
-          updated.weeklyResetTs = now;
-          changed = true;
-        }
-        if (now - u.monthlyResetTs >= 30 * 24 * 60 * 60 * 1000) {
-          updated.monthlyWinningsCents = 0;
-          updated.monthlySpentCents = 0;
-          updated.monthlyVotesCast = 0;
-          updated.monthlyPollsWon = 0;
-          updated.monthlyPollsVoted = 0;
-          updated.monthlyResetTs = now;
-          changed = true;
-        }
-        if (changed && isSupabaseConfigured) {
-          const dbUpdate = userToDb(updated) as Record<string, any>;
-          const dbOld = userToDb(u) as Record<string, any>;
-          const diff: Record<string, any> = {};
-          for (const key of Object.keys(dbUpdate)) {
-            if (key !== 'wallet' && key !== 'balance' && dbUpdate[key] !== dbOld[key]) {
-              diff[key] = dbUpdate[key];
-            }
-          }
-          if (Object.keys(diff).length > 0) {
-            supabase.from("users").update(diff).eq("wallet", u.wallet).then(({ error }) => {
-              if (error) console.error("DB weekly/monthly reset error:", error);
-            });
-          }
-        }
-        return updated;
-      })
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
-
-  // ── Create poll ──
+  // ── Create poll: Real SOL transaction (or demo mode) ──
   const createPoll = useCallback(
     async (poll: Omit<DemoPoll, "id">): Promise<DemoPoll | null> => {
       if (!walletAddress) return null;
-      const user = users.find((u) => u.wallet === walletAddress);
-      if (!user || user.balance < poll.creatorInvestmentCents) return null;
 
-      // Atomically deduct creator investment from balance
-      const spend = await dbSpendBalance(walletAddress, poll.creatorInvestmentCents);
-      if (!spend.success) return null;
-      updateLocalBalance(walletAddress, spend.newBalance);
+      try {
+        const pubkey = new PublicKey(walletAddress);
+        const pollId = poll.pollId || Date.now();
 
-      const id = `poll_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const platformFee = Math.max(Math.floor(poll.creatorInvestmentCents / 100), 1);
-      const creatorReward = Math.max(Math.floor(poll.creatorInvestmentCents / 100), 1);
-      const poolSeed = poll.creatorInvestmentCents - platformFee - creatorReward;
+        toast.loading("Creating poll...", { id: "create-poll" });
 
-      const nowSec = Math.floor(Date.now() / 1000);
-      const newPoll: DemoPoll = {
-        ...poll,
-        id,
-        totalPoolCents: poolSeed,
-        platformFeeCents: platformFee,
-        creatorRewardCents: creatorReward,
-        voteCounts: new Array(poll.options.length).fill(0),
-        status: 0,
-        winningOption: 255,
-        totalVoters: 0,
-        createdAt: nowSec,
-      };
+        if (PROGRAM_DEPLOYED) {
+          const ix = await buildCreatePollIx(
+            pubkey,
+            pollId,
+            poll.title,
+            poll.description,
+            poll.category,
+            poll.imageUrl,
+            poll.options,
+            poll.unitPriceCents,
+            poll.endTime,
+            poll.creatorInvestmentCents
+          );
+          const sig = await sendTransaction([ix], pubkey);
+          console.log("Poll created on-chain:", sig);
+        }
 
-      setPolls((prev) => [...prev, newPoll]);
-      dbUpsertPoll(newPoll);
+        // Store option images off-chain in Supabase (if configured)
+        const [pollPDA] = getPollPDA(pubkey, pollId);
 
-      updateUser(walletAddress, (u) => ({
-        ...u,
-        pollsCreated: u.pollsCreated + 1,
-      }));
+        // Build the frontend poll object
+        const platformFee = Math.max(Math.floor(poll.creatorInvestmentCents / 100), 1);
+        const creatorReward = Math.max(Math.floor(poll.creatorInvestmentCents / 100), 1);
+        const poolSeed = poll.creatorInvestmentCents - platformFee - creatorReward;
 
-      return newPoll;
+        const newPoll: DemoPoll = {
+          ...poll,
+          id: pollPDA.toString(),
+          pollId,
+          totalPoolCents: poolSeed,
+          platformFeeCents: platformFee,
+          creatorRewardCents: creatorReward,
+          voteCounts: new Array(poll.options.length).fill(0),
+          status: 0,
+          winningOption: 255,
+          totalVoters: 0,
+          createdAt: Math.floor(Date.now() / 1000),
+        };
+
+        setPolls(prev => [newPoll, ...prev]);
+
+        // Save full poll to Supabase for cross-account sharing
+        if (isSupabaseConfigured) {
+          try {
+            await supabase.from("polls").upsert(demoPollToRow(newPoll), { onConflict: "id" });
+          } catch (e) {
+            console.warn("Failed to save poll to Supabase:", e);
+          }
+        }
+
+        // Update balance
+        if (PROGRAM_DEPLOYED) {
+          try {
+            const newBal = await getWalletBalance(pubkey);
+            setUsers(prev => prev.map(u =>
+              u.wallet === walletAddress
+                ? { ...u, balance: newBal, pollsCreated: u.pollsCreated + 1 }
+                : u
+            ));
+          } catch {
+            setUsers(prev => prev.map(u =>
+              u.wallet === walletAddress
+                ? { ...u, pollsCreated: u.pollsCreated + 1 }
+                : u
+            ));
+          }
+        } else {
+          // Demo mode: deduct creator investment from virtual balance
+          setUsers(prev => prev.map(u =>
+            u.wallet === walletAddress
+              ? { ...u, balance: Math.max(0, u.balance - poll.creatorInvestmentCents), pollsCreated: u.pollsCreated + 1 }
+              : u
+          ));
+        }
+
+        toast.success("Poll created!", { id: "create-poll" });
+        return newPoll;
+      } catch (e: any) {
+        console.error("Create poll failed:", e);
+        toast.error(e?.message || "Failed to create poll", { id: "create-poll" });
+        return null;
+      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletAddress, users, updateUser]
+    [walletAddress]
   );
 
-  // ── Edit poll (creator-only, zero votes, active, not ended) ──
+  // ── Edit poll: On-chain transaction (creator-only, zero votes, active) ──
   const editPoll = useCallback(
-    (
+    async (
       pollId: string,
       updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">>
-    ): boolean => {
+    ): Promise<boolean> => {
       if (!walletAddress) return false;
       const poll = polls.find((p) => p.id === pollId);
       if (!poll) return false;
 
-      // Permission checks
-      if (poll.creator !== walletAddress) return false;
-      if (poll.status !== 0) return false;
-      const now = Math.floor(Date.now() / 1000);
-      if (now >= poll.endTime) return false;
-      const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
-      if (totalVotes > 0) return false;
+      const admin = isAdminWallet(walletAddress);
 
-      // Option count must match if options are being updated
-      if (updates.options && updates.options.length !== poll.options.length) return false;
+      // Non-admin restrictions
+      if (!admin) {
+        if (poll.creator !== walletAddress) return false;
+        if (poll.status !== 0) return false;
 
-      // End time must be in the future
-      if (updates.endTime && updates.endTime <= now) return false;
+        const now = Math.floor(Date.now() / 1000);
+        if (now >= poll.endTime) return false;
+        const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
+        if (totalVotes > 0) return false;
+        if (updates.options && updates.options.length !== poll.options.length) return false;
+        if (updates.endTime && updates.endTime <= now) return false;
+      }
 
+      // Optimistic update
       const updatedPoll: DemoPoll = {
         ...poll,
         title: updates.title ?? poll.title,
@@ -791,281 +873,447 @@ export function Providers({ children }: { children: ReactNode }) {
         options: updates.options ?? poll.options,
         endTime: updates.endTime ?? poll.endTime,
       };
+      setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
 
-      setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
-      dbUpsertPoll(updatedPoll);
-      return true;
+      try {
+        if (PROGRAM_DEPLOYED) {
+          const pubkey = new PublicKey(walletAddress);
+          toast.loading("Editing poll on Solana...", { id: "edit-poll" });
+
+          const ix = await buildEditPollIx(
+            pubkey,
+            poll.pollId,
+            updates.title ?? poll.title,
+            updates.description ?? poll.description,
+            updates.category ?? poll.category,
+            updates.imageUrl ?? poll.imageUrl,
+            updates.options ?? poll.options,
+            updates.endTime ?? poll.endTime
+          );
+
+          await sendTransaction([ix], pubkey);
+        }
+
+        // Sync updated poll to Supabase
+        if (isSupabaseConfigured) {
+          try {
+            await supabase.from("polls").update({
+              title: updates.title ?? poll.title,
+              description: updates.description ?? poll.description,
+              category: updates.category ?? poll.category,
+              image_url: updates.imageUrl ?? poll.imageUrl,
+              option_images: updates.optionImages ?? poll.optionImages,
+              options: updates.options ?? poll.options,
+              end_time: updates.endTime ?? poll.endTime,
+            }).eq("id", pollId);
+          } catch (e) {
+            console.warn("Failed to sync edit to Supabase:", e);
+          }
+        }
+
+        toast.success("Poll edited!", { id: "edit-poll" });
+        return true;
+      } catch (e: any) {
+        // Rollback optimistic update on failure
+        setPolls(prev => prev.map(p => p.id === pollId ? poll : p));
+        console.error("Edit poll failed:", e);
+        toast.error(e?.message || "Edit failed", { id: "edit-poll" });
+        return false;
+      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [walletAddress, polls]
   );
 
-  // ── Delete poll (creator-only, zero votes, active, not ended — refund investment) ──
+  // ── Delete poll: Refunds SOL from treasury ──
   const deletePoll = useCallback(
     async (pollId: string): Promise<boolean> => {
       if (!walletAddress) return false;
       const poll = polls.find((p) => p.id === pollId);
       if (!poll) return false;
 
-      // Permission checks
-      if (poll.creator !== walletAddress) return false;
-      if (poll.status !== 0) return false;
-      const now = Math.floor(Date.now() / 1000);
-      if (now >= poll.endTime) return false;
-      const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
-      if (totalVotes > 0) return false;
+      const admin = isAdminWallet(walletAddress);
 
-      // Atomically refund creator investment
-      const credit = await dbCreditBalance(walletAddress, poll.creatorInvestmentCents);
-      if (!credit.success) return false;
-      updateLocalBalance(walletAddress, credit.newBalance);
+      // Non-admin restrictions
+      if (!admin) {
+        if (poll.creator !== walletAddress) return false;
+        if (poll.status !== 0) return false;
 
-      updateUser(walletAddress, (u) => ({
-        ...u,
-        pollsCreated: Math.max(0, u.pollsCreated - 1),
-      }));
-
-      // Remove poll from state
-      setPolls((prev) => prev.filter((p) => p.id !== pollId));
-
-      // Delete from Supabase
-      if (isSupabaseConfigured) {
-        supabase.from("polls").delete().eq("id", pollId).then(({ error }) => {
-          if (error) console.error("DB poll delete error:", error);
-        });
+        const now = Math.floor(Date.now() / 1000);
+        if (now >= poll.endTime) return false;
+        const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
+        if (totalVotes > 0) return false;
       }
 
-      return true;
+      try {
+        const pubkey = new PublicKey(walletAddress);
+        toast.loading("Deleting poll...", { id: "delete-poll" });
+
+        if (PROGRAM_DEPLOYED) {
+          const ix = await buildDeletePollIx(pubkey, poll.pollId);
+          await sendTransaction([ix], pubkey);
+        }
+
+        // Remove from local state
+        setPolls(prev => prev.filter(p => p.id !== pollId));
+
+        // Update balance
+        if (PROGRAM_DEPLOYED) {
+          try {
+            const newBal = await getWalletBalance(pubkey);
+            setUsers(prev => prev.map(u =>
+              u.wallet === walletAddress
+                ? { ...u, balance: newBal, pollsCreated: Math.max(0, u.pollsCreated - 1) }
+                : u
+            ));
+          } catch {
+            setUsers(prev => prev.map(u =>
+              u.wallet === walletAddress
+                ? { ...u, pollsCreated: Math.max(0, u.pollsCreated - 1) }
+                : u
+            ));
+          }
+        } else {
+          // Demo mode: refund creator investment to virtual balance
+          setUsers(prev => prev.map(u =>
+            u.wallet === walletAddress
+              ? { ...u, balance: u.balance + poll.creatorInvestmentCents, pollsCreated: Math.max(0, u.pollsCreated - 1) }
+              : u
+          ));
+        }
+
+        // Clean up from Supabase
+        if (isSupabaseConfigured) {
+          try { await supabase.from("polls").delete().eq("id", pollId); } catch {}
+        }
+
+        toast.success("Poll deleted!", { id: "delete-poll" });
+        return true;
+      } catch (e: any) {
+        console.error("Delete poll failed:", e);
+        toast.error(e?.message || "Delete failed", { id: "delete-poll" });
+        return false;
+      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletAddress, polls, updateUser]
+    [walletAddress, polls]
   );
 
-  // ── Cast vote (atomic RPC) ──
+  // ── Cast vote: Real SOL transfer to treasury ──
   const castVote = useCallback(
     async (pollId: string, optionIndex: number, numCoins: number): Promise<boolean> => {
       if (!walletAddress) return false;
-      const user = users.find((u) => u.wallet === walletAddress);
       const poll = polls.find((p) => p.id === pollId);
-      if (!user || !poll || poll.status !== 0) return false;
+      if (!poll || poll.status !== 0) return false;
       if (Date.now() / 1000 > poll.endTime) return false;
+      if (poll.creator === walletAddress) {
+        toast.error("You cannot vote on your own poll");
+        return false;
+      }
 
-      const cost = numCoins * poll.unitPriceCents;
-      if (cost > user.balance) return false;
+      // Check max vote limit per poll
+      const existing = votes.find(v => v.pollId === pollId && v.voter === walletAddress);
+      const currentCoins = existing ? existing.votesPerOption.reduce((a, b) => a + b, 0) : 0;
+      if (currentCoins + numCoins > MAX_COINS_PER_POLL) {
+        toast.error(`Max ${MAX_COINS_PER_POLL} coins per poll (you have ${currentCoins})`);
+        return false;
+      }
 
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error } = await supabase.rpc('cast_vote_atomic', {
-            p_wallet: walletAddress,
-            p_poll_id: pollId,
-            p_option_index: optionIndex,
-            p_num_coins: numCoins,
-          });
-          if (error) {
-            console.error('cast_vote_atomic RPC error:', error);
-            toast.error('Vote failed — please try again');
-            return false;
-          }
-          if (!data?.success) {
-            const errMsg = data?.error || 'unknown';
-            if (errMsg === 'insufficient_balance') toast.error('Insufficient balance');
-            else if (errMsg === 'poll_ended') toast.error('Poll has ended');
-            else if (errMsg === 'creator_cannot_vote') toast.error('You cannot vote on your own poll');
-            else console.error('cast_vote_atomic failed:', errMsg);
-            return false;
-          }
-          // Update local balance from server response
-          updateLocalBalance(walletAddress, Number(data.new_balance));
-          // Remaining state will sync via realtime
-          return true;
-        } catch (e) {
-          console.error('castVote exception:', e);
-          toast.error('Vote failed');
-          return false;
+      const cost = numCoins * poll.unitPriceCents; // lamports
+      if (userAccount && cost > userAccount.balance) {
+        toast.error("Insufficient SOL balance");
+        return false;
+      }
+
+      // Save previous state for rollback on failure
+      const prevPolls = polls;
+      const prevVotes = votes;
+
+      try {
+        const pubkey = new PublicKey(walletAddress);
+        const pollCreator = new PublicKey(poll.creator);
+        toast.loading("Casting vote...", { id: "cast-vote" });
+
+        if (PROGRAM_DEPLOYED) {
+          const ix = await buildCastVoteIx(
+            pubkey,
+            pollCreator,
+            poll.pollId,
+            optionIndex,
+            numCoins
+          );
+
+          const sig = await sendTransaction([ix], pubkey);
+          console.log("Vote cast on-chain:", sig);
         }
-      }
 
-      // ── Fallback: no DB (local-only mode) ──
-      const existing = votes.find((v) => v.pollId === pollId && v.voter === walletAddress);
-
-      const updatedPoll = {
-        ...poll,
-        voteCounts: poll.voteCounts.map((c, i) => (i === optionIndex ? c + numCoins : c)),
-        totalPoolCents: poll.totalPoolCents + cost,
-        totalVoters: poll.totalVoters + (existing ? 0 : 1),
-      };
-      setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
-
-      if (existing) {
-        const updatedVote: DemoVote = {
-          ...existing,
-          votesPerOption: existing.votesPerOption.map((c, i) => (i === optionIndex ? c + numCoins : c)),
-          totalStakedCents: existing.totalStakedCents + cost,
+        // Optimistic local update
+        const updatedPoll = {
+          ...poll,
+          voteCounts: poll.voteCounts.map((c, i) => i === optionIndex ? c + numCoins : c),
+          totalPoolCents: poll.totalPoolCents + cost,
+          totalVoters: poll.totalVoters + (existing ? 0 : 1),
         };
-        setVotes((prev) =>
-          prev.map((v) => (v.pollId === pollId && v.voter === walletAddress ? updatedVote : v))
-        );
-      } else {
-        const votesPerOption = new Array(poll.options.length).fill(0);
-        votesPerOption[optionIndex] = numCoins;
-        const newVote: DemoVote = { pollId, voter: walletAddress, votesPerOption, totalStakedCents: cost, claimed: false };
-        setVotes((prev) => [...prev, newVote]);
+        setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
+
+        if (existing) {
+          const updatedVote: DemoVote = {
+            ...existing,
+            votesPerOption: existing.votesPerOption.map((c, i) => i === optionIndex ? c + numCoins : c),
+            totalStakedCents: existing.totalStakedCents + cost,
+          };
+          setVotes(prev => prev.map(v =>
+            v.pollId === pollId && v.voter === walletAddress ? updatedVote : v
+          ));
+        } else {
+          const votesPerOption = new Array(poll.options.length).fill(0);
+          votesPerOption[optionIndex] = numCoins;
+          setVotes(prev => [...prev, {
+            pollId,
+            voter: walletAddress,
+            votesPerOption,
+            totalStakedCents: cost,
+            claimed: false,
+          }]);
+        }
+
+        // Update balance
+        if (PROGRAM_DEPLOYED) {
+          const newBal = await getWalletBalance(pubkey);
+          setUsers(prev => prev.map(u => {
+            if (u.wallet !== walletAddress) return u;
+            const fresh = withFreshPeriods(u);
+            return {
+              ...fresh,
+              balance: newBal,
+              totalVotesCast: fresh.totalVotesCast + numCoins,
+              weeklyVotesCast: fresh.weeklyVotesCast + numCoins,
+              monthlyVotesCast: fresh.monthlyVotesCast + numCoins,
+              totalSpentCents: fresh.totalSpentCents + cost,
+              weeklySpentCents: fresh.weeklySpentCents + cost,
+              monthlySpentCents: fresh.monthlySpentCents + cost,
+              totalPollsVoted: fresh.totalPollsVoted + (existing ? 0 : 1),
+              weeklyPollsVoted: fresh.weeklyPollsVoted + (existing ? 0 : 1),
+              monthlyPollsVoted: fresh.monthlyPollsVoted + (existing ? 0 : 1),
+            };
+          }));
+        } else {
+          // Demo mode: deduct cost from virtual balance
+          setUsers(prev => prev.map(u => {
+            if (u.wallet !== walletAddress) return u;
+            const fresh = withFreshPeriods(u);
+            return {
+              ...fresh,
+              balance: Math.max(0, fresh.balance - cost),
+              totalVotesCast: fresh.totalVotesCast + numCoins,
+              weeklyVotesCast: fresh.weeklyVotesCast + numCoins,
+              monthlyVotesCast: fresh.monthlyVotesCast + numCoins,
+              totalSpentCents: fresh.totalSpentCents + cost,
+              weeklySpentCents: fresh.weeklySpentCents + cost,
+              monthlySpentCents: fresh.monthlySpentCents + cost,
+              totalPollsVoted: fresh.totalPollsVoted + (existing ? 0 : 1),
+              weeklyPollsVoted: fresh.weeklyPollsVoted + (existing ? 0 : 1),
+              monthlyPollsVoted: fresh.monthlyPollsVoted + (existing ? 0 : 1),
+            };
+          }));
+        }
+
+        // Sync vote + updated poll to Supabase
+        if (isSupabaseConfigured) {
+          try {
+            const voteRow = existing
+              ? {
+                  poll_id: pollId,
+                  voter: walletAddress,
+                  votes_per_option: existing.votesPerOption.map((c, i) => i === optionIndex ? c + numCoins : c),
+                  total_staked_cents: existing.totalStakedCents + cost,
+                  claimed: false,
+                }
+              : {
+                  poll_id: pollId,
+                  voter: walletAddress,
+                  votes_per_option: new Array(poll.options.length).fill(0).map((_, i) => i === optionIndex ? numCoins : 0),
+                  total_staked_cents: cost,
+                  claimed: false,
+                };
+            await Promise.all([
+              supabase.from("votes").upsert(voteRow, { onConflict: "poll_id,voter" }),
+              supabase.from("polls").update({
+                vote_counts: updatedPoll.voteCounts,
+                total_pool_cents: updatedPoll.totalPoolCents,
+                total_voters: updatedPoll.totalVoters,
+              }).eq("id", pollId),
+            ]);
+          } catch (e) {
+            console.warn("Failed to sync vote to Supabase:", e);
+          }
+        }
+
+        toast.success(`Voted ${numCoins} coin(s) — ${formatSOL(cost)} SOL sent!`, { id: "cast-vote" });
+        return true;
+      } catch (e: any) {
+        // Rollback optimistic update on failure
+        setPolls(prevPolls);
+        setVotes(prevVotes);
+        console.error("Cast vote failed:", e);
+        toast.error(e?.message || "Vote failed", { id: "cast-vote" });
+        return false;
       }
-
-      const isFirstVoteOnPoll = !existing;
-      setUsers(prev => prev.map(u => u.wallet !== walletAddress ? u : {
-        ...u,
-        balance: u.balance - cost,
-        totalVotesCast: u.totalVotesCast + numCoins,
-        totalPollsVoted: u.totalPollsVoted + (isFirstVoteOnPoll ? 1 : 0),
-        totalSpentCents: u.totalSpentCents + cost,
-        weeklyVotesCast: u.weeklyVotesCast + numCoins,
-        monthlyVotesCast: u.monthlyVotesCast + numCoins,
-        weeklySpentCents: u.weeklySpentCents + cost,
-        monthlySpentCents: u.monthlySpentCents + cost,
-        weeklyPollsVoted: u.weeklyPollsVoted + (isFirstVoteOnPoll ? 1 : 0),
-        monthlyPollsVoted: u.monthlyPollsVoted + (isFirstVoteOnPoll ? 1 : 0),
-      }));
-
-      return true;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletAddress, users, polls, votes]
+    [walletAddress, polls, votes, userAccount]
   );
 
-  // ── Settle poll (atomic RPC — credits creator reward + platform fee) ──
+  // ── Settle poll: Determines winner, sends creator reward ──
+  // If winningOption is provided (admin override), use that instead of auto-detecting
   const settlePoll = useCallback(
-    async (pollId: string): Promise<boolean> => {
+    async (pollId: string, winningOption?: number): Promise<boolean> => {
       const poll = polls.find((p) => p.id === pollId);
       if (!poll || poll.status !== 0) return false;
 
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error } = await supabase.rpc('settle_poll_atomic', { p_poll_id: pollId });
-          if (error) {
-            console.error('settle_poll_atomic RPC error:', error);
-            toast.error('Settlement failed — please try again');
-            return false;
+      if (!walletAddress) return false;
+
+      try {
+        const pubkey = new PublicKey(walletAddress);
+        const pollCreator = new PublicKey(poll.creator);
+        toast.loading("Settling poll...", { id: "settle-poll" });
+
+        if (PROGRAM_DEPLOYED) {
+          const ix = await buildSettlePollIx(pubkey, pollCreator, poll.pollId);
+          const sig = await sendTransaction([ix], pubkey);
+          console.log("Poll settled on-chain:", sig);
+        }
+
+        let finalWinningOption: number;
+        if (winningOption !== undefined && winningOption >= 0 && winningOption < poll.options.length) {
+          // Admin chose the winner
+          finalWinningOption = winningOption;
+        } else {
+          // Auto-detect winner by highest votes
+          let maxVotes = 0;
+          let winningIdx = 255;
+          poll.voteCounts.forEach((count, i) => {
+            if (count > maxVotes) {
+              maxVotes = count;
+              winningIdx = i;
+            }
+          });
+          finalWinningOption = maxVotes > 0 ? winningIdx : 255;
+        }
+
+        setPolls(prev => prev.map(p =>
+          p.id === pollId ? { ...p, status: 1, winningOption: finalWinningOption } : p
+        ));
+
+        // Sync settlement to Supabase
+        if (isSupabaseConfigured) {
+          try {
+            await supabase.from("polls").update({
+              status: 1,
+              winning_option: finalWinningOption,
+            }).eq("id", pollId);
+          } catch (e) {
+            console.warn("Failed to sync settlement to Supabase:", e);
           }
-          if (!data?.success) {
-            console.error('settle_poll_atomic failed:', data?.error);
-            return false;
-          }
-          // State syncs via realtime; optimistically update local
-          setPolls(prev => prev.map(p => p.id === pollId
-            ? { ...p, status: 1, winningOption: Number(data.winning_option) }
-            : p
-          ));
-          return true;
-        } catch (e) {
-          console.error('settlePoll exception:', e);
-          toast.error('Settlement failed');
-          return false;
         }
+
+        toast.success("Poll settled!", { id: "settle-poll" });
+        return true;
+      } catch (e: any) {
+        console.error("Settle poll failed:", e);
+        toast.error(e?.message || "Settlement failed", { id: "settle-poll" });
+        return false;
       }
-
-      // Local-only fallback
-      let maxVotes = 0;
-      let winningIdx = 0;
-      poll.voteCounts.forEach((count, i) => {
-        if (count > maxVotes) {
-          maxVotes = count;
-          winningIdx = i;
-        }
-      });
-
-      const updatedPoll = {
-        ...poll,
-        status: 1,
-        winningOption: maxVotes > 0 ? winningIdx : 255,
-      };
-      setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
-
-      // Credit creator reward + platform fee locally
-      if (poll.creator) {
-        const totalCredit = poll.creatorRewardCents + poll.platformFeeCents;
-        if (totalCredit > 0) {
-          setUsers(prev => prev.map(u => u.wallet !== poll.creator ? u : {
-            ...u,
-            balance: u.balance + totalCredit,
-            creatorEarningsCents: u.creatorEarningsCents + poll.creatorRewardCents,
-          }));
-        }
-      }
-
-      return true;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [polls]
+    [walletAddress, polls]
   );
 
-  // ── Claim reward (atomic RPC) ──
+  // ── Claim reward: Real SOL from treasury PDA to winner ──
   const claimReward = useCallback(
     async (pollId: string): Promise<number> => {
       if (!walletAddress) return 0;
       const poll = polls.find((p) => p.id === pollId);
       if (!poll || poll.status !== 1 || poll.winningOption === 255) return 0;
 
-      const voteRecord = votes.find((v) => v.pollId === pollId && v.voter === walletAddress);
+      const voteRecord = votes.find(v => v.pollId === pollId && v.voter === walletAddress);
       if (!voteRecord || voteRecord.claimed) return 0;
 
       const userWinningVotes = voteRecord.votesPerOption[poll.winningOption] || 0;
       if (userWinningVotes === 0) return 0;
 
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error } = await supabase.rpc('claim_reward_atomic', {
-            p_wallet: walletAddress,
-            p_poll_id: pollId,
-          });
-          if (error) {
-            console.error('claim_reward_atomic RPC error:', error);
-            toast.error('Claim failed — please try again');
-            return 0;
-          }
-          if (!data?.success) {
-            const errMsg = data?.error || 'unknown';
-            if (errMsg === 'already_claimed') toast.error('Already claimed');
-            else if (errMsg === 'did_not_win') toast.error('You did not win this poll');
-            else console.error('claim_reward_atomic failed:', errMsg);
-            return 0;
-          }
-          const reward = Number(data.reward);
-          // State syncs via realtime; mark claimed locally for instant UI
-          setVotes(prev => prev.map(v =>
-            v.pollId === pollId && v.voter === walletAddress ? { ...v, claimed: true } : v
-          ));
-          return reward;
-        } catch (e) {
-          console.error('claimReward exception:', e);
-          toast.error('Claim failed');
-          return 0;
+      try {
+        const pubkey = new PublicKey(walletAddress);
+        const pollCreator = new PublicKey(poll.creator);
+        toast.loading("Claiming reward...", { id: "claim-reward" });
+
+        if (PROGRAM_DEPLOYED) {
+          const ix = await buildClaimRewardIx(pubkey, pollCreator, poll.pollId);
+          const sig = await sendTransaction([ix], pubkey);
+          console.log("Reward claimed:", sig);
         }
+
+        // Calculate expected reward
+        const totalWinningVotes = poll.voteCounts[poll.winningOption];
+        const reward = Math.floor(
+          (userWinningVotes / totalWinningVotes) * poll.totalPoolCents
+        );
+
+        // Mark claimed
+        setVotes(prev => prev.map(v =>
+          v.pollId === pollId && v.voter === walletAddress ? { ...v, claimed: true } : v
+        ));
+
+        // Sync claim to Supabase
+        if (isSupabaseConfigured) {
+          try {
+            await supabase.from("votes").update({ claimed: true })
+              .eq("poll_id", pollId)
+              .eq("voter", walletAddress);
+          } catch (e) {
+            console.warn("Failed to sync claim to Supabase:", e);
+          }
+        }
+
+        // Update balance
+        if (PROGRAM_DEPLOYED) {
+          const newBal = await getWalletBalance(pubkey);
+          setUsers(prev => prev.map(u => {
+            if (u.wallet !== walletAddress) return u;
+            const fresh = withFreshPeriods(u);
+            return {
+              ...fresh,
+              balance: newBal,
+              pollsWon: fresh.pollsWon + 1,
+              weeklyPollsWon: fresh.weeklyPollsWon + 1,
+              monthlyPollsWon: fresh.monthlyPollsWon + 1,
+              totalWinningsCents: fresh.totalWinningsCents + reward,
+              weeklyWinningsCents: fresh.weeklyWinningsCents + reward,
+              monthlyWinningsCents: fresh.monthlyWinningsCents + reward,
+            };
+          }));
+        } else {
+          // Demo mode: add reward to virtual balance
+          setUsers(prev => prev.map(u => {
+            if (u.wallet !== walletAddress) return u;
+            const fresh = withFreshPeriods(u);
+            return {
+              ...fresh,
+              balance: fresh.balance + reward,
+              pollsWon: fresh.pollsWon + 1,
+              weeklyPollsWon: fresh.weeklyPollsWon + 1,
+              monthlyPollsWon: fresh.monthlyPollsWon + 1,
+              totalWinningsCents: fresh.totalWinningsCents + reward,
+              weeklyWinningsCents: fresh.weeklyWinningsCents + reward,
+              monthlyWinningsCents: fresh.monthlyWinningsCents + reward,
+            };
+          }));
+        }
+
+        toast.success(`Claimed ${formatSOL(reward)}!`, { id: "claim-reward" });
+        return reward;
+      } catch (e: any) {
+        console.error("Claim reward failed:", e);
+        toast.error(e?.message || "Claim failed", { id: "claim-reward" });
+        return 0;
       }
-
-      // Local-only fallback
-      const totalWinningVotes = poll.voteCounts[poll.winningOption];
-      const distributable = poll.totalPoolCents;
-      const reward = Math.floor((userWinningVotes / totalWinningVotes) * distributable);
-
-      setUsers(prev => prev.map(u => u.wallet !== walletAddress ? u : {
-        ...u,
-        balance: u.balance + reward,
-        totalWinningsCents: u.totalWinningsCents + reward,
-        weeklyWinningsCents: u.weeklyWinningsCents + reward,
-        monthlyWinningsCents: u.monthlyWinningsCents + reward,
-        pollsWon: u.pollsWon + 1,
-        weeklyPollsWon: u.weeklyPollsWon + 1,
-        monthlyPollsWon: u.monthlyPollsWon + 1,
-      }));
-
-      setVotes(prev => prev.map(v =>
-        v.pollId === pollId && v.voter === walletAddress ? { ...v, claimed: true } : v
-      ));
-
-      return reward;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [walletAddress, polls, votes]
   );
 

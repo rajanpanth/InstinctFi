@@ -1,41 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Image from "next/image";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useApp, formatDollars } from "./Providers";
-import { CATEGORY_META } from "@/lib/constants";
+import { CATEGORY_META, isAdminWallet } from "@/lib/constants";
+import { useDailyCountdown } from "@/lib/useCountdown";
+import { shortAddr } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 /* ── Compact claim timer for navbar ── */
 function NavClaimTimer({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim: () => Promise<boolean> }) {
-  const [timeLeft, setTimeLeft] = useState("");
-  const [canClaim, setCanClaim] = useState(false);
-  const [pct, setPct] = useState(0);
+  const { timeLeft, canClaim, progress: pct } = useDailyCountdown(lastClaimTs);
   const [claimed, setClaimed] = useState(false);
   const [claiming, setClaiming] = useState(false);
-
-  useEffect(() => {
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const tick = () => {
-      const diff = lastClaimTs + DAY_MS - Date.now();
-      if (diff <= 0) {
-        setCanClaim(true);
-        setTimeLeft("Ready");
-        setPct(100);
-        return;
-      }
-      setCanClaim(false);
-      setPct(Math.min(100, ((DAY_MS - diff) / DAY_MS) * 100));
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(`${h}h ${m.toString().padStart(2, "0")}m ${s.toString().padStart(2, "0")}s`);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [lastClaimTs]);
 
   const handleClaim = async () => {
     if (claiming) return;
@@ -44,7 +23,7 @@ function NavClaimTimer({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim:
       const ok = await onClaim();
       if (ok) {
         setClaimed(true);
-        toast.success("Claimed $100!");
+        toast.success("Airdrop received!");
         setTimeout(() => setClaimed(false), 2000);
       }
     } finally {
@@ -66,7 +45,7 @@ function NavClaimTimer({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim:
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
         </span>
-        {claimed ? "✓" : "$100"}
+        {claimed ? "✓" : "◎ SOL"}
       </button>
     );
   }
@@ -85,7 +64,7 @@ function NavClaimTimer({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim:
           />
         </svg>
       </div>
-      <span className="text-[10px] text-gray-500 font-mono tabular-nums whitespace-nowrap">{timeLeft}</span>
+      <span className="text-[10px] text-gray-400 font-mono tabular-nums whitespace-nowrap">{timeLeft}</span>
     </div>
   );
 }
@@ -106,9 +85,8 @@ export function Navbar() {
     claimDailyReward,
   } = useApp();
   const pathname = usePathname();
-
-  const shortAddr = (addr: string) =>
-    addr.length > 12 ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : addr;
+  const searchParams = useSearchParams();
+  const currentCat = searchParams.get("cat") || "";
 
   const dailyAvailable =
     userAccount &&
@@ -126,7 +104,8 @@ export function Navbar() {
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <span className="text-xl font-extrabold bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent">
+            <Image src="/logo.svg" alt="InstinctFi" width={36} height={36} className="rounded-lg" />
+            <span className="text-xl font-extrabold bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent hidden sm:inline">
               InstinctFi
             </span>
           </Link>
@@ -173,22 +152,34 @@ export function Navbar() {
             >
               Profile
             </Link>
+            {isAdminWallet(walletAddress) && (
+            <Link
+              href="/admin"
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                pathname === "/admin"
+                  ? "bg-red-600/20 text-red-400"
+                  : "text-gray-400 hover:text-white hover:bg-dark-700"
+              }`}
+            >
+              ⚙ Admin
+            </Link>
+            )}
           </div>
 
           {/* Right side */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {walletConnected && userAccount ? (
+            {walletConnected ? (
               <>
                 {/* Timer + Balance combined pill */}
                 <div className="flex items-center gap-0 bg-dark-700 border border-gray-700 rounded-lg overflow-hidden">
                   {/* Claim timer (left side) */}
                   <div className="border-r border-gray-700/60 flex items-center">
-                    <NavClaimTimer lastClaimTs={userAccount.lastWeeklyRewardTs} onClaim={claimDailyReward} />
+                    <NavClaimTimer lastClaimTs={userAccount?.lastWeeklyRewardTs ?? 0} onClaim={claimDailyReward} />
                   </div>
                   {/* Balance (right side) */}
                   <div className="px-2 sm:px-2.5 py-1.5">
                     <span className="text-accent-400 font-bold text-xs sm:text-sm">
-                      {formatDollars(userAccount.balance)}
+                      {userAccount ? formatDollars(userAccount.balance) : "..."}
                     </span>
                   </div>
                 </div>
@@ -204,6 +195,7 @@ export function Navbar() {
                   onClick={disconnectWallet}
                   className="sm:hidden w-8 h-8 flex items-center justify-center bg-dark-700 border border-gray-700 rounded-lg text-gray-400"
                   title="Disconnect wallet"
+                  aria-label="Disconnect wallet"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
@@ -231,16 +223,26 @@ export function Navbar() {
       <div className="border-t border-gray-800/50">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-2">
-            {NAV_CATEGORIES.map((cat) => (
-              <Link
-                key={cat.label}
-                href={cat.href}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors text-gray-400 hover:text-white hover:bg-dark-700/60"
-              >
-                <span className="text-xs">{cat.icon}</span>
-                {cat.label}
-              </Link>
-            ))}
+            {NAV_CATEGORIES.map((cat) => {
+              const isTrending = cat.label === "Trending";
+              const active = isTrending
+                ? pathname === "/" && !currentCat
+                : currentCat === cat.label;
+              return (
+                <Link
+                  key={cat.label}
+                  href={cat.href}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                    active
+                      ? "bg-primary-600/20 text-primary-400"
+                      : "text-gray-400 hover:text-white hover:bg-dark-700/60"
+                  }`}
+                >
+                  <span className="text-xs">{cat.icon}</span>
+                  {cat.label}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -261,7 +263,7 @@ export function Navbar() {
                 key={item.href}
                 href={item.href}
                 className={`relative flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg min-w-[52px] transition-colors ${
-                  active ? "text-primary-400" : "text-gray-500"
+                  active ? "text-primary-400" : "text-gray-400"
                 }`}
               >
                 {"hasBadge" in item && item.hasBadge && (

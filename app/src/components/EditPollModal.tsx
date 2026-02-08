@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { DemoPoll, useApp } from "./Providers";
 import { CATEGORIES } from "@/lib/constants";
 import ImageUpload from "./ImageUpload";
 import { uploadPollImage, sanitizeImageUrl } from "@/lib/uploadImage";
+import Modal from "./Modal";
 import toast from "react-hot-toast";
 
 type Props = {
@@ -15,7 +16,6 @@ type Props = {
 
 export default function EditPollModal({ isOpen, onClose, poll }: Props) {
   const { editPoll } = useApp();
-  const overlayRef = useRef<HTMLDivElement>(null);
 
   // ── Form state (pre-filled from poll) ──
   const [title, setTitle] = useState(poll.title);
@@ -58,30 +58,6 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
       setEndTimeStr(`${h}:${mi}`);
     }
   }, [isOpen, poll]);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  // Prevent body scroll
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const handleImageSelect = async (file: File) => {
     setImageFile(file);
@@ -129,7 +105,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
       setUploading(false);
     }
 
-    const success = editPoll(poll.id, {
+    const success = await editPoll(poll.id, {
       title: title.trim(),
       description: description.trim(),
       category: category.trim(),
@@ -149,21 +125,14 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
   };
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
-    >
-      <div className="relative bg-dark-800 border border-gray-700 rounded-2xl max-w-2xl w-full mx-4 shadow-2xl shadow-purple-900/20 animate-scaleIn max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl" className="max-h-[90vh] overflow-y-auto shadow-purple-900/20">
         {/* Header */}
         <div className="sticky top-0 bg-dark-800 border-b border-gray-700 p-6 rounded-t-2xl z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold">Edit Poll</h2>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-white rounded-lg hover:bg-dark-700 transition-colors"
+              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-dark-700 transition-colors"
               aria-label="Close"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -188,7 +157,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
               className="w-full px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white placeholder-gray-500"
               placeholder="Poll title"
             />
-            <p className="text-xs text-gray-500 mt-1">{title.length}/64</p>
+            <p className="text-xs text-gray-400 mt-1">{title.length}/64</p>
           </div>
 
           {/* Description */}
@@ -202,7 +171,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
               className="w-full px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white placeholder-gray-500 resize-none"
               placeholder="Describe your poll..."
             />
-            <p className="text-xs text-gray-500 mt-1">{description.length}/256</p>
+            <p className="text-xs text-gray-400 mt-1">{description.length}/256</p>
           </div>
 
           {/* Category */}
@@ -239,7 +208,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
             <label className="block text-sm font-medium text-gray-300 mb-1.5">
               Option Labels
             </label>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-gray-400 mb-3">
               You can rename options but cannot add or remove them.
             </p>
             <div className="space-y-2">
@@ -309,7 +278,6 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
             {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

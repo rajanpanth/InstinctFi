@@ -1,9 +1,10 @@
 [workspace]
 members = [
-    "programs/user_program",
+    "programs/instinctfi",
     "programs/poll_program",
     "programs/vote_program",
     "programs/settlement_program",
+    "programs/user_program",
 ]
 resolver = "2"
 

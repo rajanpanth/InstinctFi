@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { DemoPoll, useApp, formatDollars } from "./Providers";
+import Modal from "./Modal";
 import toast from "react-hot-toast";
 
 type Props = {
@@ -13,37 +14,12 @@ type Props = {
 
 export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Props) {
   const { deletePoll } = useApp();
-  const overlayRef = useRef<HTMLDivElement>(null);
   const [deleting, setDeleting] = useState(false);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  // Prevent body scroll
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
 
   // Reset state when opened
   useEffect(() => {
     if (isOpen) setDeleting(false);
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -51,7 +27,7 @@ export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Pr
     setDeleting(false);
 
     if (success) {
-      toast.success("Poll deleted. Investment refunded to your balance.");
+      toast.success("Poll deleted. SOL refunded to your wallet.");
       onClose();
       onDeleted();
     } else {
@@ -60,14 +36,7 @@ export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Pr
   };
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
-    >
-      <div className="relative bg-dark-800 border border-gray-700 rounded-2xl max-w-md w-full mx-4 shadow-2xl shadow-red-900/20 animate-scaleIn">
+    <Modal isOpen={isOpen} onClose={onClose} className="shadow-red-900/20">
         {/* Icon */}
         <div className="flex justify-center pt-8">
           <div className="w-16 h-16 rounded-full bg-red-600/15 flex items-center justify-center">
@@ -106,7 +75,7 @@ export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Pr
                 <span>
                   Your investment of{" "}
                   <span className="text-green-400 font-medium">{formatDollars(poll.creatorInvestmentCents)}</span>{" "}
-                  will be refunded to your balance.
+                  will be refunded to your wallet.
                 </span>
               </li>
               <li className="flex items-start gap-2">
@@ -137,7 +106,6 @@ export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Pr
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

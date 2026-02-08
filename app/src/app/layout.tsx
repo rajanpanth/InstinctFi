@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: "InstinctFi — Decentralized Prediction Polls",
   description:
     "Vote on prediction polls with play money. Winners take the losing pool. Powered by Solana.",
+  icons: {
+    icon: "/logo.svg",
+  },
 };
 
 export default function RootLayout({

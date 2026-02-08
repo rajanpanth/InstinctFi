@@ -1,51 +1,55 @@
-# InstinctFi — Decentralized Prediction Polls on Solana
+# InstinctFi — On-Chain Prediction Markets on Solana
 
-> Vote on polls by buying option-coins. Winners take the entire losing pool.
+> Buy option-coins on prediction polls. Winners take the entire losing pool.
+> **Real SOL. Real stakes. Fully on-chain.**
 
 ## Architecture
 
 ```
-votingproject/
-├── Anchor.toml                    # Anchor workspace config
-├── Cargo.toml                     # Rust workspace
+InstinctFi/
+├── Anchor.toml                     # Anchor workspace config (devnet)
+├── Cargo.toml                      # Rust workspace
 ├── programs/
-│   ├── poll_program/              # Program 1: Poll creation & management
-│   │   └── src/
-│   │       ├── lib.rs             # Entry point: create_poll instruction
-│   │       ├── state.rs           # PollAccount schema (PDA)
-│   │       ├── errors.rs          # Error codes
-│   │       └── instructions/
-│   │           └── create_poll.rs # Create poll handler + accounts
-│   ├── vote_program/              # Program 2: Voting & option-coin purchase
-│   │   └── src/
-│   │       ├── lib.rs             # Entry point: cast_vote instruction
-│   │       ├── state.rs           # VoteAccount + UserStats schemas
-│   │       ├── errors.rs          # Error codes
-│   │       └── instructions/
-│   │           └── cast_vote.rs   # Vote handler + accounts
-│   └── settlement_program/        # Program 3: Settlement & rewards
+│   └── instinctfi/                 # Unified Anchor program
 │       └── src/
-│           ├── lib.rs             # Entry points: settle_poll, claim_reward
-│           ├── errors.rs          # Error codes
+│           ├── lib.rs              # 7 instructions: initialize_user, create_poll,
+│           │                       #   edit_poll, delete_poll, cast_vote,
+│           │                       #   settle_poll, claim_reward
+│           ├── state.rs            # UserAccount, PollAccount, VoteAccount (PDAs)
+│           ├── errors.rs           # InstinctFiError enum
 │           └── instructions/
-│               ├── settle_poll.rs # Settlement logic (most votes wins)
-│               └── claim_reward.rs# Proportional reward distribution
+│               ├── initialize_user.rs  # Create on-chain user profile
+│               ├── create_poll.rs      # Create poll with real SOL investment
+│               ├── edit_poll.rs        # Edit poll (creator-only, zero votes)
+│               ├── delete_poll.rs      # Delete poll, refund SOL from treasury
+│               ├── cast_vote.rs        # Buy option-coins with real SOL
+│               ├── settle_poll.rs      # Determine winner, send creator reward
+│               ├── claim_reward.rs     # Winners claim proportional SOL from treasury
+│               └── mod.rs
 ├── tests/
-│   └── voting.ts                  # E2E tests + tokenomics validation
-└── app/                           # Next.js Frontend
+│   └── voting.ts                   # E2E tests
+└── app/                            # Next.js 15 Frontend
     ├── src/
     │   ├── app/
-    │   │   ├── layout.tsx         # Root layout + providers
-    │   │   ├── page.tsx           # Landing page (hero + how it works)
-    │   │   ├── globals.css        # Tailwind + dark theme
-    │   │   ├── create/page.tsx    # Poll creation form
-    │   │   ├── polls/page.tsx     # Poll listing with filters
-    │   │   ├── polls/[id]/page.tsx# Poll detail + voting + settlement
-    │   │   ├── leaderboard/page.tsx# Sortable leaderboard
-    │   │   └── profile/page.tsx   # Wallet profile + stats
-    │   └── components/
-    │       ├── Providers.tsx       # Wallet + Demo mode context
-    │       └── Navbar.tsx          # Navigation + mode toggle
+    │   │   ├── layout.tsx          # Root layout + providers
+    │   │   ├── page.tsx            # Landing page
+    │   │   ├── create/page.tsx     # Poll creation (SOL investment)
+    │   │   ├── polls/page.tsx      # Poll listing with filters
+    │   │   ├── polls/[id]/page.tsx # Poll detail + voting + settlement
+    │   │   ├── leaderboard/page.tsx# On-chain leaderboard
+    │   │   └── profile/page.tsx    # Wallet profile + stats
+    │   ├── components/
+    │   │   ├── Providers.tsx       # Solana transaction layer + app state
+    │   │   ├── Navbar.tsx          # Navigation + SOL balance
+    │   │   ├── PollCard.tsx        # Poll display card
+    │   │   ├── VotePopup.tsx       # Voting modal
+    │   │   └── ...
+    │   └── lib/
+    │       ├── program.ts          # On-chain program interaction (PDA derivation,
+    │       │                       #   instruction builders, Borsh encoding,
+    │       │                       #   account deserialization, tx helpers)
+    │       ├── constants.ts        # Categories & metadata
+    │       └── supabase.ts         # Optional off-chain indexer
     ├── tailwind.config.js
     ├── next.config.js
     └── package.json
@@ -53,53 +57,84 @@ votingproject/
 
 ## How It Works
 
+### On-Chain Flow
+
+```
+Creator (SOL) ──→ create_poll ──→ Treasury PDA (holds SOL)
+                                      │
+Voter (SOL) ──→ cast_vote ──────→ Treasury PDA (more SOL)
+                                      │
+Anyone ──→ settle_poll ──→ Winner determined (highest votes)
+                                      │
+Winner ──→ claim_reward ←──── Treasury PDA sends proportional SOL
+```
+
 ### Tokenomics
-1. **Creator** creates a poll with seed investment
-   - Platform fee: 1% of investment
-   - Creator reward: 1% of investment
-   - Pool seed: 98% of investment
-2. **Voters** buy option-coins at `unit_price` per coin (1 coin = 1 vote)
-   - Funds go to treasury PDA
+1. **Creator** creates a poll with real SOL investment
+   - Platform fee: 1% of investment (stays in treasury)
+   - Creator reward: 1% of investment (sent to creator on settlement)
+   - Pool seed: 98% of investment (distributed to winners)
+2. **Voters** buy option-coins at `unit_price` lamports per coin
+   - Real SOL transferred to treasury PDA via `system_program::transfer`
 3. **Settlement** — after end time, highest vote count wins
 4. **Claim** — winners split the entire pool proportionally:
    ```
    user_reward = (user_votes / total_winning_votes) × total_pool
    ```
+   Real SOL transferred from treasury PDA back to winners.
 
 ### On-Chain Accounts (PDAs)
-| Account | Seeds | Program |
-|---------|-------|---------|
-| PollAccount | `["poll", creator, poll_id]` | poll_program |
-| Treasury | `["treasury", poll_account]` | poll_program |
-| VoteAccount | `["vote", poll_account, voter]` | vote_program |
-| UserStats | `["user_stats", user]` | vote_program |
 
-### Security Rules
-- Poll data immutable after creation
-- End time enforced on-chain
-- Creator cannot vote on own poll
-- Settlement only once (status flag)
-- All funds locked until settlement
-- Transparent math (no hidden fees)
+| Account | Seeds | Description |
+|---------|-------|-------------|
+| UserAccount | `["user", authority]` | User profile & stats |
+| PollAccount | `["poll", creator, poll_id]` | Poll data & vote counts |
+| Treasury | `["treasury", poll_account]` | SOL vault for each poll |
+| VoteAccount | `["vote", poll_account, voter]` | Vote record per user per poll |
 
-## Demo Mode
-- Auto-balance: $5,000 demo dollars
-- No wallet required
-- Full simulation of all flows
-- Add more funds from profile page
+### Security
+
+- **Real SOL transfers** via `system_program::transfer` CPI — not internal accounting
+- **Treasury PDAs** hold all funds — only the program can sign for withdrawals
+- **Creator cannot vote** on their own poll (enforced on-chain)
+- **Settlement only once** — status flag prevents double-settlement
+- **Proportional rewards** — computed with u128 math to prevent overflow
+- **Refunds on delete** — full SOL returned if no votes cast
+- **Permissionless settlement** — anyone can trigger after end time
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Blockchain | Solana (Devnet) |
+| Smart Contract | Anchor 0.30.1 (Rust) |
+| Frontend | Next.js 15, React 19, Tailwind CSS 3.4 |
+| Wallet | Phantom (signMessage + signTransaction) |
+| Off-chain Index | Supabase (optional, for images/caching) |
 
 ## Quick Start
 
-### Anchor Programs
+### Prerequisites
+- Rust & Cargo
+- Solana CLI
+- Anchor CLI
+- Node.js 18+
+
+### Build & Deploy
 ```bash
 # Install dependencies
 yarn install
 
-# Build programs
+# Build the Anchor program
 anchor build
 
-# Run tests
-anchor test
+# Get the generated program ID
+anchor keys list
+
+# Deploy to devnet
+solana config set --url devnet
+solana airdrop 2
+anchor deploy
 ```
 
 ### Frontend
@@ -109,9 +144,33 @@ npm install
 npm run dev
 ```
 
+### Get Devnet SOL
+- Use the in-app "Claim SOL" button (devnet airdrop)
+- Or: `solana airdrop 2 <YOUR_WALLET_ADDRESS> --url devnet`
+
+## Program Details
+
+### Instructions
+
+| Instruction | Description | SOL Transfer |
+|-------------|-------------|-------------|
+| `initialize_user` | Create user PDA account | Rent only |
+| `create_poll` | Create poll + treasury PDA | Creator → Treasury |
+| `edit_poll` | Edit poll (0 votes, active) | None |
+| `delete_poll` | Delete poll, refund SOL | Treasury → Creator |
+| `cast_vote` | Buy option-coins | Voter → Treasury |
+| `settle_poll` | Settle + creator reward | Treasury → Creator |
+| `claim_reward` | Winners claim SOL | Treasury → Winner |
+
+### Program ID
+```
+Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS
+```
+*(Placeholder — will be updated after `anchor deploy`)*
+
 ## Future Roadmap
-- Tradable option-coins (SPL token per option)
-- DAO governance for poll resolution disputes
-- NFT rewards for top voters
+- Tradable option-coins (SPL tokens per option)
 - Oracle-based outcome resolution (Pyth/Switchboard)
+- DAO governance for poll dispute resolution
+- NFT rewards for top voters
 - Multi-chain deployment

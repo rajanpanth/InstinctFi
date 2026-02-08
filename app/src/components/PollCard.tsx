@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, memo } from "react";
-import { DemoPoll, DemoVote, useApp, formatDollars, formatDollarsShort } from "./Providers";
+import { useState, memo } from "react";
+import { DemoPoll, useApp, formatDollars, formatDollarsShort } from "./Providers";
 import Link from "next/link";
 import { sanitizeImageUrl } from "@/lib/uploadImage";
 import EditPollModal from "./EditPollModal";
 import DeletePollModal from "./DeletePollModal";
+import { useCountdown } from "@/lib/useCountdown";
+import { useVote } from "@/lib/useVote";
+import { OPTION_BADGE_COLORS } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 type Props = {
@@ -40,55 +43,30 @@ function OptionAvatar({ src, label, index, size = "sm" }: { src?: string; label:
   );
 }
 
-/* ── Countdown hook ── */
-function useCountdown(endTime: number) {
-  const [text, setText] = useState("");
-  useEffect(() => {
-    const tick = () => {
-      const diff = endTime - Math.floor(Date.now() / 1000);
-      if (diff <= 0) { setText("Ended"); return; }
-      const d = Math.floor(diff / 86400);
-      const h = Math.floor((diff % 86400) / 3600);
-      const m = Math.floor((diff % 3600) / 60);
-      const s = diff % 60;
-      setText(d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m ${s}s`);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [endTime]);
-  return text;
-}
-
 const PollCard = memo(function PollCard({ poll }: Props) {
   const {
     walletAddress, walletConnected, connectWallet, userAccount,
-    votes, castVote, settlePoll, claimReward,
+    settlePoll, claimReward,
   } = useApp();
 
+  const {
+    selectedOption: votingOption,
+    numCoins, setNumCoins,
+    loading: voteLoading,
+    success: voteSuccess,
+    cost, totalVotes,
+    isEnded, isSettled, isCreator,
+    vote, selectOption, clearSelection, submitVote,
+  } = useVote(poll);
+
   const [expanded, setExpanded] = useState(false);
-  const [votingOption, setVotingOption] = useState<number | null>(null);
-  const [numCoins, setNumCoins] = useState(1);
-  const [voteLoading, setVoteLoading] = useState(false);
-  const [voteSuccess, setVoteSuccess] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSettleConfirm, setShowSettleConfirm] = useState(false);
 
-  const now = Math.floor(Date.now() / 1000);
-  const isEnded = now >= poll.endTime;
-  const isSettled = poll.status === 1;
-  const isCreator = walletAddress === poll.creator;
-  const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
   const canManage = isCreator && totalVotes === 0 && !isEnded && !isSettled;
   const mainImage = sanitizeImageUrl(poll.imageUrl);
-  const timeLeft = useCountdown(poll.endTime);
-
-  const vote: DemoVote | undefined = votes.find(
-    (v) => v.pollId === poll.id && v.voter === walletAddress
-  );
-
-  const cost = numCoins * poll.unitPriceCents;
+  const { text: timeLeft } = useCountdown(poll.endTime);
 
   // Build option data
   const optionData = poll.options.map((opt, i) => {
@@ -108,31 +86,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
 
   // ── Handlers ──
   const handleOptionClick = (idx: number) => {
-    if (isEnded || isSettled) return;
-    if (!walletConnected) { connectWallet(); return; }
-    if (isCreator) { toast.error("You cannot vote on your own poll"); return; }
-    setVotingOption(idx);
-    setNumCoins(1);
-    setExpanded(true);
-  };
-
-  const handleVote = async () => {
-    if (votingOption === null) return;
-    if (!walletConnected) { connectWallet(); return; }
-    if (numCoins <= 0) return toast.error("Enter at least 1 coin");
-    if (userAccount && cost > userAccount.balance) return toast.error("Insufficient balance");
-
-    setVoteLoading(true);
-    const ok = await castVote(poll.id, votingOption, numCoins);
-    setVoteLoading(false);
-
-    if (ok) {
-      setVoteSuccess(true);
-      toast.success(`Bought ${numCoins} coin(s) on "${poll.options[votingOption]}"`);
-      setTimeout(() => { setVoteSuccess(false); setVotingOption(null); }, 1500);
-    } else {
-      toast.error("Transaction failed");
-    }
+    if (selectOption(idx)) setExpanded(true);
   };
 
   const handleSettle = async () => {
@@ -147,19 +101,14 @@ const PollCard = memo(function PollCard({ poll }: Props) {
     else toast.error("No reward to claim");
   };
 
-  // Colors for option badges
-  const badgeColors = [
-    { bg: "bg-blue-500/15", text: "text-blue-400", border: "border-blue-500/30", bgHover: "group-hover/opt:bg-blue-500/25", borderHover: "group-hover/opt:border-blue-500/50" },
-    { bg: "bg-red-500/15", text: "text-red-400", border: "border-red-500/30", bgHover: "group-hover/opt:bg-red-500/25", borderHover: "group-hover/opt:border-red-500/50" },
-    { bg: "bg-purple-500/15", text: "text-purple-400", border: "border-purple-500/30", bgHover: "group-hover/opt:bg-purple-500/25", borderHover: "group-hover/opt:border-purple-500/50" },
-    { bg: "bg-orange-500/15", text: "text-orange-400", border: "border-orange-500/30", bgHover: "group-hover/opt:bg-orange-500/25", borderHover: "group-hover/opt:border-orange-500/50" },
-  ];
+  // Colors for option badges (from shared constants)
+  const badgeColors = OPTION_BADGE_COLORS;
 
   return (
     <>
-      {/* Modals */}
-      <EditPollModal isOpen={showEditModal} onClose={() => setShowEditModal(false)} poll={poll} />
-      <DeletePollModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} poll={poll} onDeleted={() => {}} />
+      {/* Modals — only mount when open to avoid hundreds of hidden DOM trees */}
+      {showEditModal && <EditPollModal isOpen={showEditModal} onClose={() => setShowEditModal(false)} poll={poll} />}
+      {showDeleteModal && <DeletePollModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} poll={poll} onDeleted={() => {}} />}
 
       <div className={`bg-dark-700/60 border rounded-xl overflow-hidden transition-all duration-300 ${
         expanded ? "border-primary-500/40 shadow-lg shadow-primary-900/10" : "border-gray-800 hover:border-gray-700"
@@ -195,7 +144,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
             {/* Expand/collapse toggle */}
             <button
               onClick={() => setExpanded(!expanded)}
-              className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-white rounded-lg hover:bg-dark-600 transition-all shrink-0"
+              className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-dark-600 transition-all shrink-0"
               aria-label={expanded ? "Collapse" : "Expand"}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -227,7 +176,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                     {isWinner && "✓ "}{opt.label}
                   </span>
                   {opt.multiplier !== "—" && (
-                    <span className="text-xs text-gray-500 font-mono shrink-0">{opt.multiplier}x</span>
+                    <span className="text-xs text-gray-400 font-mono shrink-0">{opt.multiplier}x</span>
                   )}
                   <span className={`shrink-0 px-2.5 py-1 rounded-md text-xs font-bold border transition-all ${
                     isWinner ? "bg-green-500/20 text-green-400 border-green-500/40" :
@@ -243,11 +192,11 @@ const PollCard = memo(function PollCard({ poll }: Props) {
           {/* Footer stats */}
           <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-800/80">
             <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500">{formatDollarsShort(poll.totalPoolCents)} vol</span>
-              <span className="text-xs text-gray-500">{totalVotes} votes</span>
+              <span className="text-xs text-gray-400">{formatDollarsShort(poll.totalPoolCents)} vol</span>
+              <span className="text-xs text-gray-400">{totalVotes} votes</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">{formatDollars(poll.unitPriceCents)}/coin</span>
+              <span className="text-xs text-gray-400">{formatDollars(poll.unitPriceCents)}/coin</span>
               {!isEnded && !isSettled && !expanded && (
                 <button
                   onClick={() => { if (!walletConnected) { connectWallet(); } else { setExpanded(true); } }}
@@ -275,7 +224,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 <div className="flex items-center gap-2.5 mb-3">
                   <OptionAvatar src={poll.optionImages?.[votingOption]} label={poll.options[votingOption]} index={votingOption} size="lg" />
                   <div>
-                    <p className="text-xs text-gray-500">Buying coins on</p>
+                    <p className="text-xs text-gray-400">Buying coins on</p>
                     <p className="text-sm font-semibold text-white">{poll.options[votingOption]}</p>
                   </div>
                 </div>
@@ -288,7 +237,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                       {userAccount && <p className="text-[10px] text-green-400/70 mt-0.5">Bal: {formatDollars(userAccount.balance)}</p>}
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setNumCoins(Math.max(1, numCoins - 1))} className="w-7 h-7 rounded-lg bg-dark-700 hover:bg-dark-600 text-gray-400 flex items-center justify-center text-lg transition-colors">−</button>
+                      <button onClick={() => setNumCoins(Math.max(1, numCoins - 1))} aria-label="Decrease coin count" className="w-7 h-7 rounded-lg bg-dark-700 hover:bg-dark-600 text-gray-400 flex items-center justify-center text-lg transition-colors">−</button>
                       <input
                         type="number"
                         value={numCoins}
@@ -296,11 +245,11 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                         min={1}
                         className="w-14 text-center text-lg font-semibold bg-transparent outline-none text-white"
                       />
-                      <button onClick={() => setNumCoins(numCoins + 1)} className="w-7 h-7 rounded-lg bg-dark-700 hover:bg-dark-600 text-gray-400 flex items-center justify-center text-lg transition-colors">+</button>
+                      <button onClick={() => setNumCoins(numCoins + 1)} aria-label="Increase coin count" className="w-7 h-7 rounded-lg bg-dark-700 hover:bg-dark-600 text-gray-400 flex items-center justify-center text-lg transition-colors">+</button>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-800">
-                    <span className="text-xs text-gray-500">Total Cost</span>
+                    <span className="text-xs text-gray-400">Total Cost</span>
                     <span className="text-sm font-semibold text-white">{formatDollars(cost)}</span>
                   </div>
                 </div>
@@ -308,13 +257,13 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 {/* Buy / Cancel */}
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setVotingOption(null)}
+                    onClick={clearSelection}
                     className="flex-1 py-2.5 text-sm border border-gray-700 text-gray-400 rounded-xl hover:bg-dark-700 transition-colors font-medium"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleVote}
+                    onClick={submitVote}
                     disabled={voteLoading}
                     className={`flex-1 py-2.5 text-sm rounded-xl font-semibold transition-all ${
                       voteSuccess
@@ -333,7 +282,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
             {/* ── Your votes summary ── */}
             {vote && vote.totalStakedCents > 0 && (
               <div className="bg-dark-800/50 border border-gray-700/50 rounded-xl p-3 mt-3">
-                <p className="text-xs text-gray-500 mb-1.5">Your positions</p>
+                <p className="text-xs text-gray-400 mb-1.5">Your positions</p>
                 <div className="space-y-1">
                   {vote.votesPerOption.map((v, i) => v > 0 && (
                     <div key={i} className="flex items-center justify-between text-sm">
@@ -382,7 +331,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
             )}
 
             {vote?.claimed && (
-              <div className="text-center text-xs text-gray-500 mt-3">Reward claimed for this poll ✓</div>
+              <div className="text-center text-xs text-gray-400 mt-3">Reward claimed for this poll ✓</div>
             )}
 
             {/* ── Creator: Manage ── */}
@@ -390,7 +339,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
               <div className="mt-3 pt-3 border-t border-gray-800/60">
                 {canManage ? (
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">Manage Poll (0 votes — editable)</p>
+                    <p className="text-xs text-gray-400 mb-2">Manage Poll (0 votes — editable)</p>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setShowEditModal(true)}
@@ -415,7 +364,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-500 text-center">
+                  <p className="text-xs text-gray-400 text-center">
                     {totalVotes > 0 ? "Cannot edit/delete — poll has votes" : "You created this poll"}
                   </p>
                 )}
@@ -429,7 +378,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-[8px] font-bold text-white shrink-0">
                     {poll.creator.slice(0, 1).toUpperCase()}
                   </div>
-                  <span className="text-[11px] text-gray-500 truncate">by {poll.creator.slice(0, 4)}...{poll.creator.slice(-4)}</span>
+                  <span className="text-[11px] text-gray-400 truncate">by {poll.creator.slice(0, 4)}...{poll.creator.slice(-4)}</span>
                 </div>
                 <button
                   onClick={(e) => {
@@ -438,8 +387,9 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                     navigator.clipboard.writeText(url);
                     toast.success("Poll link copied!");
                   }}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] text-gray-500 hover:text-white hover:bg-dark-600 rounded-lg transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] text-gray-400 hover:text-white hover:bg-dark-600 rounded-lg transition-colors"
                   title="Share poll"
+                  aria-label="Share poll"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="18" cy="5" r="3" />

@@ -1,6 +1,13 @@
 // ─── Shared Constants ───────────────────────────────────────────────────────
 // Single source of truth for categories and other shared config
+// Admin wallets that have full control over all polls
+export const ADMIN_WALLETS = [
+  "62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS",
+];
 
+export function isAdminWallet(wallet: string | null): boolean {
+  return wallet ? ADMIN_WALLETS.includes(wallet) : false;
+}
 export const CATEGORIES = [
   "Crypto",
   "Sports",
@@ -14,7 +21,6 @@ export const CATEGORIES = [
   "Mentions",
   "Companies",
   "Financials",
-  "Tech & Science",
   "Other",
 ] as const;
 
@@ -35,5 +41,5 @@ export const CATEGORY_META: { label: string; icon: string; color: string }[] = [
   { label: "Mentions", icon: "💬", color: "text-sky-400" },
   { label: "Companies", icon: "🏢", color: "text-indigo-400" },
   { label: "Financials", icon: "💰", color: "text-yellow-400" },
-  { label: "Tech & Science", icon: "🧬", color: "text-teal-400" },
+  { label: "Other", icon: "📋", color: "text-gray-400" },
 ];

@@ -1,0 +1,19 @@
+[package]
+name = "instinctfi"
+version = "0.1.0"
+description = "InstinctFi — Decentralized Prediction Polls on Solana"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "instinctfi"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cbs = []
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"

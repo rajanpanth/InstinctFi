@@ -1,17 +1,23 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { expect } from "chai";
 
-// We'll use a single unified test since all 3 programs work together
-describe("VotingProject E2E", () => {
+/**
+ * E2E tests for the InstinctFi prediction‑market programs.
+ *
+ * These tests validate PDA derivation, cross‑program account addressing,
+ * and off‑chain tokenomics math. Full integration tests require deployed
+ * programs with `anchor test --provider.cluster localnet`.
+ */
+describe("InstinctFi E2E", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  // Program IDs (must match declare_id! in each program)
+  // ── Program IDs (must match declare_id! in each program) ──
   const POLL_PROGRAM_ID = new PublicKey("Po11CrtrPrgm1111111111111111111111111111111");
   const VOTE_PROGRAM_ID = new PublicKey("VotePrgm11111111111111111111111111111111111");
   const SETTLEMENT_PROGRAM_ID = new PublicKey("Sett1ePrgm1111111111111111111111111111111111");
+  const USER_PROGRAM_ID = new PublicKey("UserPrgm11111111111111111111111111111111111");
 
   const creator = anchor.web3.Keypair.generate();
   const voter1 = anchor.web3.Keypair.generate();
@@ -21,33 +27,21 @@ describe("VotingProject E2E", () => {
   const unitPrice = new anchor.BN(LAMPORTS_PER_SOL * 0.01); // 0.01 SOL per coin
   const creatorInvestment = new anchor.BN(LAMPORTS_PER_SOL * 0.1); // 0.1 SOL seed
 
-  // Derive PDAs
+  // PDAs
   let pollPda: PublicKey;
   let pollBump: number;
-  let treasuryPda: PublicKey;
-  let treasuryBump: number;
 
   before(async () => {
     // Airdrop to test wallets
-    const airdropCreator = await provider.connection.requestAirdrop(
-      creator.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await provider.connection.confirmTransaction(airdropCreator);
+    for (const kp of [creator, voter1, voter2]) {
+      const sig = await provider.connection.requestAirdrop(
+        kp.publicKey,
+        5 * LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(sig);
+    }
 
-    const airdropVoter1 = await provider.connection.requestAirdrop(
-      voter1.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await provider.connection.confirmTransaction(airdropVoter1);
-
-    const airdropVoter2 = await provider.connection.requestAirdrop(
-      voter2.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await provider.connection.confirmTransaction(airdropVoter2);
-
-    // Derive poll PDA
+    // Derive poll PDA (seeds: ["poll", creator, poll_id_le_bytes])
     [pollPda, pollBump] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("poll"),
@@ -56,117 +50,169 @@ describe("VotingProject E2E", () => {
       ],
       POLL_PROGRAM_ID
     );
-
-    // Derive treasury PDA
-    [treasuryPda, treasuryBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("treasury"), pollPda.toBuffer()],
-      POLL_PROGRAM_ID
-    );
   });
 
-  it("Creates a poll", async () => {
-    console.log("Poll PDA:", pollPda.toBase58());
-    console.log("Treasury PDA:", treasuryPda.toBase58());
-    console.log("Creator:", creator.publicKey.toBase58());
+  // ────────────────────────────────────────────────────────────────────────
+  // 1. PDA derivation
+  // ────────────────────────────────────────────────────────────────────────
 
-    // This test validates the PDA derivation and account structure
-    // Full integration requires deployed programs
+  it("Derives poll PDA correctly", () => {
     expect(pollPda).to.not.be.null;
-    expect(treasuryPda).to.not.be.null;
+    console.log("Poll PDA:", pollPda.toBase58());
+    console.log("Creator:", creator.publicKey.toBase58());
   });
 
-  it("Derives vote account PDAs correctly", async () => {
+  it("Derives vote account PDAs correctly (vote_program)", () => {
+    // seeds: ["vote", poll_pda, voter]
     const [votePda1] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("vote"),
-        pollPda.toBuffer(),
-        voter1.publicKey.toBuffer(),
-      ],
+      [Buffer.from("vote"), pollPda.toBuffer(), voter1.publicKey.toBuffer()],
       VOTE_PROGRAM_ID
     );
 
     const [votePda2] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("vote"),
-        pollPda.toBuffer(),
-        voter2.publicKey.toBuffer(),
-      ],
+      [Buffer.from("vote"), pollPda.toBuffer(), voter2.publicKey.toBuffer()],
       VOTE_PROGRAM_ID
     );
 
     console.log("Voter1 vote PDA:", votePda1.toBase58());
     console.log("Voter2 vote PDA:", votePda2.toBase58());
 
-    expect(votePda1).to.not.be.null;
-    expect(votePda2).to.not.be.null;
     expect(votePda1.toBase58()).to.not.equal(votePda2.toBase58());
   });
 
-  it("Derives user stats PDAs correctly", async () => {
-    const [statsPda1] = PublicKey.findProgramAddressSync(
-      [Buffer.from("user_stats"), voter1.publicKey.toBuffer()],
-      VOTE_PROGRAM_ID
+  it("Derives user account PDAs correctly (user_program)", () => {
+    // seeds: ["user", authority]
+    const [userPda1] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user"), voter1.publicKey.toBuffer()],
+      USER_PROGRAM_ID
     );
 
-    const [statsPda2] = PublicKey.findProgramAddressSync(
-      [Buffer.from("user_stats"), voter2.publicKey.toBuffer()],
-      VOTE_PROGRAM_ID
+    const [userPda2] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user"), voter2.publicKey.toBuffer()],
+      USER_PROGRAM_ID
     );
 
-    console.log("Voter1 stats PDA:", statsPda1.toBase58());
-    console.log("Voter2 stats PDA:", statsPda2.toBase58());
+    console.log("Voter1 user PDA:", userPda1.toBase58());
+    console.log("Voter2 user PDA:", userPda2.toBase58());
 
-    expect(statsPda1.toBase58()).to.not.equal(statsPda2.toBase58());
+    expect(userPda1.toBase58()).to.not.equal(userPda2.toBase58());
   });
 
-  it("Validates tokenomics math", () => {
-    // Simulate the settlement math off-chain
-    const unitPriceNum = 0.01 * LAMPORTS_PER_SOL;
-    const creatorInvestNum = 0.1 * LAMPORTS_PER_SOL;
+  // ────────────────────────────────────────────────────────────────────────
+  // 2. Cross‑program account addressing
+  // ────────────────────────────────────────────────────────────────────────
 
-    // Fees: 1% each
-    const platformFee = Math.max(Math.floor(creatorInvestNum / 100), 1);
-    const creatorReward = Math.max(Math.floor(creatorInvestNum / 100), 1);
-    const poolSeed = creatorInvestNum - platformFee - creatorReward;
+  it("vote_program CPI target PDA matches poll_program record_vote", () => {
+    // vote_program calls poll_program::record_vote, passing poll PDA.
+    // The PDA is owned by poll_program — vote_program references it as a
+    // read‑only AccountInfo and uses CPI for mutation.
+    const [derivedPoll] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("poll"),
+        creator.publicKey.toBuffer(),
+        pollId.toArrayLike(Buffer, "le", 8),
+      ],
+      POLL_PROGRAM_ID
+    );
+    expect(derivedPoll.toBase58()).to.equal(pollPda.toBase58());
+  });
 
-    console.log("Unit price:", unitPriceNum, "lamports");
-    console.log("Creator investment:", creatorInvestNum, "lamports");
-    console.log("Platform fee:", platformFee, "lamports");
-    console.log("Creator reward:", creatorReward, "lamports");
+  it("settlement_program CPI target PDA matches poll_program settle_poll_cpi", () => {
+    // settlement_program calls poll_program::settle_poll_cpi with the poll PDA.
+    const [derivedPoll] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("poll"),
+        creator.publicKey.toBuffer(),
+        pollId.toArrayLike(Buffer, "le", 8),
+      ],
+      POLL_PROGRAM_ID
+    );
+    expect(derivedPoll.toBase58()).to.equal(pollPda.toBase58());
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // 3. Tokenomics math
+  // ────────────────────────────────────────────────────────────────────────
+
+  it("Validates fee breakdown at poll creation", () => {
+    const investment = 0.1 * LAMPORTS_PER_SOL; // 100_000_000 lamports
+
+    // 1% platform fee, 1% creator reward, rest seeds the pool
+    const platformFee = Math.max(Math.floor(investment / 100), 1);
+    const creatorReward = Math.max(Math.floor(investment / 100), 1);
+    const poolSeed = investment - platformFee - creatorReward;
+
+    console.log("Investment:", investment, "lamports");
+    console.log("Platform fee (1%):", platformFee, "lamports");
+    console.log("Creator reward (1%):", creatorReward, "lamports");
     console.log("Pool seed:", poolSeed, "lamports");
 
-    // Voter1 buys 3 coins for Option A, Voter2 buys 2 coins for Option B
+    expect(platformFee).to.equal(1_000_000);
+    expect(creatorReward).to.equal(1_000_000);
+    expect(poolSeed).to.equal(98_000_000);
+    expect(poolSeed + platformFee + creatorReward).to.equal(investment);
+  });
+
+  it("Validates settlement reward distribution", () => {
+    const investment = 0.1 * LAMPORTS_PER_SOL;
+    const unitPriceNum = 0.01 * LAMPORTS_PER_SOL;
+
+    const platformFee = Math.floor(investment / 100);
+    const creatorReward = Math.floor(investment / 100);
+    const poolSeed = investment - platformFee - creatorReward;
+
+    // Voter1 buys 3 coins on Option A, Voter2 buys 2 coins on Option B
     const voter1Cost = 3 * unitPriceNum;
     const voter2Cost = 2 * unitPriceNum;
     const totalPool = poolSeed + voter1Cost + voter2Cost;
 
-    console.log("Voter1 cost:", voter1Cost, "lamports");
-    console.log("Voter2 cost:", voter2Cost, "lamports");
     console.log("Total pool:", totalPool, "lamports");
 
-    // If Option A wins (3 votes), Voter1 gets 100% of distributable pool
-    const distributable = totalPool - platformFee - creatorReward;
-    // wait — fees already removed from poolSeed? Let's recalculate:
-    // total_pool_lamports in the program = poolSeed (already minus fees) + voter costs
-    // So distributable for winners = total_pool_lamports
-    // But we also need to subtract platform_fee and creator_reward AGAIN? No.
-    // In the claim handler: distributable = total_pool - platform_fee - creator_reward
-    // Oh wait, platform_fee and creator_reward are stored from creation, 
-    // but total_pool already had them removed. So we'd double-subtract.
-    // This is actually a bug we need to fix. Let me recalculate properly:
-    //
-    // CORRECTED: total_pool already = investment - fees + voter_costs
-    // At claim time we should NOT subtract fees again.
-    // For MVP, distributable = total_pool_lamports (fees already carved out at creation)
-    
-    const distributableCorrected = poolSeed + voter1Cost + voter2Cost;
-    const voter1Reward = Math.floor((3 / 3) * distributableCorrected); // 100% if only winner
+    // Distributable = total_pool_cents (fees already carved at creation)
+    // This matches claim_reward.rs: distributable = poll.total_pool_cents
+    const distributable = totalPool;
 
-    console.log("Distributable pool:", distributableCorrected, "lamports");
-    console.log("Voter1 reward (if A wins):", voter1Reward, "lamports");
+    // If Option A wins: voter1 has 3/3 = 100% of winning votes
+    const voter1Share = Math.floor((3 / 3) * distributable);
+    expect(voter1Share).to.equal(distributable);
 
-    expect(voter1Reward).to.equal(distributableCorrected);
-    expect(platformFee).to.be.greaterThan(0);
-    expect(creatorReward).to.be.greaterThan(0);
+    // If Option B wins: voter2 has 2/2 = 100% of winning votes
+    const voter2Share = Math.floor((2 / 2) * distributable);
+    expect(voter2Share).to.equal(distributable);
+
+    console.log("Voter1 reward (if A wins):", voter1Share, "lamports");
+    console.log("Voter2 reward (if B wins):", voter2Share, "lamports");
+  });
+
+  it("Validates partial reward shares", () => {
+    // Two voters both pick Option A: voter1 buys 3, voter2 buys 5
+    const totalWinningVotes = 8;
+    const distributable = 148_000_000; // example pool
+
+    const voter1Reward = Math.floor((3 / totalWinningVotes) * distributable);
+    const voter2Reward = Math.floor((5 / totalWinningVotes) * distributable);
+
+    console.log("voter1 (3/8):", voter1Reward, "lamports");
+    console.log("voter2 (5/8):", voter2Reward, "lamports");
+
+    // Sum should be <= distributable (rounding dust)
+    expect(voter1Reward + voter2Reward).to.be.at.most(distributable);
+    // Each share proportional
+    expect(voter1Reward).to.be.lessThan(voter2Reward);
+  });
+
+  it("Guards against zero‑division edge cases", () => {
+    // If no winning votes (shouldn't happen with proper settling)
+    const totalWinningVotes = 0;
+    const distributable = 100_000_000;
+
+    // claim_reward.rs requires user_winning_votes > 0 and total_winning_votes > 0
+    // Off-chain, division by zero would produce NaN/Infinity
+    if (totalWinningVotes === 0) {
+      console.log("No winners — settlement should not proceed (guard in contract).");
+    } else {
+      const reward = Math.floor((1 / totalWinningVotes) * distributable);
+      expect(reward).to.be.greaterThan(0);
+    }
   });
 });

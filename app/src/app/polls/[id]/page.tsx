@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useApp, formatDollars } from "@/components/Providers";
 import PollImage from "@/components/PollImage";
@@ -8,6 +8,8 @@ import WalletConnectModal from "@/components/WalletConnectModal";
 import EditPollModal from "@/components/EditPollModal";
 import DeletePollModal from "@/components/DeletePollModal";
 import { sanitizeImageUrl } from "@/lib/uploadImage";
+import { useCountdown } from "@/lib/useCountdown";
+import { useVote } from "@/lib/useVote";
 import toast from "react-hot-toast";
 
 export default function PollDetailPage() {
@@ -17,46 +19,28 @@ export default function PollDetailPage() {
 
   const {
     polls,
-    votes,
     walletAddress,
     userAccount,
-    castVote,
     settlePoll,
     claimReward,
     walletConnected,
-    editPoll,
-    deletePoll,
   } = useApp();
 
   const poll = polls.find((p) => p.id === pollId);
-  const vote = votes.find(
-    (v) => v.pollId === pollId && v.voter === walletAddress
-  );
 
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [numCoins, setNumCoins] = useState(1);
-  const [timeLeft, setTimeLeft] = useState("");
+  const {
+    selectedOption, numCoins, setNumCoins,
+    cost, totalVotes, isEnded, isSettled, isCreator, canVote,
+    vote, selectOption, submitVote,
+  } = useVote(poll ?? { id: "", title: "", description: "", category: "", creator: "", options: [], optionImages: [], voteCounts: [], totalPoolCents: 0, unitPriceCents: 0, totalVoters: 0, endTime: 0, status: 0, winningOption: 255, imageUrl: "" });
+
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [settling, setSettling] = useState(false);
+  const [claiming, setClaiming] = useState(false);
 
-  // Countdown timer
-  useEffect(() => {
-    if (!poll) return;
-    const interval = setInterval(() => {
-      const now = Math.floor(Date.now() / 1000);
-      const diff = poll.endTime - now;
-      if (diff <= 0) {
-        setTimeLeft("Ended");
-        return;
-      }
-      const h = Math.floor(diff / 3600);
-      const m = Math.floor((diff % 3600) / 60);
-      const s = diff % 60;
-      setTimeLeft(`${h}h ${m}m ${s}s`);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [poll]);
+  const { text: timeLeft } = useCountdown(poll?.endTime ?? 0);
 
   if (!poll) {
     return (
@@ -69,13 +53,6 @@ export default function PollDetailPage() {
     );
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  const isEnded = now >= poll.endTime;
-  const isSettled = poll.status === 1;
-  const isCreator = walletAddress === poll.creator;
-  const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
-  const cost = numCoins * poll.unitPriceCents;
-  const canVote = !isEnded && !isSettled && !isCreator && walletConnected;
   const canManage = isCreator && totalVotes === 0 && !isEnded && !isSettled;
 
   const handleVote = async () => {
@@ -83,18 +60,7 @@ export default function PollDetailPage() {
       setShowWalletModal(true);
       return;
     }
-    if (selectedOption === null) return toast.error("Select an option");
-    if (numCoins <= 0) return toast.error("Buy at least 1 coin");
-    if (userAccount && cost > userAccount.balance) return toast.error("Insufficient balance");
-
-    const success = await castVote(pollId, selectedOption, numCoins);
-    if (success) {
-      toast.success(`Voted ${numCoins} coin(s) for "${poll.options[selectedOption]}"`);
-      setSelectedOption(null);
-      setNumCoins(1);
-    } else {
-      toast.error("Vote failed");
-    }
+    await submitVote();
   };
 
   const handleOptionClick = (index: number) => {
@@ -102,21 +68,33 @@ export default function PollDetailPage() {
       setShowWalletModal(true);
       return;
     }
-    if (canVote) setSelectedOption(index);
+    if (canVote) selectOption(index);
   };
 
   const handleSettle = async () => {
-    const success = await settlePoll(pollId);
-    if (success) toast.success("Poll settled!");
-    else toast.error("Settlement failed");
+    if (settling) return;
+    setSettling(true);
+    try {
+      const success = await settlePoll(pollId);
+      if (success) toast.success("Poll settled!");
+      else toast.error("Settlement failed");
+    } finally {
+      setSettling(false);
+    }
   };
 
   const handleClaim = async () => {
-    const reward = await claimReward(pollId);
-    if (reward > 0) {
-      toast.success(`Claimed ${formatDollars(reward)}!`);
-    } else {
-      toast.error("No reward to claim");
+    if (claiming) return;
+    setClaiming(true);
+    try {
+      const reward = await claimReward(pollId);
+      if (reward > 0) {
+        toast.success(`Claimed ${formatDollars(reward)}!`);
+      } else {
+        toast.error("No reward to claim");
+      }
+    } finally {
+      setClaiming(false);
     }
   };
 
@@ -209,6 +187,13 @@ export default function PollDetailPage() {
               </div>
               <div className="text-xs text-gray-500">Price/Coin</div>
             </div>
+          </div>
+
+          {/* Fee transparency */}
+          <div className="mt-3 flex gap-4 text-xs text-gray-500">
+            <span>Platform fee: {formatDollars(poll.platformFeeCents)}</span>
+            <span>Creator reward: {formatDollars(poll.creatorRewardCents)}</span>
+            <span>Seed investment: {formatDollars(poll.creatorInvestmentCents)}</span>
           </div>
         </div>
       </div>
@@ -332,9 +317,14 @@ export default function PollDetailPage() {
           </p>
           <button
             onClick={handleSettle}
-            className="w-full py-3 bg-accent-500 hover:bg-accent-600 text-dark-900 rounded-xl font-semibold transition-colors"
+            disabled={settling}
+            className={`w-full py-3 rounded-xl font-semibold transition-colors ${
+              settling
+                ? "bg-accent-500/60 text-dark-900/60 cursor-wait"
+                : "bg-accent-500 hover:bg-accent-600 text-dark-900"
+            }`}
           >
-            Settle Poll
+            {settling ? "Settling..." : "Settle Poll"}
           </button>
         </div>
       )}
@@ -349,9 +339,14 @@ export default function PollDetailPage() {
           </p>
           <button
             onClick={handleClaim}
-            className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-xl font-semibold transition-colors"
+            disabled={claiming}
+            className={`w-full py-3 rounded-xl font-semibold transition-colors ${
+              claiming
+                ? "bg-green-600/60 cursor-wait"
+                : "bg-green-600 hover:bg-green-700"
+            }`}
           >
-            Claim Reward
+            {claiming ? "Claiming..." : "Claim Reward"}
           </button>
         </div>
       )}

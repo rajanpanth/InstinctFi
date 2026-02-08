@@ -2,8 +2,17 @@
 
 import { useApp, formatDollars, UserAccount } from "@/components/Providers";
 import { useState } from "react";
+import { shortAddr } from "@/lib/utils";
 
 type Period = "weekly" | "monthly" | "allTime";
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Check if the period counter is still valid (not expired) */
+function isPeriodFresh(resetTs: number, periodMs: number): boolean {
+  return Date.now() - resetTs <= periodMs;
+}
 
 export default function LeaderboardPage() {
   const { allUsers, walletAddress } = useApp();
@@ -11,26 +20,26 @@ export default function LeaderboardPage() {
   const [sortBy, setSortBy] = useState<"winnings" | "pollsWon" | "votes" | "creatorEarnings">("winnings");
 
   const getWinnings = (u: UserAccount) => {
-    if (period === "weekly") return u.weeklyWinningsCents;
-    if (period === "monthly") return u.monthlyWinningsCents;
+    if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyWinningsCents : 0;
+    if (period === "monthly") return isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlyWinningsCents : 0;
     return u.totalWinningsCents;
   };
 
   const getSpent = (u: UserAccount) => {
-    if (period === "weekly") return u.weeklySpentCents;
-    if (period === "monthly") return u.monthlySpentCents;
+    if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklySpentCents : 0;
+    if (period === "monthly") return isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlySpentCents : 0;
     return u.totalSpentCents;
   };
 
   const getVotes = (u: UserAccount) => {
-    if (period === "weekly") return u.weeklyVotesCast;
-    if (period === "monthly") return u.monthlyVotesCast;
+    if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyVotesCast : 0;
+    if (period === "monthly") return isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlyVotesCast : 0;
     return u.totalVotesCast;
   };
 
   const getPollsWon = (u: UserAccount) => {
-    if (period === "weekly") return u.weeklyPollsWon;
-    if (period === "monthly") return u.monthlyPollsWon;
+    if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyPollsWon : 0;
+    if (period === "monthly") return isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlyPollsWon : 0;
     return u.pollsWon;
   };
 
@@ -51,11 +60,12 @@ export default function LeaderboardPage() {
 
   const sorted = [...allUsers].sort(sortFn);
 
-  const shortAddr = (addr: string) =>
-    addr.length > 12 ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : addr;
-
   const winRate = (u: UserAccount) => {
-    const voted = period === "weekly" ? u.weeklyPollsVoted : period === "monthly" ? u.monthlyPollsVoted : u.totalPollsVoted;
+    const voted = period === "weekly"
+      ? (isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyPollsVoted : 0)
+      : period === "monthly"
+      ? (isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlyPollsVoted : 0)
+      : u.totalPollsVoted;
     const won = getPollsWon(u);
     if (voted === 0) return "0.0";
     return ((won / voted) * 100).toFixed(1);

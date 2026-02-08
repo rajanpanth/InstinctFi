@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useApp, formatDollars, CENTS } from "@/components/Providers";
+import { useState, useEffect, useRef } from "react";
+import { useApp, formatDollars, SOL_UNIT } from "@/components/Providers";
 import { CATEGORIES } from "@/lib/constants";
 import ImageUpload from "@/components/ImageUpload";
 import { uploadPollImage } from "@/lib/uploadImage";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
-const MAX_OPTIONS = 6;
+const MAX_OPTIONS = 4;
 
 export default function CreatePollPage() {
   const { walletConnected, walletAddress, userAccount, createPoll, connectWallet } = useApp();
@@ -19,9 +19,9 @@ export default function CreatePollPage() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Crypto");
   const [options, setOptions] = useState(["", ""]);
-  const [unitPrice, setUnitPrice] = useState("1");
+  const [unitPrice, setUnitPrice] = useState("0.01");
   const [durationHours, setDurationHours] = useState("24");
-  const [investment, setInvestment] = useState("100");
+  const [investment, setInvestment] = useState("0.5");
 
   // ── Main image state ──
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -35,6 +35,21 @@ export default function CreatePollPage() {
   const [optionImageErrors, setOptionImageErrors] = useState<(string | null)[]>([null, null]);
 
   const [submitting, setSubmitting] = useState(false);
+
+  // ── Clean up blob URLs on unmount to prevent memory leaks ──
+  const imagePreviewRef = useRef(imagePreview);
+  const optionPreviewsRef = useRef(optionImagePreviews);
+  imagePreviewRef.current = imagePreview;
+  optionPreviewsRef.current = optionImagePreviews;
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewRef.current?.startsWith("blob:")) URL.revokeObjectURL(imagePreviewRef.current);
+      optionPreviewsRef.current.forEach(p => {
+        if (p?.startsWith("blob:")) URL.revokeObjectURL(p);
+      });
+    };
+  }, []);
 
   // ── Auth gate ──
   if (!walletConnected) {
@@ -127,12 +142,12 @@ export default function CreatePollPage() {
     if (parseFloat(unitPrice) <= 0) return toast.error("Invalid unit price");
     if (parseFloat(investment) <= 0) return toast.error("Invalid investment");
 
-    const unitPriceCents = Math.floor(parseFloat(unitPrice) * CENTS);
-    const investmentCents = Math.floor(parseFloat(investment) * CENTS);
+    const unitPriceCents = Math.floor(parseFloat(unitPrice) * SOL_UNIT);
+    const investmentCents = Math.floor(parseFloat(investment) * SOL_UNIT);
     const endTime = Math.floor(Date.now() / 1000) + parseInt(durationHours) * 3600;
 
     if (userAccount && investmentCents > userAccount.balance) {
-      return toast.error("Insufficient balance");
+      return toast.error("Insufficient SOL balance");
     }
     if (investmentCents < unitPriceCents) {
       return toast.error("Investment must be >= unit price");
@@ -177,7 +192,7 @@ export default function CreatePollPage() {
       }
 
       const poll = await createPoll({
-        pollId: Date.now(),
+        pollId: crypto.getRandomValues(new Uint32Array(1))[0] * 1000 + (Date.now() % 1000),
         creator: walletAddress!,
         title: title.trim(),
         description: description.trim(),
@@ -199,7 +214,6 @@ export default function CreatePollPage() {
       });
 
       if (poll) {
-        toast.success("Poll created!");
         router.push(`/polls/${poll.id}`);
       } else {
         toast.error("Failed to create poll — check your balance");
@@ -210,7 +224,7 @@ export default function CreatePollPage() {
   };
 
   // ── Preview math ──
-  const investCents = Math.floor(parseFloat(investment || "0") * CENTS);
+  const investCents = Math.floor(parseFloat(investment || "0") * SOL_UNIT);
   const platformFee = Math.max(Math.floor(investCents / 100), 1);
   const creatorReward = Math.max(Math.floor(investCents / 100), 1);
   const poolSeed = Math.max(investCents - platformFee - creatorReward, 0);
@@ -383,13 +397,13 @@ export default function CreatePollPage() {
         {/* Pricing */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Unit Price ($)</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Unit Price (SOL)</label>
             <input
               type="number"
               value={unitPrice}
               onChange={(e) => setUnitPrice(e.target.value)}
-              step="0.01"
-              min="0.01"
+              step="0.001"
+              min="0.001"
               className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 outline-none transition-colors"
             />
           </div>
@@ -408,13 +422,13 @@ export default function CreatePollPage() {
 
         {/* Investment */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Creator Investment ($)</label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Creator Investment (SOL)</label>
           <input
             type="number"
             value={investment}
             onChange={(e) => setInvestment(e.target.value)}
-            step="1"
-            min="1"
+            step="0.1"
+            min="0.5"
             className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 outline-none transition-colors"
           />
         </div>

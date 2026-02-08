@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { DemoPoll, useApp, formatDollars } from "./Providers";
+import { useState, useEffect } from "react";
+import { DemoPoll, useApp, formatDollars, MAX_COINS_PER_POLL } from "./Providers";
 import { sanitizeImageUrl } from "@/lib/uploadImage";
-import toast from "react-hot-toast";
+import { useVote } from "@/lib/useVote";
+import Modal from "./Modal";
 
 type Props = {
   isOpen: boolean;
@@ -14,86 +15,31 @@ type Props = {
 };
 
 export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props) {
-  const { castVote, userAccount, walletConnected, connectWallet } = useApp();
-  const overlayRef = useRef<HTMLDivElement>(null);
-
-  const [selectedTab, setSelectedTab] = useState<"buy" | "sell">("buy");
-  const [selectedSide, setSelectedSide] = useState<"yes" | "no">("yes");
-  const [numCoins, setNumCoins] = useState(1);
-
-  const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
-  const optVotes = poll.voteCounts[optionIndex] || 0;
-  const yesPct = totalVotes > 0 ? Math.round((optVotes / totalVotes) * 100) : 50;
-  const noPct = 100 - yesPct;
-  const yesPrice = yesPct; // cents
-  const noPrice = noPct;
-
-  const cost = numCoins * poll.unitPriceCents;
-  const mainImage = sanitizeImageUrl(poll.imageUrl);
-  const optLabel = poll.options[optionIndex] || "";
+  const { userAccount } = useApp();
+  const {
+    selectedOption, setSelectedOption,
+    numCoins, setNumCoins,
+    cost, totalVotes,
+    submitVote,
+  } = useVote(poll);
 
   // Reset on open
   useEffect(() => {
     if (isOpen) {
-      setSelectedTab("buy");
-      setSelectedSide("yes");
+      setSelectedOption(optionIndex);
       setNumCoins(1);
     }
-  }, [isOpen, optionIndex]);
+  }, [isOpen, optionIndex, setSelectedOption, setNumCoins]);
 
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  // Prevent body scroll
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+  const mainImage = sanitizeImageUrl(poll.imageUrl);
 
   const handleBuy = async () => {
-    if (!walletConnected) {
-      await connectWallet();
-      return;
-    }
-    if (numCoins <= 0) return toast.error("Enter at least 1 coin");
-    if (userAccount && cost > userAccount.balance)
-      return toast.error("Insufficient balance");
-
-    const success = await castVote(poll.id, optionIndex, numCoins);
-    if (success) {
-      toast.success(
-        `Bought ${numCoins} coin(s) on "${optLabel}"`
-      );
-      onClose();
-    } else {
-      toast.error("Transaction failed");
-    }
+    const ok = await submitVote();
+    if (ok) onClose();
   };
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
-    >
-      <div className="relative bg-dark-800 border border-gray-700 rounded-2xl max-w-sm w-full mx-4 shadow-2xl shadow-primary-900/20 animate-scaleIn">
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-sm">
         {/* Header */}
         <div className="flex items-start gap-3 p-5 pb-3">
           {mainImage ? (
@@ -111,14 +57,13 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
               {poll.title}
             </p>
             <p className="text-sm font-semibold mt-0.5">
-              <span className="text-green-400">Buy Yes</span>
-              <span className="text-gray-500"> &middot; </span>
-              <span className="text-white">{optLabel}</span>
+              <span className="text-primary-400">Vote on option</span>
             </p>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-white rounded-lg hover:bg-dark-700 transition-colors shrink-0"
+            aria-label="Close"
+            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-dark-700 transition-colors shrink-0"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M2 2l12 12M14 2L2 14" />
@@ -127,69 +72,34 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
         </div>
 
         <div className="px-5 pb-5 space-y-4">
-          {/* Buy / Sell tabs */}
-          <div className="flex bg-dark-900 rounded-xl p-1 gap-1">
-            <button
-              onClick={() => setSelectedTab("buy")}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all ${
-                selectedTab === "buy"
-                  ? "bg-dark-700 text-white shadow"
-                  : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              Buy
-            </button>
-            <button
-              onClick={() => setSelectedTab("sell")}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all ${
-                selectedTab === "sell"
-                  ? "bg-dark-700 text-white shadow"
-                  : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              Sell
-            </button>
+          {/* Option selection — show all poll options */}
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {poll.options.map((opt, i) => {
+              const optVotes = poll.voteCounts[i] || 0;
+              const pct = totalVotes > 0 ? Math.round((optVotes / totalVotes) * 100) : 0;
+              const isSelected = selectedOption === i;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedOption(i)}
+                  className={`w-full py-2.5 px-3 rounded-xl text-sm font-medium border transition-all text-left flex items-center justify-between ${
+                    isSelected
+                      ? "border-primary-500 bg-primary-500/15 text-primary-400"
+                      : "border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300"
+                  }`}
+                >
+                  <span className="truncate mr-2">{opt}</span>
+                  <span className="text-xs shrink-0 tabular-nums">{pct}% · {optVotes} votes</span>
+                </button>
+              );
+            })}
           </div>
-
-          {selectedTab === "sell" && (
-            <div className="bg-dark-900 border border-gray-700 rounded-xl p-4 text-center">
-              <p className="text-gray-400 text-sm">Selling is not available yet.</p>
-              <p className="text-gray-500 text-xs mt-1">Coming soon!</p>
-            </div>
-          )}
-
-          {/* Yes / No buttons */}
-          {selectedTab === "buy" && (
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setSelectedSide("yes")}
-              className={`py-2.5 rounded-xl text-sm font-semibold border transition-all ${
-                selectedSide === "yes"
-                  ? "border-green-500 bg-green-500/15 text-green-400"
-                  : "border-gray-700 text-gray-400 hover:border-gray-600"
-              }`}
-            >
-              Yes {yesPrice}&cent;
-            </button>
-            <button
-              onClick={() => setSelectedSide("no")}
-              className={`py-2.5 rounded-xl text-sm font-semibold border transition-all ${
-                selectedSide === "no"
-                  ? "border-red-500 bg-red-500/15 text-red-400"
-                  : "border-gray-700 text-gray-400 hover:border-gray-600"
-              }`}
-            >
-              No {noPrice}&cent;
-            </button>
-          </div>
-          )}
 
           {/* Amount input */}
-          {selectedTab === "buy" && (
           <div className="bg-dark-900 border border-gray-700 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Coins</p>
+                <p className="text-sm text-gray-400">Coins <span className="text-gray-600">(max {MAX_COINS_PER_POLL}/poll)</span></p>
                 {userAccount && (
                   <p className="text-xs text-green-400/70 mt-0.5">
                     Balance: {formatDollars(userAccount.balance)}
@@ -200,38 +110,31 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
                 type="number"
                 value={numCoins}
                 onChange={(e) =>
-                  setNumCoins(Math.max(0, parseInt(e.target.value) || 0))
+                  setNumCoins(Math.max(1, parseInt(e.target.value) || 1))
                 }
-                min={0}
+                min={1}
                 className="w-24 text-right text-2xl font-semibold bg-transparent outline-none text-white placeholder-gray-600"
                 placeholder="0"
               />
             </div>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-800">
-              <span className="text-xs text-gray-500">Cost</span>
+              <span className="text-xs text-gray-400">Cost</span>
               <span className="text-sm font-medium text-gray-300">{formatDollars(cost)}</span>
             </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-gray-600">Platform fee (1%)</span>
+              <span className="text-xs text-gray-400">{formatDollars(Math.max(Math.floor(cost / 100), cost > 0 ? 1 : 0))}</span>
+            </div>
           </div>
-          )}
 
           {/* Buy button */}
-          {selectedTab === "buy" && (
           <button
             onClick={handleBuy}
-            disabled={!walletConnected}
-            className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
-              walletConnected
-                ? "bg-blue-600 hover:bg-blue-700 text-white"
-                : "bg-purple-600 hover:bg-purple-700 text-white"
-            }`}
+            className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {walletConnected
-              ? `Buy ${numCoins > 0 ? numCoins + " Coins" : ""}`
-              : "Connect Wallet"}
+            {`Buy ${numCoins > 0 ? numCoins + " Coins" : ""}`}
           </button>
-          )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

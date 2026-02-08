@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useApp, DemoPoll } from "@/components/Providers";
 import PollCard from "@/components/PollCard";
 import SkeletonCard from "@/components/SkeletonCard";
+import { CATEGORIES as CONST_CATEGORIES } from "@/lib/constants";
 
-const CATEGORIES = [
-  "All", "Crypto", "Sports", "Politics", "Tech", "Entertainment", "Science",
-  "Economics", "Mentions", "Companies", "Financials", "Tech & Science", "Other",
-];
+const CATEGORIES = ["All", ...CONST_CATEGORIES];
+
+const POLLS_PER_PAGE = 12;
 
 type SortOption = "most-voted" | "latest" | "oldest";
 const SORT_OPTIONS: { value: SortOption; label: string; icon: string }[] = [
@@ -40,18 +40,35 @@ export default function PollsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "settled">("all");
   const [sortBy, setSortBy] = useState<SortOption>("most-voted");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout>>();
 
-  const filtered = polls.filter((p) => {
+  // Reset to page 1 when filters change
+  const handleCategoryChange = (cat: string) => { setSelectedCategory(cat); setPage(1); };
+  const handleStatusChange = (s: "all" | "active" | "settled") => { setStatusFilter(s); setPage(1); };
+  const handleSortChange = (s: SortOption) => { setSortBy(s); setPage(1); };
+  const handleSearchChange = useCallback((val: string) => {
+    setSearch(val);
+    setPage(1);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 300);
+  }, []);
+
+  const filtered = useMemo(() => polls.filter((p) => {
     if (selectedCategory !== "All" && p.category !== selectedCategory) return false;
     if (statusFilter === "active" && p.status !== 0) return false;
     if (statusFilter === "settled" && p.status !== 1) return false;
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       if (!p.title.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
     }
     return true;
-  });
-  const sorted = sortPolls(filtered, sortBy);
+  }), [polls, selectedCategory, statusFilter, debouncedSearch]);
+
+  const sorted = useMemo(() => sortPolls(filtered, sortBy), [filtered, sortBy]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / POLLS_PER_PAGE));
+  const paginated = useMemo(() => sorted.slice((page - 1) * POLLS_PER_PAGE, page * POLLS_PER_PAGE), [sorted, page]);
 
   return (
     <div>
@@ -72,13 +89,14 @@ export default function PollsPage() {
         <input
           type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="Search polls by title or description..."
           className="w-full pl-10 pr-4 py-2.5 bg-dark-700 border border-gray-700 rounded-xl text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors placeholder-gray-600"
         />
         {search && (
           <button
-            onClick={() => setSearch("")}
+            onClick={() => handleSearchChange("")}
+            aria-label="Clear search"
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l12 12M13 1L1 13" /></svg>
@@ -92,7 +110,7 @@ export default function PollsPage() {
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => handleCategoryChange(cat)}
               className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
                 selectedCategory === cat
                   ? "bg-primary-600 text-white"
@@ -109,7 +127,7 @@ export default function PollsPage() {
             {(["all", "active", "settled"] as const).map((s) => (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => handleStatusChange(s)}
                 className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm capitalize transition-colors ${
                   statusFilter === s
                     ? "bg-primary-600 text-white"
@@ -125,7 +143,7 @@ export default function PollsPage() {
             {SORT_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setSortBy(opt.value)}
+                onClick={() => handleSortChange(opt.value)}
                 role="radio"
                 aria-checked={sortBy === opt.value}
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
@@ -161,11 +179,58 @@ export default function PollsPage() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {sorted.map((poll) => (
-            <PollCard key={poll.id} poll={poll} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {paginated.map((poll) => (
+              <PollCard key={poll.id} poll={poll} />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-8">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-dark-700 text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Previous page"
+              >
+                ← Prev
+              </button>
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                  .map((p, idx, arr) => (
+                    <span key={p} className="contents">
+                      {idx > 0 && arr[idx - 1] !== p - 1 && (
+                        <span className="px-1 text-gray-600 text-sm">…</span>
+                      )}
+                      <button
+                        onClick={() => setPage(p)}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                          p === page ? "bg-primary-600 text-white" : "bg-dark-700 text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </span>
+                  ))}
+              </div>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-dark-700 text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Next page"
+              >
+                Next →
+              </button>
+            </div>
+          )}
+
+          <p className="text-center text-xs text-gray-600 mt-3">
+            Showing {(page - 1) * POLLS_PER_PAGE + 1}–{Math.min(page * POLLS_PER_PAGE, sorted.length)} of {sorted.length} polls
+          </p>
+        </>
       )}
     </div>
   );

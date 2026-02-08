@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useApp } from "./Providers";
+import Modal from "./Modal";
 
 type Props = {
   isOpen: boolean;
@@ -10,31 +10,6 @@ type Props = {
 
 export default function WalletConnectModal({ isOpen, onClose }: Props) {
   const { connectWallet } = useApp();
-  const overlayRef = useRef<HTMLDivElement>(null);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  // Prevent body scroll when open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const handleConnect = async () => {
     await connectWallet();
@@ -42,18 +17,12 @@ export default function WalletConnectModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
-    >
-      <div className="relative bg-dark-800 border border-gray-700 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl shadow-purple-900/20 animate-scaleIn">
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="p-8">
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-white rounded-lg hover:bg-dark-700 transition-colors"
+          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-dark-700 transition-colors"
           aria-label="Close"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,10 +48,10 @@ export default function WalletConnectModal({ isOpen, onClose }: Props) {
           <div className="bg-gradient-to-r from-accent-500/10 to-green-500/10 border border-accent-500/30 rounded-xl p-4 mb-6">
             <div className="flex items-center justify-center gap-2 mb-1">
               <span className="text-2xl">🎁</span>
-              <span className="text-accent-400 font-bold text-lg">$5,000 Signup Bonus</span>
+              <span className="text-accent-400 font-bold text-lg">On-Chain Account Setup</span>
             </div>
             <p className="text-gray-400 text-sm">
-              Get free play money instantly when you connect!
+              Create your Solana account and start predicting with real SOL!
             </p>
           </div>
 
@@ -101,7 +70,7 @@ export default function WalletConnectModal({ isOpen, onClose }: Props) {
           <div className="mt-6 grid grid-cols-2 gap-3 text-left">
             <div className="flex items-start gap-2">
               <span className="text-green-400 mt-0.5 shrink-0">&#10003;</span>
-              <span className="text-xs text-gray-400">$100 daily rewards</span>
+              <span className="text-xs text-gray-400">Devnet SOL airdrop</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-green-400 mt-0.5 shrink-0">&#10003;</span>
@@ -118,6 +87,6 @@ export default function WalletConnectModal({ isOpen, onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

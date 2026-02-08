@@ -67,4 +67,25 @@ pub mod poll_program {
     pub fn delete_poll(ctx: Context<DeletePoll>, poll_id: u64) -> Result<()> {
         instructions::delete_poll::handler(ctx, poll_id)
     }
+
+    /// CPI-callable: Records a vote on a poll (called by vote_program via CPI).
+    pub fn record_vote(
+        ctx: Context<RecordVote>,
+        poll_id: u64,
+        option_index: u8,
+        num_coins: u64,
+        cost: u64,
+        is_new_voter: bool,
+    ) -> Result<()> {
+        instructions::record_vote::handler(ctx, poll_id, option_index, num_coins, cost, is_new_voter)
+    }
+
+    /// CPI-callable: Settles a poll (called by settlement_program via CPI).
+    pub fn settle_poll_cpi(
+        ctx: Context<SettlePollCpi>,
+        poll_id: u64,
+        winning_option: u8,
+    ) -> Result<()> {
+        instructions::settle_cpi::handler(ctx, poll_id, winning_option)
+    }
 }

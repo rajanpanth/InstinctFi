@@ -1,39 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { useApp, formatDollars } from "@/components/Providers";
-
-/* ── Countdown hook for daily claim ── */
-function useDailyCountdown(lastClaimTs: number) {
-  const [timeLeft, setTimeLeft] = useState("");
-  const [canClaim, setCanClaim] = useState(false);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const tick = () => {
-      const nextClaim = lastClaimTs + DAY_MS;
-      const diff = nextClaim - Date.now();
-      if (diff <= 0) {
-        setCanClaim(true);
-        setTimeLeft("Ready!");
-        setProgress(100);
-        return;
-      }
-      setCanClaim(false);
-      setProgress(Math.min(100, ((DAY_MS - diff) / DAY_MS) * 100));
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [lastClaimTs]);
-
-  return { timeLeft, canClaim, progress };
-}
+import { useDailyCountdown } from "@/lib/useCountdown";
+import { shortAddr } from "@/lib/utils";
 
 export default function ProfilePage() {
   const {
@@ -62,9 +33,6 @@ export default function ProfilePage() {
   const myVotes = votes.filter((v) => v.voter === addr);
   const u = userAccount;
 
-  const shortAddr = (a: string) =>
-    a.length > 12 ? `${a.slice(0, 6)}...${a.slice(-6)}` : a;
-
   const netProfit = u ? u.totalWinningsCents - u.totalSpentCents : 0;
 
   return (
@@ -81,7 +49,7 @@ export default function ProfilePage() {
           <div className="sm:text-right">
             <div className="text-sm text-gray-400 mb-1">Balance</div>
             <div className="text-xl sm:text-2xl font-bold text-accent-400">
-              {u ? formatDollars(u.balance) : "$0.00"}
+              {u ? formatDollars(u.balance) : "0 SOL"}
             </div>
           </div>
         </div>
@@ -92,7 +60,7 @@ export default function ProfilePage() {
             <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center text-lg shrink-0">🎁</div>
             <div>
               <div className="text-sm font-medium text-purple-300">Welcome Bonus Claimed</div>
-              <div className="text-xs text-gray-500">$5,000 credited on signup</div>
+              <div className="text-xs text-gray-500">On-chain account active</div>
             </div>
           </div>
         )}
@@ -127,7 +95,7 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-3">
             {myPolls.map((p) => (
-              <div key={p.id} className="flex justify-between items-center p-3 bg-dark-800/50 rounded-xl">
+              <Link key={p.id} href={`/polls/${p.id}`} className="flex justify-between items-center p-3 bg-dark-800/50 rounded-xl hover:bg-dark-700/50 transition-colors">
                 <div>
                   <div className="font-medium">{p.title}</div>
                   <div className="text-xs text-gray-500">
@@ -139,7 +107,7 @@ export default function ProfilePage() {
                 }`}>
                   {p.status === 1 ? "Settled" : "Active"}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -156,7 +124,7 @@ export default function ProfilePage() {
               const p = polls.find((pl) => pl.id === v.pollId);
               if (!p) return null;
               return (
-                <div key={i} className="flex justify-between items-center p-3 bg-dark-800/50 rounded-xl">
+                <Link key={i} href={`/polls/${p.id}`} className="flex justify-between items-center p-3 bg-dark-800/50 rounded-xl hover:bg-dark-700/50 transition-colors">
                   <div>
                     <div className="font-medium">{p.title}</div>
                     <div className="text-xs text-gray-500">
@@ -170,7 +138,7 @@ export default function ProfilePage() {
                     <div className="text-sm font-mono">{formatDollars(v.totalStakedCents)}</div>
                     {v.claimed && <span className="text-xs text-green-400">Claimed</span>}
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
@@ -225,7 +193,7 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
             </div>
             <div>
               <div className="text-sm font-semibold">Daily Reward</div>
-              <div className="text-xs text-gray-500">Claim $100 every 24 hours</div>
+              <div className="text-xs text-gray-500">Claim 1 SOL every 24 hours</div>
             </div>
           </div>
           <button
@@ -239,7 +207,7 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
                 : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
             }`}
           >
-            {claimed ? "✓ Claimed!" : canClaim ? "Claim $100" : timeLeft}
+            {claimed ? "✓ Claimed!" : canClaim ? "Claim 1 SOL" : timeLeft}
           </button>
         </div>
 

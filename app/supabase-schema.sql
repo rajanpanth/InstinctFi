@@ -5,7 +5,7 @@
 -- NOTE: If upgrading from v1, run the "Migration" section at the bottom
 --       separately AFTER the initial tables exist.
 -- ============================================================
-
+-- rajan
 -- 1. Users table
 create table if not exists users (
   wallet text primary key,

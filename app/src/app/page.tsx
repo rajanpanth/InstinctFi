@@ -80,7 +80,7 @@ function HomeContent() {
             entire losing pool. Powered by Solana.
           </p>
           <p className="text-accent-400 mb-6 sm:mb-8 text-sm sm:text-base">
-            Sign up with Phantom to get <strong>$5,000</strong> in play money!
+            Sign up with Phantom and get <strong>devnet SOL</strong> to start trading!
           </p>
           <button
             onClick={connectWallet}

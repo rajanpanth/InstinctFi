@@ -3,22 +3,24 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-user_program = "UserPrgm11111111111111111111111111111111111"
+instinctfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 poll_program = "Po11CrtrPrgm1111111111111111111111111111111"
 vote_program = "VotePrgm11111111111111111111111111111111111"
 settlement_program = "Sett1ePrgm1111111111111111111111111111111111"
+user_program = "UserPrgm11111111111111111111111111111111111"
 
 [programs.devnet]
-user_program = "UserPrgm11111111111111111111111111111111111"
+instinctfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 poll_program = "Po11CrtrPrgm1111111111111111111111111111111"
 vote_program = "VotePrgm11111111111111111111111111111111111"
 settlement_program = "Sett1ePrgm1111111111111111111111111111111111"
+user_program = "UserPrgm11111111111111111111111111111111111"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
