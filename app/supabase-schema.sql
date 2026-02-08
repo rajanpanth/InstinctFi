@@ -40,6 +40,7 @@ create table if not exists polls (
   description text not null default '',
   category text not null default '',
   image_url text not null default '',
+  option_images text[] not null default '{}',
   options text[] not null,
   vote_counts bigint[] not null,
   unit_price_cents bigint not null,
