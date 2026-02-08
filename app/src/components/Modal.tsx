@@ -1,26 +1,31 @@
 "use client";
 
-import { useEffect, useRef, ReactNode } from "react";
+import { useEffect, useRef, ReactNode, useId } from "react";
 
 type ModalProps = {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
-  /** Additional className for the inner container */
   className?: string;
-  /** Max width class (default: "max-w-md") */
   maxWidth?: string;
+  /** Title for aria-labelledby */
+  title?: string;
 };
 
 /**
- * Shared modal wrapper — handles:
+ * Shared modal wrapper with:
  * - Escape key to close
  * - Body scroll lock
- * - Click-outside-to-close on overlay
+ * - Click-outside-to-close
+ * - Focus trap (WCAG compliant)
  * - Fade + scale animation
+ * - aria-labelledby support
  */
-export default function Modal({ isOpen, onClose, children, className = "", maxWidth = "max-w-md" }: ModalProps) {
+export default function Modal({ isOpen, onClose, children, className = "", maxWidth = "max-w-md", title }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   // Close on Escape
   useEffect(() => {
@@ -39,8 +44,53 @@ export default function Modal({ isOpen, onClose, children, className = "", maxWi
     } else {
       document.body.style.overflow = "";
     }
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
+
+  // Focus trap
+  useEffect(() => {
+    if (!isOpen || !contentRef.current) return;
+
+    // Save previous focus
+    previousFocusRef.current = document.activeElement as HTMLElement;
+
+    // Focus the first focusable element
+    const focusable = contentRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length > 0) {
+      focusable[0].focus();
+    }
+
+    // Trap focus within modal
+    const trapFocus = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !contentRef.current) return;
+      const focusableEls = contentRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableEls.length === 0) return;
+
+      const first = focusableEls[0];
+      const last = focusableEls[focusableEls.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", trapFocus);
     return () => {
-      document.body.style.overflow = "";
+      document.removeEventListener("keydown", trapFocus);
+      // Restore previous focus
+      previousFocusRef.current?.focus();
     };
   }, [isOpen]);
 
@@ -55,8 +105,15 @@ export default function Modal({ isOpen, onClose, children, className = "", maxWi
       }}
       role="dialog"
       aria-modal="true"
+      aria-labelledby={title ? titleId : undefined}
     >
-      <div className={`relative bg-dark-800 border border-gray-700 rounded-2xl ${maxWidth} w-full mx-4 shadow-2xl shadow-primary-900/20 animate-scaleIn ${className}`}>
+      <div
+        ref={contentRef}
+        className={`relative bg-dark-800 border border-gray-700 rounded-2xl ${maxWidth} w-full mx-4 shadow-2xl shadow-primary-900/20 animate-scaleIn ${className}`}
+      >
+        {title && (
+          <span id={titleId} className="sr-only">{title}</span>
+        )}
         {children}
       </div>
     </div>

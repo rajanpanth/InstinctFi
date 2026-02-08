@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { sanitizeImageUrl } from "@/lib/uploadImage";
 
 type Props = {
@@ -54,23 +55,39 @@ export default function PollImage({
     );
   }
 
+  const isDataUrl = sanitized.startsWith("data:");
+
   return (
     <div className={`${aspect} relative overflow-hidden bg-dark-800 ${className}`}>
       {/* Skeleton loader */}
       {!loaded && (
         <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-dark-800 via-dark-700 to-dark-800 bg-[length:200%_100%]" />
       )}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={sanitized}
-        alt={alt}
-        loading="lazy"
-        onLoad={() => setLoaded(true)}
-        onError={() => setErrored(true)}
-        className={`w-full h-full object-cover transition-opacity duration-300 ${
-          loaded ? "opacity-100" : "opacity-0"
-        }`}
-      />
+      {isDataUrl ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={sanitized}
+          alt={alt}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${
+            loaded ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      ) : (
+        <Image
+          src={sanitized}
+          alt={alt}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className={`object-cover transition-opacity duration-300 ${
+            loaded ? "opacity-100" : "opacity-0"
+          }`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -8,6 +8,7 @@ import { useApp, formatDollars } from "./Providers";
 import { CATEGORY_META, isAdminWallet } from "@/lib/constants";
 import { useDailyCountdown } from "@/lib/useCountdown";
 import { shortAddr } from "@/lib/utils";
+import DarkModeToggle from "./DarkModeToggle";
 import toast from "react-hot-toast";
 
 /* ── Compact claim timer for navbar ── */
@@ -83,6 +84,8 @@ export function Navbar() {
     disconnectWallet,
     userAccount,
     claimDailyReward,
+    polls,
+    votes,
   } = useApp();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -91,6 +94,22 @@ export function Navbar() {
   const dailyAvailable =
     userAccount &&
     Date.now() - userAccount.lastWeeklyRewardTs >= 24 * 60 * 60 * 1000;
+
+  // Count unclaimed rewards from settled polls
+  const unclaimedRewards = useMemo(() => {
+    if (!walletConnected || !votes.length || !polls.length) return 0;
+    let count = 0;
+    for (const v of votes) {
+      const poll = polls.find(p => p.id === v.pollId);
+      if (!poll) continue;
+      const isSettled = poll.status === 2;
+      if (isSettled && !v.claimed && poll.winningOption !== 255) {
+        const userVotesOnWinner = v.votesPerOption[poll.winningOption] || 0;
+        if (userVotesOnWinner > 0) count++;
+      }
+    }
+    return count;
+  }, [walletConnected, votes, polls]);
 
   const isActive = (href: string) => {
     if (href.startsWith("/?")) return pathname === "/";
@@ -144,13 +163,18 @@ export function Navbar() {
             </Link>
             <Link
               href="/profile"
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 pathname === "/profile"
                   ? "bg-primary-600/20 text-primary-400"
                   : "text-gray-400 hover:text-white hover:bg-dark-700"
               }`}
             >
               Profile
+              {unclaimedRewards > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-green-500 text-[9px] font-bold text-white px-1">
+                  {unclaimedRewards}
+                </span>
+              )}
             </Link>
             {isAdminWallet(walletAddress) && (
             <Link
@@ -168,6 +192,7 @@ export function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <DarkModeToggle />
             {walletConnected ? (
               <>
                 {/* Timer + Balance combined pill */}
@@ -255,7 +280,7 @@ export function Navbar() {
             { href: "/polls", label: "Polls", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" },
             { href: "/create", label: "Create", icon: "M12 5v14M5 12h14" },
             { href: "/leaderboard", label: "Board", icon: "M8 21V12H4l8-9 8 9h-4v9" },
-            { href: "/profile", label: "Profile", icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 7a4 4 0 100-8 4 4 0 000 8", hasBadge: dailyAvailable },
+            { href: "/profile", label: "Profile", icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 7a4 4 0 100-8 4 4 0 000 8", hasBadge: dailyAvailable || unclaimedRewards > 0 },
           ].map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname === item.href;
             return (

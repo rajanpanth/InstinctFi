@@ -1,6 +1,6 @@
 export default function SkeletonCard() {
   return (
-    <div className="bg-dark-700/60 border border-gray-800 rounded-xl overflow-hidden animate-pulse">
+    <div role="status" aria-label="Loading poll" className="bg-dark-700/60 border border-gray-800 rounded-xl overflow-hidden animate-pulse">
       <div className="p-4">
         {/* Header */}
         <div className="flex items-start gap-3 mb-3">

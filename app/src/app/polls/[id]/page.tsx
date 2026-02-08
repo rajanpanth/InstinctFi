@@ -10,6 +10,8 @@ import DeletePollModal from "@/components/DeletePollModal";
 import { sanitizeImageUrl } from "@/lib/uploadImage";
 import { useCountdown } from "@/lib/useCountdown";
 import { useVote } from "@/lib/useVote";
+import ShareButton from "@/components/ShareButton";
+import PollComments from "@/components/PollComments";
 import toast from "react-hot-toast";
 
 export default function PollDetailPage() {
@@ -149,17 +151,20 @@ export default function PollDetailPage() {
             <span className="px-3 py-1 bg-primary-600/20 text-primary-400 rounded-lg text-xs font-medium">
               {poll.category}
             </span>
-            <span
-              className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                isSettled
-                  ? "bg-green-600/20 text-green-400"
-                  : isEnded
-                  ? "bg-red-600/20 text-red-400"
-                  : "bg-accent-500/20 text-accent-400"
-              }`}
-            >
-              {isSettled ? "Settled" : isEnded ? "Awaiting Settlement" : timeLeft}
-            </span>
+            <div className="flex items-center gap-2">
+              <ShareButton pollId={poll.id} pollTitle={poll.title} expanded />
+              <span
+                className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                  isSettled
+                    ? "bg-green-600/20 text-green-400"
+                    : isEnded
+                    ? "bg-red-600/20 text-red-400"
+                    : "bg-accent-500/20 text-accent-400"
+                }`}
+              >
+                {isSettled ? "Settled" : isEnded ? "Awaiting Settlement" : timeLeft}
+              </span>
+            </div>
           </div>
 
           <h1 className="text-2xl font-bold mb-3">{poll.title}</h1>
@@ -396,6 +401,11 @@ export default function PollDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ── Comments Section ── */}
+      <div className="mt-6">
+        <PollComments pollId={pollId} />
+      </div>
     </div>
   );
 }

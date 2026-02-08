@@ -456,7 +456,25 @@ export function Providers({ children }: { children: ReactNode }) {
 
     // Poll for updates every 15 seconds (Solana doesn't have real-time push)
     const interval = setInterval(fetchAll, 15_000);
-    return () => clearInterval(interval);
+
+    // ── Supabase Realtime: instant updates on polls/votes changes ──
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    if (isSupabaseConfigured) {
+      channel = supabase
+        .channel("polls-votes-realtime")
+        .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, () => {
+          fetchAll();
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, () => {
+          fetchAll();
+        })
+        .subscribe();
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [fetchAll]);
 
   // ── Refresh after wallet connects/changes ──

@@ -450,3 +450,29 @@ begin
   );
 end;
 $$ language plpgsql security definer;
+
+-- ============================================================
+-- 5. Comments table (for poll discussion threads)
+-- ============================================================
+create table if not exists comments (
+  id uuid primary key default gen_random_uuid(),
+  poll_id text not null references polls(id) on delete cascade,
+  wallet text not null,
+  content text not null check (char_length(content) between 1 and 500),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_comments_poll_id on comments(poll_id);
+create index if not exists idx_comments_created_at on comments(created_at desc);
+
+-- RLS
+alter table comments enable row level security;
+
+create policy "Anyone can read comments"
+  on comments for select using (true);
+
+create policy "Authenticated users can insert comments"
+  on comments for insert with check (true);
+
+-- Enable realtime for comments
+alter publication supabase_realtime add table comments;

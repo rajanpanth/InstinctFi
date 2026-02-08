@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./supabase";
+import imageCompression from "browser-image-compression";
 
 // ─── Image Upload to Supabase Storage ───────────────────────────────────────
 // Bucket: "poll-images" (create in Supabase Dashboard → Storage → New Bucket)
@@ -33,13 +34,27 @@ export async function uploadPollImage(file: File): Promise<string> {
   const validationError = validateImageFile(file);
   if (validationError) throw new ImageUploadError(validationError);
 
+  // Compress before upload (target 800KB, 1920px max)
+  let processedFile = file;
+  try {
+    processedFile = await imageCompression(file, {
+      maxSizeMB: 0.8,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      fileType: file.type as "image/jpeg" | "image/png" | "image/webp",
+    });
+  } catch {
+    // If compression fails, continue with original file
+    console.warn("Image compression failed, using original file");
+  }
+
   if (!isSupabaseConfigured) {
     // Fallback: convert to data URL for local/demo mode
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = () => reject(new ImageUploadError("Failed to read file"));
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
     });
   }
 
@@ -49,10 +64,10 @@ export async function uploadPollImage(file: File): Promise<string> {
   const filePath = `polls/${fileName}`;
 
   // Upload to Supabase Storage
-  const { error } = await supabase.storage.from(BUCKET).upload(filePath, file, {
+  const { error } = await supabase.storage.from(BUCKET).upload(filePath, processedFile, {
     cacheControl: "3600",
     upsert: false,
-    contentType: file.type,
+    contentType: processedFile.type,
   });
 
   if (error) {

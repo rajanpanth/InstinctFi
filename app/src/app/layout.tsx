@@ -4,6 +4,8 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import PageTransition from "@/components/PageTransition";
+import WalletAdapterProvider from "@/components/WalletAdapterProvider";
 import { Toaster } from "react-hot-toast";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -23,13 +25,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body className={inter.className}>
+        <WalletAdapterProvider>
         <Providers>
           <Navbar />
           <ErrorBoundary>
             <main className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-20 md:pb-8">
-              {children}
+              <PageTransition>
+                {children}
+              </PageTransition>
             </main>
           </ErrorBoundary>
           <Toaster
@@ -43,6 +48,7 @@ export default function RootLayout({
             }}
           />
         </Providers>
+        </WalletAdapterProvider>
       </body>
     </html>
   );

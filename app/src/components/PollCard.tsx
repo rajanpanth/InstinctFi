@@ -9,6 +9,8 @@ import DeletePollModal from "./DeletePollModal";
 import { useCountdown } from "@/lib/useCountdown";
 import { useVote } from "@/lib/useVote";
 import { OPTION_BADGE_COLORS } from "@/lib/utils";
+import ShareButton from "./ShareButton";
+import CountdownCircle from "./CountdownCircle";
 import toast from "react-hot-toast";
 
 type Props = {
@@ -66,7 +68,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
 
   const canManage = isCreator && totalVotes === 0 && !isEnded && !isSettled;
   const mainImage = sanitizeImageUrl(poll.imageUrl);
-  const { text: timeLeft } = useCountdown(poll.endTime);
+  const { text: timeLeft, progress: countdownProgress } = useCountdown(poll.endTime);
 
   // Build option data
   const optionData = poll.options.map((opt, i) => {
@@ -137,7 +139,12 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                   isSettled ? "bg-green-600/20 text-green-400" : isEnded ? "bg-yellow-600/20 text-yellow-400" : "bg-accent-500/20 text-accent-400"
                 }`}>
-                  {isSettled ? "Settled" : isEnded ? "Ended" : timeLeft}
+                  {isSettled ? "Settled" : isEnded ? "Ended" : (
+                    <span className="flex items-center gap-1">
+                      <CountdownCircle progress={countdownProgress} size={14} strokeWidth={2} />
+                      {timeLeft}
+                    </span>
+                  )}
                 </span>
               </div>
             </div>
@@ -380,26 +387,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                   </div>
                   <span className="text-[11px] text-gray-400 truncate">by {poll.creator.slice(0, 4)}...{poll.creator.slice(-4)}</span>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const url = `${window.location.origin}/polls/${poll.id}`;
-                    navigator.clipboard.writeText(url);
-                    toast.success("Poll link copied!");
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] text-gray-400 hover:text-white hover:bg-dark-600 rounded-lg transition-colors"
-                  title="Share poll"
-                  aria-label="Share poll"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="18" cy="5" r="3" />
-                    <circle cx="6" cy="12" r="3" />
-                    <circle cx="18" cy="19" r="3" />
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                  </svg>
-                  Share
-                </button>
+                <ShareButton pollId={poll.id} pollTitle={poll.title} />
               </div>
             )}
           </div>

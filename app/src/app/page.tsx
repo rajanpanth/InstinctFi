@@ -11,12 +11,19 @@ import { CATEGORY_META } from "@/lib/constants";
 const CATEGORY_SECTIONS = CATEGORY_META.filter(c => c.label !== "Trending");
 
 function getTrendingPolls(polls: DemoPoll[], limit = 6): DemoPoll[] {
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
   return [...polls]
     .filter((p) => p.status === 0)
     .sort((a, b) => {
       const aVotes = a.voteCounts.reduce((s, v) => s + v, 0);
       const bVotes = b.voteCounts.reduce((s, v) => s + v, 0);
-      return bVotes - aVotes;
+      // Time-weighted trending: recent polls with high votes score higher
+      const aAge = Math.max(1, (now - a.createdAt) / ONE_DAY);
+      const bAge = Math.max(1, (now - b.createdAt) / ONE_DAY);
+      const aScore = aVotes / Math.pow(aAge, 0.8);
+      const bScore = bVotes / Math.pow(bAge, 0.8);
+      return bScore - aScore;
     })
     .slice(0, limit);
 }

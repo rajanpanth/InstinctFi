@@ -8,6 +8,51 @@
   --background-end-rgb: 26, 27, 46;
 }
 
+/* Light mode overrides */
+html:not(.dark) {
+  --foreground-rgb: 17, 24, 39;
+  --background-start-rgb: 249, 250, 251;
+  --background-end-rgb: 243, 244, 246;
+}
+
+html:not(.dark) body {
+  color-scheme: light;
+}
+
+html:not(.dark) .bg-dark-700\/60,
+html:not(.dark) .bg-dark-700\/50,
+html:not(.dark) .bg-dark-800\/50,
+html:not(.dark) .bg-dark-800\/80 {
+  background-color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(209, 213, 219, 0.5);
+}
+
+html:not(.dark) .bg-dark-900\/90,
+html:not(.dark) .bg-dark-900\/95 {
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+html:not(.dark) .text-gray-400 {
+  color: rgb(107, 114, 128);
+}
+
+html:not(.dark) .text-gray-300 {
+  color: rgb(55, 65, 81);
+}
+
+html:not(.dark) .text-white {
+  color: rgb(17, 24, 39);
+}
+
+html:not(.dark) .border-gray-800,
+html:not(.dark) .border-gray-800\/80,
+html:not(.dark) .border-gray-800\/60,
+html:not(.dark) .border-gray-800\/50,
+html:not(.dark) .border-gray-700,
+html:not(.dark) .border-gray-700\/50 {
+  border-color: rgb(229, 231, 235);
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(
