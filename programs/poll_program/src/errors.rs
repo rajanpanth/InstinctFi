@@ -36,4 +36,10 @@ pub enum PollError {
     Overflow,
     #[msg("Insufficient funds")]
     InsufficientFunds,
+    #[msg("Only the poll creator can perform this action")]
+    UnauthorizedNotCreator,
+    #[msg("Poll already has votes and cannot be modified")]
+    PollHasVotes,
+    #[msg("Option count mismatch with existing poll")]
+    OptionCountMismatch,
 }

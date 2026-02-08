@@ -44,6 +44,7 @@ export type DemoPoll = {
   description: string;
   category: string;
   imageUrl: string;
+  optionImages: string[];
   options: string[];
   voteCounts: number[];
   unitPriceCents: number;
@@ -104,6 +105,8 @@ type AppContextType = {
   polls: DemoPoll[];
   votes: DemoVote[];
   createPoll: (poll: Omit<DemoPoll, "id">) => DemoPoll | null;
+  editPoll: (pollId: string, updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">>) => boolean;
+  deletePoll: (pollId: string) => boolean;
   castVote: (pollId: string, optionIndex: number, numCoins: number) => boolean;
   settlePoll: (pollId: string) => boolean;
   claimReward: (pollId: string) => number;
@@ -187,6 +190,7 @@ function dbToPoll(r: any): DemoPoll {
     description: r.description,
     category: r.category,
     imageUrl: r.image_url || "",
+    optionImages: r.option_images || [],
     options: r.options,
     voteCounts: (r.vote_counts || []).map(Number),
     unitPriceCents: Number(r.unit_price_cents),
@@ -211,6 +215,7 @@ function pollToDb(p: DemoPoll) {
     description: p.description,
     category: p.category,
     image_url: p.imageUrl || "",
+    option_images: p.optionImages || [],
     options: p.options,
     vote_counts: p.voteCounts,
     unit_price_cents: p.unitPriceCents,
@@ -511,6 +516,87 @@ export function Providers({ children }: { children: ReactNode }) {
     [walletAddress, users, updateUser]
   );
 
+  // ── Edit poll (creator-only, zero votes, active, not ended) ──
+  const editPoll = useCallback(
+    (
+      pollId: string,
+      updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">>
+    ): boolean => {
+      if (!walletAddress) return false;
+      const poll = polls.find((p) => p.id === pollId);
+      if (!poll) return false;
+
+      // Permission checks
+      if (poll.creator !== walletAddress) return false;
+      if (poll.status !== 0) return false;
+      const now = Math.floor(Date.now() / 1000);
+      if (now >= poll.endTime) return false;
+      const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
+      if (totalVotes > 0) return false;
+
+      // Option count must match if options are being updated
+      if (updates.options && updates.options.length !== poll.options.length) return false;
+
+      // End time must be in the future
+      if (updates.endTime && updates.endTime <= now) return false;
+
+      const updatedPoll: DemoPoll = {
+        ...poll,
+        title: updates.title ?? poll.title,
+        description: updates.description ?? poll.description,
+        category: updates.category ?? poll.category,
+        imageUrl: updates.imageUrl ?? poll.imageUrl,
+        optionImages: updates.optionImages ?? poll.optionImages,
+        options: updates.options ?? poll.options,
+        endTime: updates.endTime ?? poll.endTime,
+      };
+
+      setPolls((prev) => prev.map((p) => (p.id === pollId ? updatedPoll : p)));
+      dbUpsertPoll(updatedPoll);
+      return true;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [walletAddress, polls]
+  );
+
+  // ── Delete poll (creator-only, zero votes, active, not ended — refund investment) ──
+  const deletePoll = useCallback(
+    (pollId: string): boolean => {
+      if (!walletAddress) return false;
+      const poll = polls.find((p) => p.id === pollId);
+      if (!poll) return false;
+
+      // Permission checks
+      if (poll.creator !== walletAddress) return false;
+      if (poll.status !== 0) return false;
+      const now = Math.floor(Date.now() / 1000);
+      if (now >= poll.endTime) return false;
+      const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
+      if (totalVotes > 0) return false;
+
+      // Refund creator investment
+      updateUser(walletAddress, (u) => ({
+        ...u,
+        balance: u.balance + poll.creatorInvestmentCents,
+        pollsCreated: Math.max(0, u.pollsCreated - 1),
+      }));
+
+      // Remove poll from state
+      setPolls((prev) => prev.filter((p) => p.id !== pollId));
+
+      // Delete from Supabase
+      if (isSupabaseConfigured) {
+        supabase.from("polls").delete().eq("id", pollId).then(({ error }) => {
+          if (error) console.error("DB poll delete error:", error);
+        });
+      }
+
+      return true;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [walletAddress, polls, updateUser]
+  );
+
   // ── Cast vote ──
   const castVote = useCallback(
     (pollId: string, optionIndex: number, numCoins: number): boolean => {
@@ -671,6 +757,8 @@ export function Providers({ children }: { children: ReactNode }) {
         polls,
         votes,
         createPoll,
+        editPoll,
+        deletePoll,
         castVote,
         settlePoll,
         claimReward,

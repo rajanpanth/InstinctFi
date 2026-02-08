@@ -39,4 +39,32 @@ pub mod poll_program {
             creator_investment_cents,
         )
     }
+
+    /// Edits an existing poll (creator-only, zero votes, active, not ended).
+    pub fn edit_poll(
+        ctx: Context<EditPoll>,
+        poll_id: u64,
+        title: String,
+        description: String,
+        category: String,
+        image_url: String,
+        options: Vec<String>,
+        end_time: i64,
+    ) -> Result<()> {
+        instructions::edit_poll::handler(
+            ctx,
+            poll_id,
+            title,
+            description,
+            category,
+            image_url,
+            options,
+            end_time,
+        )
+    }
+
+    /// Deletes a poll and refunds the creator (creator-only, zero votes, active, not ended).
+    pub fn delete_poll(ctx: Context<DeletePoll>, poll_id: u64) -> Result<()> {
+        instructions::delete_poll::handler(ctx, poll_id)
+    }
 }

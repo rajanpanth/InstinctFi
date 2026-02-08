@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useApp, formatDollars } from "@/components/Providers";
 import PollImage from "@/components/PollImage";
+import WalletConnectModal from "@/components/WalletConnectModal";
+import EditPollModal from "@/components/EditPollModal";
+import DeletePollModal from "@/components/DeletePollModal";
+import { sanitizeImageUrl } from "@/lib/uploadImage";
 import toast from "react-hot-toast";
 
 export default function PollDetailPage() {
@@ -20,7 +24,8 @@ export default function PollDetailPage() {
     settlePoll,
     claimReward,
     walletConnected,
-    connectWallet,
+    editPoll,
+    deletePoll,
   } = useApp();
 
   const poll = polls.find((p) => p.id === pollId);
@@ -31,6 +36,9 @@ export default function PollDetailPage() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [numCoins, setNumCoins] = useState(1);
   const [timeLeft, setTimeLeft] = useState("");
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Countdown timer
   useEffect(() => {
@@ -50,23 +58,12 @@ export default function PollDetailPage() {
     return () => clearInterval(interval);
   }, [poll]);
 
-  if (!walletConnected) {
-    return (
-      <div className="text-center py-20">
-        <p className="text-gray-400 text-lg mb-4">Connect your Phantom wallet to view polls</p>
-        <button onClick={connectWallet} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-semibold transition-colors">
-          Connect Phantom
-        </button>
-      </div>
-    );
-  }
-
   if (!poll) {
     return (
       <div className="text-center py-20">
         <p className="text-gray-400 text-lg">Poll not found</p>
         <button onClick={() => router.push("/polls")} className="mt-4 text-primary-400 hover:text-primary-300">
-          ← Back to Polls
+          &larr; Back to Polls
         </button>
       </div>
     );
@@ -78,9 +75,14 @@ export default function PollDetailPage() {
   const isCreator = walletAddress === poll.creator;
   const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
   const cost = numCoins * poll.unitPriceCents;
-  const canVote = !isEnded && !isSettled && !isCreator;
+  const canVote = !isEnded && !isSettled && !isCreator && walletConnected;
+  const canManage = isCreator && totalVotes === 0 && !isEnded && !isSettled;
 
   const handleVote = () => {
+    if (!walletConnected) {
+      setShowWalletModal(true);
+      return;
+    }
     if (selectedOption === null) return toast.error("Select an option");
     if (numCoins <= 0) return toast.error("Buy at least 1 coin");
     if (userAccount && cost > userAccount.balance) return toast.error("Insufficient balance");
@@ -93,6 +95,14 @@ export default function PollDetailPage() {
     } else {
       toast.error("Vote failed");
     }
+  };
+
+  const handleOptionClick = (index: number) => {
+    if (!walletConnected) {
+      setShowWalletModal(true);
+      return;
+    }
+    if (canVote) setSelectedOption(index);
   };
 
   const handleSettle = () => {
@@ -110,7 +120,6 @@ export default function PollDetailPage() {
     }
   };
 
-  // Check if user can claim
   const canClaim =
     isSettled &&
     vote &&
@@ -118,7 +127,6 @@ export default function PollDetailPage() {
     poll.winningOption !== 255 &&
     (vote.votesPerOption[poll.winningOption] || 0) > 0;
 
-  // Calculate potential reward
   const potentialReward =
     canClaim && vote
       ? Math.floor(
@@ -130,14 +138,26 @@ export default function PollDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
+      <WalletConnectModal isOpen={showWalletModal} onClose={() => setShowWalletModal(false)} />
+      {poll && (
+        <>
+          <EditPollModal isOpen={showEditModal} onClose={() => setShowEditModal(false)} poll={poll} />
+          <DeletePollModal
+            isOpen={showDeleteModal}
+            onClose={() => setShowDeleteModal(false)}
+            poll={poll}
+            onDeleted={() => router.push("/polls")}
+          />
+        </>
+      )}
+
       {/* Back */}
       <button onClick={() => router.push("/polls")} className="text-gray-400 hover:text-white mb-6 text-sm">
-        ← Back to Polls
+        &larr; Back to Polls
       </button>
 
       {/* Header */}
       <div className="bg-dark-700/50 border border-gray-800 rounded-2xl overflow-hidden mb-6">
-        {/* Poll Image */}
         {poll.imageUrl && (
           <PollImage
             src={poll.imageUrl}
@@ -202,24 +222,42 @@ export default function PollDetailPage() {
             const isWinner = isSettled && poll.winningOption === i;
             const isSelected = selectedOption === i;
             const userVotes = vote ? vote.votesPerOption[i] || 0 : 0;
+            const optImage = poll.optionImages?.[i]
+              ? sanitizeImageUrl(poll.optionImages[i])
+              : "";
 
             return (
               <button
                 key={i}
-                onClick={() => canVote && setSelectedOption(i)}
-                disabled={!canVote}
+                onClick={() => handleOptionClick(i)}
                 className={`w-full text-left p-4 rounded-xl transition-all border ${
                   isWinner
                     ? "border-green-500/50 bg-green-500/10"
                     : isSelected
                     ? "border-primary-500 bg-primary-500/10"
                     : "border-gray-800 bg-dark-800/50 hover:border-gray-700"
-                } ${canVote ? "cursor-pointer" : "cursor-default"}`}
+                } cursor-pointer`}
               >
                 <div className="flex justify-between items-center mb-2">
-                  <span className={`font-medium ${isWinner ? "text-green-400" : ""}`}>
-                    {isWinner && "✓ "}{String.fromCharCode(65 + i)}. {opt}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    {optImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={optImage}
+                        alt={opt}
+                        className="w-8 h-8 rounded-full object-cover border border-gray-700"
+                      />
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white border border-gray-700 ${
+                        i === 0 ? "bg-blue-600" : i === 1 ? "bg-red-600" : "bg-purple-600"
+                      }`}>
+                        {opt.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className={`font-medium ${isWinner ? "text-green-400" : ""}`}>
+                      {isWinner && "\u2713 "}{String.fromCharCode(65 + i)}. {opt}
+                    </span>
+                  </div>
                   <span className="text-sm text-gray-400 font-mono">
                     {poll.voteCounts[i]} votes ({pct.toFixed(1)}%)
                   </span>
@@ -242,7 +280,7 @@ export default function PollDetailPage() {
       </div>
 
       {/* Vote action */}
-      {canVote && (
+      {!isEnded && !isSettled && (
         <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-8 mb-6">
           <h2 className="font-semibold text-lg mb-4">Buy Option-Coins</h2>
           <div className="flex items-end gap-4">
@@ -268,14 +306,17 @@ export default function PollDetailPage() {
           )}
           <button
             onClick={handleVote}
-            disabled={selectedOption === null}
             className={`w-full mt-4 py-3 rounded-xl font-semibold transition-all ${
-              selectedOption !== null
+              walletConnected && selectedOption !== null
                 ? "bg-primary-600 hover:bg-primary-700"
+                : !walletConnected
+                ? "bg-purple-600 hover:bg-purple-700"
                 : "bg-gray-700 text-gray-500 cursor-not-allowed"
             }`}
           >
-            {selectedOption !== null
+            {!walletConnected
+              ? "Connect Wallet to Vote"
+              : selectedOption !== null
               ? `Vote for "${poll.options[selectedOption]}"`
               : "Select an option above"}
           </button>
@@ -326,6 +367,38 @@ export default function PollDetailPage() {
       {isCreator && !isSettled && (
         <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-6 text-center text-gray-500 text-sm">
           You created this poll — you cannot vote on it.
+        </div>
+      )}
+
+      {/* Manage Poll (edit/delete) — visible only to creator when no votes */}
+      {canManage && (
+        <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-6 mt-6">
+          <h2 className="font-semibold text-lg mb-1">Manage Poll</h2>
+          <p className="text-gray-500 text-sm mb-4">
+            No votes yet — you can edit or delete this poll.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-gray-700 text-gray-300 rounded-xl hover:bg-dark-600 hover:border-gray-600 transition-colors font-medium"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit Poll
+            </button>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-red-600/40 text-red-400 rounded-xl hover:bg-red-600/10 hover:border-red-600/60 transition-colors font-medium"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+              </svg>
+              Delete Poll
+            </button>
+          </div>
         </div>
       )}
     </div>
