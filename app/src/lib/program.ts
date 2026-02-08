@@ -101,7 +101,7 @@ const discriminatorCache: Record<string, Uint8Array> = {};
 async function computeDiscriminator(preimage: string): Promise<Uint8Array> {
   if (discriminatorCache[preimage]) return discriminatorCache[preimage];
   const data = new TextEncoder().encode(preimage);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data as BufferSource);
   const disc = new Uint8Array(hashBuffer).slice(0, 8);
   discriminatorCache[preimage] = disc;
   return disc;
