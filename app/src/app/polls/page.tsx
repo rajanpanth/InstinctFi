@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
+import PollImage from "@/components/PollImage";
 
 const CATEGORIES = [
   "All", "Crypto", "Sports", "Politics", "Tech", "Entertainment", "Science", "Other",
@@ -27,68 +28,85 @@ function PollCard({ poll }: { poll: DemoPoll }) {
   return (
     <Link
       href={`/polls/${poll.id}`}
-      className="block bg-dark-700/50 border border-gray-800 rounded-2xl p-6 hover:border-primary-500/50 transition-all hover:transform hover:scale-[1.01]"
+      className="group block bg-dark-700/50 border border-gray-800 rounded-2xl overflow-hidden hover:border-primary-500/50 transition-all hover:transform hover:scale-[1.01] hover:shadow-lg hover:shadow-primary-600/5"
     >
-      <div className="flex items-start justify-between mb-3">
-        <span className="px-2.5 py-1 bg-primary-600/20 text-primary-400 rounded-lg text-xs font-medium">
-          {poll.category}
-        </span>
-        <span
-          className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-            poll.status === 1
-              ? "bg-green-600/20 text-green-400"
+      {/* Poll Image */}
+      <PollImage
+        src={poll.imageUrl}
+        alt={poll.title}
+        className="rounded-none"
+      />
+
+      {/* Content */}
+      <div className="p-5">
+        {/* Category + Status badges */}
+        <div className="flex items-center justify-between mb-3">
+          <span className="px-2.5 py-1 bg-primary-600/20 text-primary-400 rounded-lg text-xs font-medium">
+            {poll.category}
+          </span>
+          <span
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+              poll.status === 1
+                ? "bg-green-600/20 text-green-400"
+                : isEnded
+                ? "bg-red-600/20 text-red-400"
+                : "bg-accent-500/20 text-accent-400"
+            }`}
+          >
+            {poll.status === 1
+              ? "Settled"
               : isEnded
-              ? "bg-red-600/20 text-red-400"
-              : "bg-accent-500/20 text-accent-400"
-          }`}
-        >
-          {poll.status === 1
-            ? "Settled"
-            : isEnded
-            ? "Awaiting Settlement"
-            : formatTimeLeft(timeLeft)}
-        </span>
-      </div>
+              ? "Awaiting Settlement"
+              : formatTimeLeft(timeLeft)}
+          </span>
+        </div>
 
-      <h3 className="text-lg font-semibold mb-2 line-clamp-2">{poll.title}</h3>
+        {/* Title */}
+        <h3 className="text-lg font-semibold mb-2 line-clamp-2 group-hover:text-primary-300 transition-colors">
+          {poll.title}
+        </h3>
 
-      {poll.description && (
-        <p className="text-gray-400 text-sm mb-4 line-clamp-2">{poll.description}</p>
-      )}
+        {poll.description && (
+          <p className="text-gray-400 text-sm mb-4 line-clamp-2">{poll.description}</p>
+        )}
 
-      {/* Option bars */}
-      <div className="space-y-2 mb-4">
-        {poll.options.map((opt, i) => {
-          const pct = totalVotes > 0 ? (poll.voteCounts[i] / totalVotes) * 100 : 0;
-          const isWinner = poll.status === 1 && poll.winningOption === i;
-          return (
-            <div key={i} className="relative">
-              <div className="flex justify-between text-sm mb-1">
-                <span className={isWinner ? "text-green-400 font-semibold" : "text-gray-300"}>
-                  {isWinner && "✓ "}{opt}
-                </span>
-                <span className="text-gray-500 font-mono">
-                  {poll.voteCounts[i]} ({pct.toFixed(0)}%)
-                </span>
+        {/* Top 2 option bars (compact preview) */}
+        <div className="space-y-2 mb-4">
+          {poll.options.slice(0, 2).map((opt, i) => {
+            const pct = totalVotes > 0 ? (poll.voteCounts[i] / totalVotes) * 100 : 0;
+            const isWinner = poll.status === 1 && poll.winningOption === i;
+            return (
+              <div key={i}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className={`truncate ${isWinner ? "text-green-400 font-semibold" : "text-gray-300"}`}>
+                    {isWinner && "✓ "}{opt}
+                  </span>
+                  <span className="text-gray-500 font-mono text-xs ml-2 shrink-0">
+                    {poll.voteCounts[i]} ({pct.toFixed(0)}%)
+                  </span>
+                </div>
+                <div className="h-1.5 bg-dark-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      isWinner ? "bg-green-500" : "bg-primary-600/60"
+                    }`}
+                    style={{ width: `${Math.max(pct, 1)}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 bg-dark-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    isWinner ? "bg-green-500" : "bg-primary-600/60"
-                  }`}
-                  style={{ width: `${Math.max(pct, 1)}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+          {poll.options.length > 2 && (
+            <p className="text-xs text-gray-600">+{poll.options.length - 2} more options</p>
+          )}
+        </div>
 
-      {/* Footer stats */}
-      <div className="flex justify-between text-xs text-gray-500 pt-3 border-t border-gray-800">
-        <span>Pool: {formatDollars(poll.totalPoolCents)}</span>
-        <span>{totalVotes} votes</span>
-        <span>{poll.totalVoters} voters</span>
+        {/* Footer stats */}
+        <div className="flex justify-between text-xs text-gray-500 pt-3 border-t border-gray-800">
+          <span>Pool: {formatDollars(poll.totalPoolCents)}</span>
+          <span>{totalVotes} votes</span>
+          <span>{poll.totalVoters} voters</span>
+        </div>
       </div>
     </Link>
   );

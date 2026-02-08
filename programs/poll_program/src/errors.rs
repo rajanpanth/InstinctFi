@@ -28,6 +28,8 @@ pub enum PollError {
     AlreadySettled,
     #[msg("Invalid option index")]
     InvalidOption,
+    #[msg("Image URL too long (max 256 chars)")]
+    ImageUrlTooLong,
     #[msg("Creator cannot vote on own poll")]
     CreatorCannotVote,
     #[msg("Arithmetic overflow")]

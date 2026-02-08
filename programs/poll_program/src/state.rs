@@ -19,6 +19,9 @@ pub struct PollAccount {
     /// Category tag (max 32 chars)
     #[max_len(32)]
     pub category: String,
+    /// Off-chain image URL (max 256 chars, optional — empty = no image)
+    #[max_len(256)]
+    pub image_url: String,
     /// Option labels, e.g. ["Option A", "Option B", "Option C"]
     #[max_len(6, 32)]
     pub options: Vec<String>,

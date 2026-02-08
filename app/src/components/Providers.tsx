@@ -43,6 +43,7 @@ export type DemoPoll = {
   title: string;
   description: string;
   category: string;
+  imageUrl: string;
   options: string[];
   voteCounts: number[];
   unitPriceCents: number;
@@ -185,6 +186,7 @@ function dbToPoll(r: any): DemoPoll {
     title: r.title,
     description: r.description,
     category: r.category,
+    imageUrl: r.image_url || "",
     options: r.options,
     voteCounts: (r.vote_counts || []).map(Number),
     unitPriceCents: Number(r.unit_price_cents),
@@ -208,6 +210,7 @@ function pollToDb(p: DemoPoll) {
     title: p.title,
     description: p.description,
     category: p.category,
+    image_url: p.imageUrl || "",
     options: p.options,
     vote_counts: p.voteCounts,
     unit_price_cents: p.unitPriceCents,

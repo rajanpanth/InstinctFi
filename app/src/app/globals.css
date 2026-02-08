@@ -18,6 +18,17 @@ body {
   min-height: 100vh;
 }
 
+/* Skeleton shimmer animation for image loading */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite ease-in-out;
+  background-size: 200% 100%;
+}
+
 /* Wallet adapter overrides */
 .wallet-adapter-button {
   background-color: #4c6ef5 !important;
@@ -31,4 +42,11 @@ body {
 
 .wallet-adapter-modal-wrapper {
   background-color: #1a1b2e !important;
+}
+
+/* Focus ring for accessibility */
+*:focus-visible {
+  outline: 2px solid #5c7cfa;
+  outline-offset: 2px;
+  border-radius: 4px;
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useApp, formatDollars } from "@/components/Providers";
+import PollImage from "@/components/PollImage";
 import toast from "react-hot-toast";
 
 export default function PollDetailPage() {
@@ -135,48 +136,59 @@ export default function PollDetailPage() {
       </button>
 
       {/* Header */}
-      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-8 mb-6">
-        <div className="flex items-start justify-between mb-4">
-          <span className="px-3 py-1 bg-primary-600/20 text-primary-400 rounded-lg text-xs font-medium">
-            {poll.category}
-          </span>
-          <span
-            className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-              isSettled
-                ? "bg-green-600/20 text-green-400"
-                : isEnded
-                ? "bg-red-600/20 text-red-400"
-                : "bg-accent-500/20 text-accent-400"
-            }`}
-          >
-            {isSettled ? "Settled" : isEnded ? "Awaiting Settlement" : timeLeft}
-          </span>
-        </div>
+      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl overflow-hidden mb-6">
+        {/* Poll Image */}
+        {poll.imageUrl && (
+          <PollImage
+            src={poll.imageUrl}
+            alt={poll.title}
+            className="rounded-none"
+          />
+        )}
 
-        <h1 className="text-2xl font-bold mb-3">{poll.title}</h1>
-        {poll.description && <p className="text-gray-400 mb-6">{poll.description}</p>}
+        <div className="p-8">
+          <div className="flex items-start justify-between mb-4">
+            <span className="px-3 py-1 bg-primary-600/20 text-primary-400 rounded-lg text-xs font-medium">
+              {poll.category}
+            </span>
+            <span
+              className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                isSettled
+                  ? "bg-green-600/20 text-green-400"
+                  : isEnded
+                  ? "bg-red-600/20 text-red-400"
+                  : "bg-accent-500/20 text-accent-400"
+              }`}
+            >
+              {isSettled ? "Settled" : isEnded ? "Awaiting Settlement" : timeLeft}
+            </span>
+          </div>
 
-        {/* Stats bar */}
-        <div className="grid grid-cols-4 gap-4 text-center p-4 bg-dark-800/50 rounded-xl">
-          <div>
-            <div className="text-lg font-bold text-primary-400">
-              {formatDollars(poll.totalPoolCents)}
+          <h1 className="text-2xl font-bold mb-3">{poll.title}</h1>
+          {poll.description && <p className="text-gray-400 mb-6">{poll.description}</p>}
+
+          {/* Stats bar */}
+          <div className="grid grid-cols-4 gap-4 text-center p-4 bg-dark-800/50 rounded-xl">
+            <div>
+              <div className="text-lg font-bold text-primary-400">
+                {formatDollars(poll.totalPoolCents)}
+              </div>
+              <div className="text-xs text-gray-500">Pool</div>
             </div>
-            <div className="text-xs text-gray-500">Pool</div>
-          </div>
-          <div>
-            <div className="text-lg font-bold">{totalVotes}</div>
-            <div className="text-xs text-gray-500">Total Votes</div>
-          </div>
-          <div>
-            <div className="text-lg font-bold">{poll.totalVoters}</div>
-            <div className="text-xs text-gray-500">Voters</div>
-          </div>
-          <div>
-            <div className="text-lg font-bold">
-              {formatDollars(poll.unitPriceCents)}
+            <div>
+              <div className="text-lg font-bold">{totalVotes}</div>
+              <div className="text-xs text-gray-500">Total Votes</div>
             </div>
-            <div className="text-xs text-gray-500">Price/Coin</div>
+            <div>
+              <div className="text-lg font-bold">{poll.totalVoters}</div>
+              <div className="text-xs text-gray-500">Voters</div>
+            </div>
+            <div>
+              <div className="text-lg font-bold">
+                {formatDollars(poll.unitPriceCents)}
+              </div>
+              <div className="text-xs text-gray-500">Price/Coin</div>
+            </div>
           </div>
         </div>
       </div>

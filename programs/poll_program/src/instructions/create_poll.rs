@@ -17,6 +17,7 @@ pub fn handler(
     title: String,
     description: String,
     category: String,
+    image_url: String,
     options: Vec<String>,
     unit_price_cents: u64,
     end_time: i64,
@@ -26,6 +27,7 @@ pub fn handler(
     require!(title.len() <= 64, PollError::TitleTooLong);
     require!(description.len() <= 256, PollError::DescriptionTooLong);
     require!(category.len() <= 32, PollError::CategoryTooLong);
+    require!(image_url.len() <= 256, PollError::ImageUrlTooLong);
     require!(options.len() >= 2 && options.len() <= 6, PollError::InvalidOptionCount);
     for opt in &options {
         require!(opt.len() <= 32, PollError::OptionLabelTooLong);
@@ -54,6 +56,7 @@ pub fn handler(
     poll.title = title;
     poll.description = description;
     poll.category = category;
+    poll.image_url = image_url;
     poll.options = options;
     poll.vote_counts = vec![0u64; num_options];
     poll.unit_price_cents = unit_price_cents;

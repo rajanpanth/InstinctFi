@@ -4,6 +4,15 @@ const path = require("path");
 const nextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../"),
+  // Allow images from Supabase storage
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.supabase.co",
+      },
+    ],
+  },
   // Needed for Solana libraries
   webpack: (config) => {
     config.resolve.fallback = {

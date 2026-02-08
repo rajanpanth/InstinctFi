@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useApp, formatDollars, CENTS } from "@/components/Providers";
+import ImageUpload from "@/components/ImageUpload";
+import { uploadPollImage } from "@/lib/uploadImage";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
@@ -19,6 +21,7 @@ export default function CreatePollPage() {
   const { walletConnected, walletAddress, userAccount, createPoll, connectWallet } = useApp();
   const router = useRouter();
 
+  // ── Form state ──
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Crypto");
@@ -27,6 +30,14 @@ export default function CreatePollPage() {
   const [durationHours, setDurationHours] = useState("24");
   const [investment, setInvestment] = useState("100");
 
+  // ── Image state ──
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // ── Auth gate ──
   if (!walletConnected) {
     return (
       <div className="text-center py-20">
@@ -38,6 +49,24 @@ export default function CreatePollPage() {
     );
   }
 
+  // ── Image handlers ──
+  const handleImageSelect = (file: File) => {
+    setImageFile(file);
+    setImageError(null);
+    const preview = URL.createObjectURL(file);
+    setImagePreview(preview);
+  };
+
+  const handleImageRemove = () => {
+    if (imagePreview && imagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImageFile(null);
+    setImagePreview(null);
+    setImageError(null);
+  };
+
+  // ── Option handlers ──
   const addOption = () => {
     if (options.length < 6) setOptions([...options, ""]);
   };
@@ -50,8 +79,10 @@ export default function CreatePollPage() {
     setOptions(options.map((o, i) => (i === idx ? val : o)));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ── Submit handler ──
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
 
     if (!title.trim()) return toast.error("Title is required");
     if (options.some((o) => !o.trim())) return toast.error("All options must have labels");
@@ -65,40 +96,61 @@ export default function CreatePollPage() {
     if (userAccount && investmentCents > userAccount.balance) {
       return toast.error("Insufficient balance");
     }
-
     if (investmentCents < unitPriceCents) {
       return toast.error("Investment must be >= unit price");
     }
 
-    const poll = createPoll({
-      pollId: Date.now(),
-      creator: walletAddress!,
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      options: options.map((o) => o.trim()),
-      voteCounts: [],
-      unitPriceCents,
-      endTime,
-      totalPoolCents: 0,
-      creatorInvestmentCents: investmentCents,
-      platformFeeCents: 0,
-      creatorRewardCents: 0,
-      status: 0,
-      winningOption: 255,
-      totalVoters: 0,
-      createdAt: Math.floor(Date.now() / 1000),
-    });
+    setSubmitting(true);
 
-    if (poll) {
-      toast.success("Poll created!");
-      router.push(`/polls/${poll.id}`);
-    } else {
-      toast.error("Failed to create poll — check your balance");
+    try {
+      // Upload image if file was selected
+      let imageUrl = "";
+      if (imageFile) {
+        setImageUploading(true);
+        try {
+          imageUrl = await uploadPollImage(imageFile);
+        } catch (err: any) {
+          setImageError(err.message || "Image upload failed");
+          setImageUploading(false);
+          setSubmitting(false);
+          return toast.error(err.message || "Image upload failed");
+        }
+        setImageUploading(false);
+      }
+
+      const poll = createPoll({
+        pollId: Date.now(),
+        creator: walletAddress!,
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        imageUrl,
+        options: options.map((o) => o.trim()),
+        voteCounts: [],
+        unitPriceCents,
+        endTime,
+        totalPoolCents: 0,
+        creatorInvestmentCents: investmentCents,
+        platformFeeCents: 0,
+        creatorRewardCents: 0,
+        status: 0,
+        winningOption: 255,
+        totalVoters: 0,
+        createdAt: Math.floor(Date.now() / 1000),
+      });
+
+      if (poll) {
+        toast.success("Poll created!");
+        router.push(`/polls/${poll.id}`);
+      } else {
+        toast.error("Failed to create poll — check your balance");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // Preview math
+  // ── Preview math ──
   const investCents = Math.floor(parseFloat(investment || "0") * CENTS);
   const platformFee = Math.max(Math.floor(investCents / 100), 1);
   const creatorReward = Math.max(Math.floor(investCents / 100), 1);
@@ -106,9 +158,24 @@ export default function CreatePollPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Create a Poll</h1>
+      <h1 className="text-3xl font-bold mb-2">Create a Poll</h1>
+      <p className="text-gray-500 text-sm mb-8">Set up a prediction market for others to vote on.</p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Poll Image (optional) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Poll Image <span className="text-gray-600">(optional)</span>
+          </label>
+          <ImageUpload
+            imagePreview={imagePreview}
+            onFileSelect={handleImageSelect}
+            onRemove={handleImageRemove}
+            uploading={imageUploading}
+            error={imageError}
+          />
+        </div>
+
         {/* Title */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">Poll Title</label>
@@ -120,6 +187,7 @@ export default function CreatePollPage() {
             placeholder="Will BTC hit $100k by March 2026?"
             className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors"
           />
+          <div className="text-xs text-gray-600 mt-1 text-right">{title.length}/64</div>
         </div>
 
         {/* Description */}
@@ -133,6 +201,7 @@ export default function CreatePollPage() {
             placeholder="Describe the poll conditions and how the winner is determined..."
             className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors resize-none"
           />
+          <div className="text-xs text-gray-600 mt-1 text-right">{description.length}/256</div>
         </div>
 
         {/* Category */}
@@ -144,10 +213,10 @@ export default function CreatePollPage() {
                 key={cat}
                 type="button"
                 onClick={() => setCategory(cat)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   category === cat
-                    ? "bg-primary-600 text-white"
-                    : "bg-dark-700 text-gray-400 hover:text-white border border-gray-700"
+                    ? "bg-primary-600 text-white shadow-lg shadow-primary-600/20"
+                    : "bg-dark-700 text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600"
                 }`}
               >
                 {cat}
@@ -161,8 +230,8 @@ export default function CreatePollPage() {
           <label className="block text-sm font-medium text-gray-300 mb-2">Options (2-6)</label>
           <div className="space-y-3">
             {options.map((opt, i) => (
-              <div key={i} className="flex gap-2">
-                <div className="w-8 h-10 flex items-center justify-center text-gray-500 font-mono text-sm">
+              <div key={i} className="flex gap-2 items-center">
+                <div className="w-8 h-10 flex items-center justify-center text-gray-500 font-mono text-sm shrink-0">
                   {String.fromCharCode(65 + i)}
                 </div>
                 <input
@@ -174,14 +243,30 @@ export default function CreatePollPage() {
                   className="flex-1 px-4 py-2.5 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 outline-none transition-colors"
                 />
                 {options.length > 2 && (
-                  <button type="button" onClick={() => removeOption(i)} className="px-3 text-red-400 hover:text-red-300">x</button>
+                  <button
+                    type="button"
+                    onClick={() => removeOption(i)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-600/10 hover:text-red-300 transition-colors shrink-0"
+                    aria-label={`Remove option ${String.fromCharCode(65 + i)}`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M1 1l12 12M13 1L1 13" />
+                    </svg>
+                  </button>
                 )}
               </div>
             ))}
           </div>
           {options.length < 6 && (
-            <button type="button" onClick={addOption} className="mt-3 text-sm text-primary-400 hover:text-primary-300">
-              + Add Option
+            <button
+              type="button"
+              onClick={addOption}
+              className="mt-3 text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M7 1v12M1 7h12" />
+              </svg>
+              Add Option
             </button>
           )}
         </div>
@@ -250,9 +335,18 @@ export default function CreatePollPage() {
         {/* Submit */}
         <button
           type="submit"
-          className="w-full py-4 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-500 hover:to-primary-600 rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.01]"
+          disabled={submitting || imageUploading}
+          className={`w-full py-4 rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.01] ${
+            submitting || imageUploading
+              ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+              : "bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-500 hover:to-primary-600"
+          }`}
         >
-          Create Poll
+          {submitting
+            ? imageUploading
+              ? "Uploading Image..."
+              : "Creating Poll..."
+            : "Create Poll"}
         </button>
       </form>
     </div>
