@@ -23,7 +23,7 @@ export const PROGRAM_ID = new PublicKey(
 // When false, all operations run in demo mode (local state only, no on-chain txs).
 export const PROGRAM_DEPLOYED = false;
 
-export const CLUSTER: "devnet" | "mainnet-beta" | "localnet" = "devnet";
+export const CLUSTER = "devnet" as "devnet" | "mainnet-beta" | "localnet";
 export const RPC_URL =
   CLUSTER === "localnet"
     ? "http://localhost:8899"
