@@ -185,3 +185,220 @@ html, body {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* ── Loading Screen ── */
+
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0d0e24 0%, #131438 40%, #1a1040 70%, #0d0e24 100%);
+  overflow: hidden;
+}
+
+/* Floating particles */
+.loading-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.loading-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.6), transparent);
+  animation: particleFloat 5s ease-in-out infinite;
+}
+
+@keyframes particleFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-60px) scale(1.5);
+    opacity: 0.4;
+  }
+  90% {
+    opacity: 0;
+  }
+}
+
+/* Center content */
+.loading-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+
+/* Orbiting rings */
+.loading-rings {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -65%);
+  pointer-events: none;
+}
+
+.loading-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+}
+
+.loading-ring-1 {
+  border-top-color: rgba(129, 140, 248, 0.6);
+  border-right-color: rgba(129, 140, 248, 0.2);
+  animation: ringRotate 2.4s linear infinite;
+}
+
+.loading-ring-2 {
+  inset: 12px;
+  border-bottom-color: rgba(167, 139, 250, 0.5);
+  border-left-color: rgba(167, 139, 250, 0.15);
+  animation: ringRotate 3.2s linear infinite reverse;
+}
+
+.loading-ring-3 {
+  inset: 24px;
+  border-top-color: rgba(192, 132, 252, 0.4);
+  border-right-color: rgba(192, 132, 252, 0.1);
+  animation: ringRotate 4s linear infinite;
+}
+
+@keyframes ringRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Logo icon */
+.loading-logo {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.15), rgba(192, 132, 252, 0.1));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(129, 140, 248, 0.2);
+  animation: logoPulse 2s ease-in-out infinite;
+  box-shadow:
+    0 0 30px rgba(129, 140, 248, 0.15),
+    0 0 60px rgba(192, 132, 252, 0.08);
+}
+
+@keyframes logoPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 30px rgba(129, 140, 248, 0.15),
+      0 0 60px rgba(192, 132, 252, 0.08);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow:
+      0 0 40px rgba(129, 140, 248, 0.25),
+      0 0 80px rgba(192, 132, 252, 0.15);
+  }
+}
+
+/* Brand text */
+.loading-brand {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(to right, #e0e7ff, #ffffff, #c4b5fd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-top: 8px;
+}
+
+.loading-brand-accent {
+  background: linear-gradient(135deg, #818cf8, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Tagline */
+.loading-tagline {
+  font-size: 0.875rem;
+  color: rgba(156, 163, 175, 0.8);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* Loading bar */
+.loading-bar-track {
+  width: 160px;
+  height: 3px;
+  background: rgba(55, 65, 81, 0.4);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.loading-bar-fill {
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #818cf8, #a78bfa, #c084fc);
+  animation: barSlide 1.4s ease-in-out infinite;
+}
+
+@keyframes barSlide {
+  0% {
+    transform: translateX(-100%);
+    width: 40%;
+  }
+  50% {
+    width: 60%;
+  }
+  100% {
+    transform: translateX(400%);
+    width: 40%;
+  }
+}
+
+/* Light mode loading screen */
+html:not(.dark) .loading-screen {
+  background: linear-gradient(135deg, #f0f0ff 0%, #e8e5ff 40%, #f5f3ff 70%, #f0f0ff 100%);
+}
+
+html:not(.dark) .loading-particle {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.4), transparent);
+}
+
+html:not(.dark) .loading-logo {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.08));
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+html:not(.dark) .loading-brand {
+  background: linear-gradient(to right, #312e81, #1e1b4b, #4c1d95);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+html:not(.dark) .loading-bar-track {
+  background: rgba(209, 213, 219, 0.5);
+}
+
+html:not(.dark) .loading-tagline {
+  color: rgba(107, 114, 128, 0.9);
+}

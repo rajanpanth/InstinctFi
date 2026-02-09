@@ -6,6 +6,7 @@ import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PageTransition from "@/components/PageTransition";
+import LoadingScreen from "@/components/LoadingScreen";
 import WalletAdapterProvider from "@/components/WalletAdapterProvider";
 import { UserProfileProvider } from "@/lib/userProfiles";
 import { NotificationProvider } from "@/lib/notifications";
@@ -94,6 +95,7 @@ export default function RootLayout({
         <BookmarkProvider>
         <ReferralGate>
         <Providers>
+          <LoadingScreen />
           <Suspense fallback={null}>
             <Navbar />
           </Suspense>
