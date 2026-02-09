@@ -220,6 +220,8 @@ export default function CreatePollPage() {
       });
 
       if (poll) {
+        // Small delay so React processes the setPolls state update before navigation
+        await new Promise(r => setTimeout(r, 100));
         router.push(`/polls/${poll.id}`);
       } else {
         toast.error("Failed to create poll — check your balance");

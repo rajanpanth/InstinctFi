@@ -29,9 +29,20 @@ export default function PollDetailPage() {
     settlePoll,
     claimReward,
     walletConnected,
+    isLoading,
   } = useApp();
 
   const poll = polls.find((p) => p.id === pollId);
+
+  // Grace period: after navigating from create page, React state may not have updated yet.
+  // Wait a short time before concluding the poll truly doesn't exist.
+  const [graceExpired, setGraceExpired] = useState(false);
+  useEffect(() => {
+    if (poll) return;           // Already found — no need for timer
+    setGraceExpired(false);
+    const t = setTimeout(() => setGraceExpired(true), 2000);
+    return () => clearTimeout(t);
+  }, [pollId, poll]);
 
   const emptyPoll: DemoPoll = {
     id: "", pollId: 0, title: "", description: "", category: "",
@@ -74,6 +85,15 @@ export default function PollDetailPage() {
   }, [pollId]);
 
   if (!poll) {
+    // Still loading or within grace period — show spinner instead of "not found"
+    if (isLoading || !graceExpired) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="w-10 h-10 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-500 text-sm">Loading poll...</p>
+        </div>
+      );
+    }
     return (
       <div className="text-center py-20">
         <p className="text-gray-400 text-lg">Poll not found</p>
