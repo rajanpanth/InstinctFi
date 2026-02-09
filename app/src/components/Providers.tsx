@@ -586,34 +586,63 @@ export function Providers({ children }: { children: ReactNode }) {
         }
       }
       try {
-        toast.loading("Requesting devnet SOL airdrop...", { id: "airdrop" });
+        toast.loading("Requesting devnet SOL airdrop…", { id: "airdrop" });
         const pubkey = new PublicKey(walletAddress);
+
+        // Capture on-chain balance BEFORE the airdrop
+        const balBefore = await getWalletBalance(pubkey);
+
         const sig = await requestAirdrop(pubkey, 1);
-        console.log("Airdrop:", sig);
-        // In demo mode, ADD the airdrop amount to the tracked balance
-        // (don't replace with on-chain balance — it doesn't reflect demo deductions)
-        const airdropLamports = LAMPORTS_PER_SOL; // 1 SOL
+        console.log("Airdrop sig:", sig);
+
+        // Re-read on-chain balance to find out how much actually landed
+        // (may be 0.5 or 1 SOL depending on devnet rate limits)
+        await new Promise(r => setTimeout(r, 2000));
+
+        let balAfter = await getWalletBalance(pubkey);
+        // Retry balance read if unchanged (transaction may still be confirming)
+        if (balAfter <= balBefore) {
+          await new Promise(r => setTimeout(r, 3000));
+          balAfter = await getWalletBalance(pubkey);
+        }
+
+        const receivedLamports = Math.max(balAfter - balBefore, 0);
+        const receivedSol = receivedLamports / LAMPORTS_PER_SOL;
+
+        // In demo mode, ADD the actual received amount to the tracked balance
+        const credited = receivedLamports > 0 ? receivedLamports : LAMPORTS_PER_SOL; // fallback to 1 SOL
+        const now = Date.now();
         setUsers(prev => prev.map(u =>
           u.wallet === walletAddress
-            ? { ...u, balance: u.balance + airdropLamports, lastWeeklyRewardTs: Date.now() }
+            ? { ...u, balance: u.balance + credited, lastWeeklyRewardTs: now }
             : u
         ));
+
         // Sync updated balance to Supabase
         if (isSupabaseConfigured) {
           await new Promise(r => setTimeout(r, 50));
           const updatedUser = usersRef.current.find(u => u.wallet === walletAddress);
           if (updatedUser) {
             try {
-              await supabase.from("users").update({ balance: updatedUser.balance }).eq("wallet", walletAddress);
+              await supabase.from("users").update({
+                balance: updatedUser.balance,
+                last_weekly_reward_ts: now,
+              }).eq("wallet", walletAddress);
             } catch {}
           }
         }
-        toast.success("Received 1 SOL airdrop!", { id: "airdrop" });
+
+        toast.success(
+          receivedLamports > 0
+            ? `Received ${receivedSol.toFixed(2)} SOL airdrop!`
+            : "Airdrop sent! Balance credited.",
+          { id: "airdrop" }
+        );
         return true;
       } catch (e: any) {
         console.error("Airdrop failed:", e);
         const msg = e?.message || "";
-        if (msg.includes("429") || msg.includes("Too Many")) {
+        if (msg.includes("429") || msg.includes("Too Many") || msg.includes("rate")) {
           toast.error("Rate limited — wait a minute and try again", { id: "airdrop" });
         } else {
           toast.error("Airdrop failed — devnet may be congested, try again later", { id: "airdrop" });
@@ -623,24 +652,35 @@ export function Providers({ children }: { children: ReactNode }) {
     }
 
     try {
-      toast.loading("Requesting devnet SOL airdrop...", { id: "airdrop" });
+      toast.loading("Requesting devnet SOL airdrop…", { id: "airdrop" });
       const pubkey = new PublicKey(walletAddress);
       const balBefore = await getWalletBalance(pubkey);
       const sig = await requestAirdrop(pubkey, 1);
-      console.log("Airdrop:", sig);
+      console.log("Airdrop sig:", sig);
 
-      // Update local balance
-      const newBal = await getWalletBalance(pubkey);
-      const received = (newBal - balBefore) / LAMPORTS_PER_SOL;
-      toast.success(`Received ${received.toFixed(1)} SOL airdrop!`, { id: "airdrop" });
+      // Wait and read updated balance
+      await new Promise(r => setTimeout(r, 2000));
+      let newBal = await getWalletBalance(pubkey);
+      if (newBal <= balBefore) {
+        await new Promise(r => setTimeout(r, 3000));
+        newBal = await getWalletBalance(pubkey);
+      }
+
+      const received = Math.max(newBal - balBefore, 0) / LAMPORTS_PER_SOL;
+      toast.success(
+        received > 0
+          ? `Received ${received.toFixed(2)} SOL airdrop!`
+          : "Airdrop sent! Balance updated.",
+        { id: "airdrop" }
+      );
       setUsers(prev => prev.map(u =>
-        u.wallet === walletAddress ? { ...u, balance: newBal } : u
+        u.wallet === walletAddress ? { ...u, balance: newBal, lastWeeklyRewardTs: Date.now() } : u
       ));
       return true;
     } catch (e: any) {
       console.error("Airdrop failed:", e);
       const msg = e?.message || "";
-      if (msg.includes("429") || msg.includes("Too Many")) {
+      if (msg.includes("429") || msg.includes("Too Many") || msg.includes("rate")) {
         toast.error("Rate limited — wait a minute and try again", { id: "airdrop" });
       } else {
         toast.error("Airdrop failed — devnet may be congested, try again later", { id: "airdrop" });

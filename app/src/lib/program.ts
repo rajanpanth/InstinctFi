@@ -719,28 +719,83 @@ export async function getWalletBalance(wallet: PublicKey): Promise<number> {
   return connection.getBalance(wallet, "confirmed");
 }
 
-/** Request devnet airdrop (for testing) */
+/** Request devnet airdrop (for testing) — with retry, backoff & faucet fallback */
 export async function requestAirdrop(wallet: PublicKey, solAmount = 1): Promise<string> {
-  // Try with requested amount first, then fall back to smaller amounts
-  const amounts = [solAmount, 1, 0.5];
+  const MAX_RETRIES = 3;
   let lastError: any;
 
-  for (const amt of amounts) {
+  // Strategy 1: Use connection.requestAirdrop with exponential back-off
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const sig = await connection.requestAirdrop(wallet, amt * LAMPORTS_PER_SOL);
-      const { blockhash, lastValidBlockHeight } =
-        await connection.getLatestBlockhash("confirmed");
-      await connection.confirmTransaction(
-        { signature: sig, blockhash, lastValidBlockHeight },
-        "confirmed"
-      );
-      return sig;
+      if (attempt > 0) {
+        // Exponential back-off: 3s, 6s
+        await new Promise(r => setTimeout(r, 3000 * attempt));
+      }
+
+      // Fresh connection per attempt avoids stale nonce / rate-limit caching
+      const airdropConn = new Connection(clusterApiUrl("devnet"), {
+        commitment: "confirmed",
+        confirmTransactionInitialTimeout: 60_000,
+      });
+
+      const amt = Math.min(solAmount, 1); // devnet caps ~1-2 SOL per request
+      const sig = await airdropConn.requestAirdrop(wallet, amt * LAMPORTS_PER_SOL);
+      console.log(`Airdrop attempt ${attempt + 1} sig:`, sig);
+
+      // Poll balance instead of confirmTransaction — much more reliable for
+      // airdrops where the confirmation websocket often times out.
+      const balBefore = await airdropConn.getBalance(wallet, "confirmed");
+      const deadline = Date.now() + 30_000; // 30 s timeout
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 2000));
+        const balNow = await airdropConn.getBalance(wallet, "confirmed");
+        if (balNow > balBefore) {
+          console.log("Airdrop confirmed via balance increase:", balNow - balBefore);
+          return sig;
+        }
+      }
+
+      // If balance didn't change, try next attempt
+      console.warn(`Airdrop attempt ${attempt + 1}: balance unchanged after 30 s`);
+      lastError = new Error("Airdrop confirmed but balance unchanged — retrying");
     } catch (e: any) {
       lastError = e;
-      // If rate-limited (429) or airdrop-specific error, try smaller amount
-      if (e?.message?.includes("429") || e?.message?.includes("airdrop")) continue;
-      throw e; // Re-throw non-airdrop errors
+      console.warn(`Airdrop attempt ${attempt + 1}/${MAX_RETRIES} failed:`, e?.message);
+
+      // Rate-limited — wait extra before next retry
+      if (e?.message?.includes("429") || e?.message?.includes("Too Many")) {
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+      // Transient errors — keep retrying
+      if (attempt < MAX_RETRIES - 1) continue;
     }
   }
+
+  // Strategy 2: Try the Solana web faucet API as a fallback
+  try {
+    console.log("Falling back to web faucet API...");
+    const resp = await fetch("https://faucet.solana.com/api/request-airdrop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet: wallet.toBase58(),
+        network: "devnet",
+        amount: Math.min(solAmount, 1),
+      }),
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      console.log("Web faucet response:", data);
+      // Wait for it to land on-chain
+      await new Promise(r => setTimeout(r, 4000));
+      return data?.signature || data?.txid || "faucet-airdrop";
+    }
+    console.warn("Web faucet returned", resp.status);
+  } catch (faucetErr: any) {
+    console.warn("Web faucet fallback failed:", faucetErr?.message);
+  }
+
   throw lastError;
 }
