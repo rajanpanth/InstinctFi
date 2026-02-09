@@ -136,11 +136,11 @@ const PollCard = memo(function PollCard({ poll }: Props) {
       {showEditModal && <EditPollModal isOpen={showEditModal} onClose={() => setShowEditModal(false)} poll={poll} />}
       {showDeleteModal && <DeletePollModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} poll={poll} onDeleted={() => {}} />}
 
-      <div className={`bg-dark-700/60 border rounded-xl overflow-hidden transition-all duration-300 ${
-        expanded ? "border-primary-500/40 shadow-lg shadow-primary-900/10" : "border-gray-800 hover:border-gray-700"
+      <div className={`bg-dark-700/60 border rounded-2xl overflow-hidden card-hover ${
+        expanded ? "border-primary-500/40 shadow-lg shadow-primary-900/10" : "border-gray-800/80 hover:border-gray-700/80"
       }`}>
         {/* ═══════ COLLAPSED VIEW ═══════ */}
-        <div className="p-4">
+        <div className="p-3.5 sm:p-4">
           {/* Header row */}
           <div className="flex items-start gap-3 mb-3">
             {/* Image */}
@@ -155,8 +155,8 @@ const PollCard = memo(function PollCard({ poll }: Props) {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <Link href={`/polls/${poll.id}`} className="hover:underline">
-                <h3 className="text-sm font-semibold leading-snug line-clamp-2">{poll.title}</h3>
+              <Link href={`/polls/${poll.id}`} className="hover:text-primary-300 transition-colors">
+                <h3 className="text-[13px] sm:text-sm font-semibold leading-snug line-clamp-2">{poll.title}</h3>
               </Link>
               <div className="flex items-center gap-2 mt-1">
                 {(() => {

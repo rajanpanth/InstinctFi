@@ -38,6 +38,8 @@ module.exports = {
         slideUp: "slideUp 0.3s ease-out",
         shimmer: "shimmer 1.5s infinite ease-in-out",
         countdownPulse: "countdownPulse 1s ease-in-out infinite",
+        float: "float 6s ease-in-out infinite",
+        glow: "glow 2s ease-in-out infinite alternate",
       },
       keyframes: {
         fadeIn: {
@@ -60,6 +62,17 @@ module.exports = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.6" },
         },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
+        glow: {
+          from: { boxShadow: "0 0 10px rgba(99, 102, 241, 0.15)" },
+          to: { boxShadow: "0 0 20px rgba(99, 102, 241, 0.3), 0 0 40px rgba(99, 102, 241, 0.1)" },
+        },
+      },
+      borderRadius: {
+        "3xl": "1.5rem",
       },
     },
   },

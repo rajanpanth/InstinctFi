@@ -73,9 +73,9 @@ export default function PollsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold">Polls</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Polls</h1>
         {walletConnected && (
-          <Link href="/create" className="px-4 sm:px-6 py-2 sm:py-2.5 bg-primary-600 hover:bg-primary-700 rounded-xl font-semibold transition-colors text-sm sm:text-base">
+          <Link href="/create" className="btn-glow px-4 sm:px-6 py-2 sm:py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-500 hover:to-indigo-500 rounded-xl font-semibold transition-all text-sm sm:text-base active:scale-[0.97]">
             + Create Poll
           </Link>
         )}
@@ -91,7 +91,7 @@ export default function PollsPage() {
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="Search polls by title or description..."
-          className="w-full pl-10 pr-4 py-2.5 bg-dark-700 border border-gray-700 rounded-xl text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors placeholder-gray-600"
+          className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-dark-700/60 border border-gray-800/80 rounded-2xl text-sm focus:border-primary-500/60 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all placeholder-gray-600"
         />
         {search && (
           <button
@@ -169,12 +169,14 @@ export default function PollsPage() {
         </div>
       ) : sorted.length === 0 ? (
         <div className="text-center py-20">
-          <div className="text-4xl mb-4">📭</div>
-          <p className="text-gray-500 text-lg mb-2">No polls found</p>
-          <p className="text-gray-600 text-sm mb-4">Try adjusting your filters or create a new poll.</p>
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <p className="text-gray-400 text-lg mb-2 font-medium">No polls found</p>
+          <p className="text-gray-600 text-sm mb-5">Try adjusting your filters or create a new poll.</p>
           {walletConnected && (
-            <Link href="/create" className="text-primary-400 hover:text-primary-300 font-medium">
-              Create the first poll &rarr;
+            <Link href="/create" className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 font-medium transition-colors">
+              Create the first poll <span className="text-lg">→</span>
             </Link>
           )}
         </div>

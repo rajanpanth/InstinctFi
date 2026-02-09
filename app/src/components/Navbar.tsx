@@ -118,7 +118,7 @@ export function Navbar() {
   };
 
   return (
-    <nav className="border-b border-gray-800/80 bg-dark-900/90 backdrop-blur-md sticky top-0 z-50">
+    <nav className="border-b border-gray-800/50 glass sticky top-0 z-50">
       {/* Top bar */}
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
@@ -285,8 +285,8 @@ export function Navbar() {
       </div>
 
       {/* Mobile bottom nav — fixed to bottom for easy thumb access */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-dark-900/95 backdrop-blur-md border-t border-gray-800/80 mobile-bottom-nav">
-        <div className="flex justify-around py-2 px-2">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass border-t border-gray-800/40 mobile-bottom-nav">
+        <div className="flex justify-around py-1.5 px-1">
           {[
             { href: "/", label: "Home", icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z", extra: "M9 22V12h6v10" },
             { href: "/polls", label: "Polls", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" },
@@ -299,8 +299,8 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg min-w-[52px] transition-colors ${
-                  active ? "text-primary-400" : "text-gray-400"
+                className={`relative flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl min-w-[56px] transition-all duration-200 ${
+                  active ? "text-primary-400 bg-primary-500/10 scale-[1.02]" : "text-gray-500 active:scale-95"
                 }`}
               >
                 {"hasBadge" in item && item.hasBadge && (

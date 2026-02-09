@@ -35,8 +35,11 @@ export default function ProfilePage() {
   if (!walletConnected) {
     return (
       <div className="text-center py-20">
-        <p className="text-gray-400 text-lg mb-4">Connect your Phantom wallet to view your profile</p>
-        <button onClick={connectWallet} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-semibold transition-colors">
+        <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-500"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <p className="text-gray-400 text-lg mb-5 font-medium">Connect your wallet to view your profile</p>
+        <button onClick={connectWallet} className="btn-glow px-7 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-2xl font-semibold transition-all active:scale-[0.97] shadow-lg shadow-purple-600/20">
           Connect Phantom
         </button>
       </div>
@@ -52,10 +55,13 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8">Profile</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 tracking-tight flex items-center gap-2.5">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary-400"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Profile
+      </h1>
 
       {/* Wallet Card */}
-      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
+      <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
             {/* User Avatar */}
@@ -221,7 +227,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Referral / Invite */}
-      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
+      <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
         <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary-400">
             <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
@@ -287,7 +293,7 @@ export default function ProfilePage() {
 
       {/* Bookmarked / Watchlist */}
       {bookmarks.size > 0 && (
-        <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
+        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
           <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" className="text-yellow-400">
               <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
@@ -317,7 +323,7 @@ export default function ProfilePage() {
       )}
 
       {/* My Polls */}
-      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
+      <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
         <h2 className="font-semibold text-lg mb-4">My Created Polls</h2>
         {myPolls.length === 0 ? (
           <p className="text-gray-500 text-sm">No polls created yet.</p>
@@ -344,7 +350,7 @@ export default function ProfilePage() {
 
       {/* ── Creator Dashboard ── */}
       {myPolls.length > 0 && (
-        <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
+        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
           <h2 className="font-semibold text-lg mb-4">Creator Dashboard</h2>
 
           {/* Creator summary stats */}
@@ -398,7 +404,7 @@ export default function ProfilePage() {
       )}
 
       {/* My Vote History */}
-      <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-4 sm:p-8">
+      <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-20 sm:mb-6">
         <h2 className="font-semibold text-lg mb-4">My Vote History</h2>
         {myVotes.length === 0 ? (
           <p className="text-gray-500 text-sm">No votes cast yet.</p>
@@ -434,11 +440,11 @@ export default function ProfilePage() {
 
 function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="text-center p-3 bg-dark-800/50 rounded-xl">
+    <div className="text-center p-3 sm:p-4 bg-dark-800/40 border border-gray-800/40 rounded-xl">
       <div className={`text-lg font-bold font-mono ${highlight ? "text-green-400" : ""}`}>
         {value}
       </div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
+      <div className="text-xs text-gray-500 mt-1.5">{label}</div>
     </div>
   );
 }

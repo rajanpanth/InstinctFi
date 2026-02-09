@@ -76,7 +76,10 @@ export default function LeaderboardPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold">Leaderboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2.5">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent-400"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          Leaderboard
+        </h1>
       </div>
 
       {/* Period tabs */}
@@ -124,12 +127,15 @@ export default function LeaderboardPage() {
 
       {/* Table */}
       {sorted.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">
-          <p className="text-lg mb-2">No users yet</p>
-          <p className="text-sm">Create & vote on polls to appear on the leaderboard!</p>
+        <div className="text-center py-20">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
+          <p className="text-gray-400 text-lg mb-2 font-medium">No users yet</p>
+          <p className="text-gray-600 text-sm">Create & vote on polls to appear on the leaderboard!</p>
         </div>
       ) : (
-        <div className="bg-dark-700/50 border border-gray-800 rounded-2xl overflow-hidden">
+        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl overflow-hidden">
           {/* Desktop table */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
