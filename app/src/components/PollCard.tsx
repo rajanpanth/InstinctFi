@@ -9,7 +9,7 @@ import DeletePollModal from "./DeletePollModal";
 import { useCountdown } from "@/lib/useCountdown";
 import { useVote } from "@/lib/useVote";
 import { OPTION_BADGE_COLORS } from "@/lib/utils";
-import { getCategoryMeta } from "@/lib/constants";
+import { getCategoryMeta, isAdminWallet } from "@/lib/constants";
 import ShareButton from "./ShareButton";
 import CountdownCircle from "./CountdownCircle";
 import { fireConfetti } from "@/lib/confetti";
@@ -352,8 +352,8 @@ const PollCard = memo(function PollCard({ poll }: Props) {
               </div>
             )}
 
-            {/* ── Settlement section ── */}
-            {isEnded && !isSettled && (
+            {/* ── Settlement section (admin only) ── */}
+            {isEnded && !isSettled && isAdminWallet(walletAddress) && (
               <div className="bg-yellow-600/10 border border-yellow-600/25 rounded-xl p-3 mt-3">
                 <p className="text-sm font-medium text-yellow-400 mb-1">Ready to Settle</p>
                 <p className="text-xs text-gray-400 mb-2">Anyone can trigger settlement. Most votes wins.</p>

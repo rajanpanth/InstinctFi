@@ -1219,6 +1219,38 @@ export function Providers({ children }: { children: ReactNode }) {
           p.id === pollId ? { ...p, status: 1, winningOption: finalWinningOption } : p
         ));
 
+        // ── Credit creator reward ──
+        // The creator gets their creatorRewardCents back on settlement
+        if (poll.creatorRewardCents > 0) {
+          setUsers(prev => prev.map(u => {
+            if (u.wallet !== poll.creator) return u;
+            const fresh = withFreshPeriods(u);
+            return {
+              ...fresh,
+              balance: fresh.balance + poll.creatorRewardCents,
+              creatorEarningsCents: fresh.creatorEarningsCents + poll.creatorRewardCents,
+              totalWinningsCents: fresh.totalWinningsCents + poll.creatorRewardCents,
+              weeklyWinningsCents: fresh.weeklyWinningsCents + poll.creatorRewardCents,
+              monthlyWinningsCents: fresh.monthlyWinningsCents + poll.creatorRewardCents,
+            };
+          }));
+
+          // Sync creator's updated balance to Supabase
+          if (isSupabaseConfigured) {
+            await new Promise(r => setTimeout(r, 50));
+            const creatorUser = usersRef.current.find(u => u.wallet === poll.creator);
+            if (creatorUser) {
+              try {
+                await supabase.from("users").update({
+                  balance: creatorUser.balance,
+                  creator_earnings_cents: creatorUser.creatorEarningsCents,
+                  total_winnings_cents: creatorUser.totalWinningsCents,
+                }).eq("wallet", poll.creator);
+              } catch {}
+            }
+          }
+        }
+
         // Sync settlement to Supabase
         if (isSupabaseConfigured) {
           try {

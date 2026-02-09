@@ -15,6 +15,7 @@ import PollComments from "@/components/PollComments";
 import VoteChart from "@/components/VoteChart";
 import { fireConfetti } from "@/lib/confetti";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { isAdminWallet } from "@/lib/constants";
 import toast from "react-hot-toast";
 
 export default function PollDetailPage() {
@@ -379,8 +380,8 @@ export default function PollDetailPage() {
         </div>
       )}
 
-      {/* Settlement */}
-      {isEnded && !isSettled && (
+      {/* Settlement (admin only) */}
+      {isEnded && !isSettled && isAdminWallet(walletAddress) && (
         <div className="bg-dark-700/50 border border-yellow-600/30 rounded-2xl p-8 mb-6">
           <h2 className="font-semibold text-lg mb-2 text-accent-400">Poll Ended — Ready to Settle</h2>
           <p className="text-gray-400 text-sm mb-4">
