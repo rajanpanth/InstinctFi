@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useApp } from "./Providers";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { shortAddr, timeAgo } from "@/lib/utils";
+import { useUserProfiles } from "@/lib/userProfiles";
+import { sanitizeComment } from "@/lib/sanitize";
 import toast from "react-hot-toast";
 
 type Comment = {
@@ -20,10 +22,14 @@ type Props = {
 
 export default function PollComments({ pollId }: Props) {
   const { walletConnected, walletAddress, connectWallet } = useApp();
+  const { getDisplayName, getAvatarUrl } = useUserProfiles();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [cooldownEnd, setCooldownEnd] = useState(0);
+
+  const COMMENT_COOLDOWN_MS = 30_000; // 30 seconds between comments
 
   // Load comments
   const fetchComments = useCallback(async () => {
@@ -89,12 +95,20 @@ export default function PollComments({ pollId }: Props) {
       return;
     }
 
+    // Rate limiting: 1 comment per 30s
+    const now = Date.now();
+    if (now < cooldownEnd) {
+      const secsLeft = Math.ceil((cooldownEnd - now) / 1000);
+      toast.error(`Please wait ${secsLeft}s before commenting again`);
+      return;
+    }
+
     setSubmitting(true);
     const comment: Comment = {
       id: `${pollId}-${walletAddress}-${Date.now()}`,
       poll_id: pollId,
       wallet: walletAddress,
-      text: newComment.trim(),
+      text: sanitizeComment(newComment),
       created_at: Math.floor(Date.now() / 1000),
     };
 
@@ -108,6 +122,7 @@ export default function PollComments({ pollId }: Props) {
       }
       setComments(prev => [...prev, comment]);
       setNewComment("");
+      setCooldownEnd(Date.now() + COMMENT_COOLDOWN_MS);
     } catch (e) {
       console.error("Failed to post comment:", e);
       toast.error("Failed to post comment");
@@ -172,12 +187,17 @@ export default function PollComments({ pollId }: Props) {
         <div className="space-y-4 max-h-96 overflow-y-auto">
           {comments.map((c) => (
             <div key={c.id} className="flex gap-3 group">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-600/30 to-accent-500/20 flex items-center justify-center text-xs font-bold text-primary-400 shrink-0 border border-gray-700">
-                {c.wallet.slice(0, 2)}
-              </div>
+              {getAvatarUrl(c.wallet) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={getAvatarUrl(c.wallet)} alt="" className="w-8 h-8 rounded-full object-cover border border-gray-700 shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-600/30 to-accent-500/20 flex items-center justify-center text-xs font-bold text-primary-400 shrink-0 border border-gray-700">
+                  {getDisplayName(c.wallet).charAt(0).toUpperCase()}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs font-mono text-gray-400">{shortAddr(c.wallet)}</span>
+                  <span className="text-xs font-medium text-gray-300">{getDisplayName(c.wallet)}</span>
                   <span className="text-xs text-gray-600">{timeAgo(c.created_at)}</span>
                 </div>
                 <p className="text-sm text-gray-300 break-words">{c.text}</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
 import PollImage from "@/components/PollImage";
@@ -12,6 +12,9 @@ import { useCountdown } from "@/lib/useCountdown";
 import { useVote } from "@/lib/useVote";
 import ShareButton from "@/components/ShareButton";
 import PollComments from "@/components/PollComments";
+import VoteChart from "@/components/VoteChart";
+import { fireConfetti } from "@/lib/confetti";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import toast from "react-hot-toast";
 
 export default function PollDetailPage() {
@@ -50,8 +53,25 @@ export default function PollDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [settling, setSettling] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [resolutionProof, setResolutionProof] = useState<string | null>(null);
 
   const { text: timeLeft } = useCountdown(poll?.endTime ?? 0);
+
+  // Load resolution proof
+  useEffect(() => {
+    if (!pollId) return;
+    // Try localStorage first
+    try {
+      const proofs = JSON.parse(localStorage.getItem("instinctfi_resolution_proofs") || "{}");
+      if (proofs[pollId]) setResolutionProof(proofs[pollId]);
+    } catch {}
+    // Then try Supabase
+    if (isSupabaseConfigured) {
+      supabase.from("resolution_proofs").select("source_url").eq("poll_id", pollId).single().then(({ data }) => {
+        if (data?.source_url) setResolutionProof(data.source_url);
+      });
+    }
+  }, [pollId]);
 
   if (!poll) {
     return (
@@ -100,6 +120,7 @@ export default function PollDetailPage() {
     try {
       const reward = await claimReward(pollId);
       if (reward > 0) {
+        fireConfetti();
         toast.success(`Claimed ${formatDollars(reward)}!`);
       } else {
         toast.error("No reward to claim");
@@ -209,6 +230,22 @@ export default function PollDetailPage() {
             <span>Creator reward: {formatDollars(poll.creatorRewardCents)}</span>
             <span>Seed investment: {formatDollars(poll.creatorInvestmentCents)}</span>
           </div>
+
+          {/* Resolution proof */}
+          {isSettled && resolutionProof && (
+            <div className="mt-3 flex items-center gap-2 p-2.5 bg-green-500/5 border border-green-500/20 rounded-lg">
+              <span className="text-green-400 text-sm">🔗</span>
+              <span className="text-xs text-gray-400">Resolution source:</span>
+              <a
+                href={resolutionProof}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary-400 hover:text-primary-300 underline underline-offset-2 truncate"
+              >
+                {resolutionProof}
+              </a>
+            </div>
+          )}
         </div>
       </div>
 
@@ -410,6 +447,9 @@ export default function PollDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ── Vote Distribution Chart ── */}
+      <VoteChart poll={poll} />
 
       {/* ── Comments Section ── */}
       <div className="mt-6">

@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useApp, formatDollars, MAX_COINS_PER_POLL, DemoPoll } from "@/components/Providers";
+import { classifyError } from "@/lib/errorRecovery";
 import toast from "react-hot-toast";
 
 /**
@@ -15,6 +16,7 @@ export function useVote(poll: DemoPoll) {
   const [numCoins, setNumCoins] = useState(1);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const now = Math.floor(Date.now() / 1000);
   const isEnded = now >= poll.endTime;
@@ -58,6 +60,7 @@ export function useVote(poll: DemoPoll) {
     }
 
     setLoading(true);
+    setLastError(null);
     const ok = await castVote(poll.id, selectedOption, numCoins);
     setLoading(false);
 
@@ -65,11 +68,16 @@ export function useVote(poll: DemoPoll) {
       setSuccess(true);
       toast.success(`Bought ${numCoins} coin(s) on "${poll.options[selectedOption]}"`);
       setTimeout(() => { setSuccess(false); setSelectedOption(null); }, 1500);
-    } else {
-      toast.error("Transaction failed");
     }
+    // Error toast is handled by Providers.castVote with friendlyErrorMessage
     return ok;
   }, [selectedOption, walletConnected, numCoins, userAccount, cost, castVote, poll, connectWallet]);
+
+  /** Retry the last failed vote with same params */
+  const retryLastVote = useCallback(async (): Promise<boolean> => {
+    if (selectedOption === null || loading) return false;
+    return submitVote();
+  }, [selectedOption, loading, submitVote]);
 
   return {
     selectedOption,
@@ -78,6 +86,7 @@ export function useVote(poll: DemoPoll) {
     setNumCoins,
     loading,
     success,
+    lastError,
     cost,
     totalVotes,
     isEnded,
@@ -88,5 +97,6 @@ export function useVote(poll: DemoPoll) {
     selectOption,
     clearSelection,
     submitVote,
+    retryLastVote,
   };
 }

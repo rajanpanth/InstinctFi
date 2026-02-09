@@ -5,6 +5,7 @@ import { useApp, formatDollars, SOL_UNIT } from "@/components/Providers";
 import { CATEGORIES } from "@/lib/constants";
 import ImageUpload from "@/components/ImageUpload";
 import { uploadPollImage } from "@/lib/uploadImage";
+import { sanitizeTitle, sanitizeDescription, sanitizeOptions } from "@/lib/sanitize";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
@@ -137,8 +138,13 @@ export default function CreatePollPage() {
     e.preventDefault();
     if (submitting) return;
 
-    if (!title.trim()) return toast.error("Title is required");
-    if (options.some((o) => !o.trim())) return toast.error("All options must have labels");
+    // Sanitize inputs
+    const cleanTitle = sanitizeTitle(title);
+    const cleanDesc = sanitizeDescription(description);
+    const cleanOptions = sanitizeOptions(options);
+
+    if (!cleanTitle) return toast.error("Title is required");
+    if (cleanOptions.some((o) => !o)) return toast.error("All options must have labels");
     if (parseFloat(unitPrice) <= 0) return toast.error("Invalid unit price");
     if (parseFloat(investment) <= 0) return toast.error("Invalid investment");
 
@@ -194,12 +200,12 @@ export default function CreatePollPage() {
       const poll = await createPoll({
         pollId: crypto.getRandomValues(new Uint32Array(1))[0] * 1000 + (Date.now() % 1000),
         creator: walletAddress!,
-        title: title.trim(),
-        description: description.trim(),
+        title: cleanTitle,
+        description: cleanDesc,
         category,
         imageUrl,
         optionImages: optionImageUrls,
-        options: options.map((o) => o.trim()),
+        options: cleanOptions,
         voteCounts: [],
         unitPriceCents,
         endTime,
@@ -229,10 +235,75 @@ export default function CreatePollPage() {
   const creatorReward = Math.max(Math.floor(investCents / 100), 1);
   const poolSeed = Math.max(investCents - platformFee - creatorReward, 0);
 
+  const TEMPLATES = [
+    {
+      name: "🪙 Crypto Price",
+      title: "Will [COIN] hit $[PRICE] by [DATE]?",
+      category: "Crypto",
+      options: ["Yes", "No"],
+      duration: "168",
+      unitPrice: "0.01",
+    },
+    {
+      name: "⚽ Sports Match",
+      title: "[TEAM A] vs [TEAM B] — Who wins?",
+      category: "Sports",
+      options: ["Team A", "Team B", "Draw"],
+      duration: "48",
+      unitPrice: "0.005",
+    },
+    {
+      name: "🗳️ Yes / No",
+      title: "Will [EVENT] happen by [DATE]?",
+      category: "Politics",
+      options: ["Yes", "No"],
+      duration: "72",
+      unitPrice: "0.01",
+    },
+    {
+      name: "🎮 Gaming",
+      title: "Which game wins Game of the Year?",
+      category: "Entertainment",
+      options: ["Game A", "Game B", "Game C"],
+      duration: "720",
+      unitPrice: "0.005",
+    },
+  ];
+
+  const applyTemplate = (t: typeof TEMPLATES[0]) => {
+    setTitle(t.title);
+    setCategory(t.category);
+    setOptions(t.options);
+    setDurationHours(t.duration);
+    setUnitPrice(t.unitPrice);
+    // Reset option images
+    setOptionImageFiles(t.options.map(() => null));
+    setOptionImagePreviews(t.options.map(() => null));
+    setOptionImageErrors(t.options.map(() => null));
+    toast.success(`Template applied — edit the fields!`);
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl sm:text-3xl font-bold mb-2">Create a Poll</h1>
-      <p className="text-gray-500 text-sm mb-6 sm:mb-8">Set up a prediction market for others to vote on.</p>
+      <p className="text-gray-500 text-sm mb-4">Set up a prediction market for others to vote on.</p>
+
+      {/* Quick Templates */}
+      <div className="mb-6">
+        <p className="text-xs text-gray-500 mb-2">Quick start with a template:</p>
+        <div className="flex flex-wrap gap-2">
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.name}
+              type="button"
+              onClick={() => applyTemplate(t)}
+              className="px-3 py-1.5 bg-dark-800 hover:bg-dark-700 border border-gray-700/50 rounded-lg text-xs text-gray-300 transition-colors hover:border-primary-500/30"
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Main Poll Image (optional) */}

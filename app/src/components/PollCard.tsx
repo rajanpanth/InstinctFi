@@ -9,8 +9,13 @@ import DeletePollModal from "./DeletePollModal";
 import { useCountdown } from "@/lib/useCountdown";
 import { useVote } from "@/lib/useVote";
 import { OPTION_BADGE_COLORS } from "@/lib/utils";
+import { getCategoryMeta } from "@/lib/constants";
 import ShareButton from "./ShareButton";
 import CountdownCircle from "./CountdownCircle";
+import { fireConfetti } from "@/lib/confetti";
+import { playPop, playSuccess, playReward, playError, hapticFeedback } from "@/lib/sounds";
+import { useUserProfiles } from "@/lib/userProfiles";
+import { useBookmarks } from "@/lib/bookmarks";
 import toast from "react-hot-toast";
 
 type Props = {
@@ -51,6 +56,9 @@ const PollCard = memo(function PollCard({ poll }: Props) {
     settlePoll, claimReward,
   } = useApp();
 
+  const { getDisplayName, getAvatarUrl } = useUserProfiles();
+  const { isBookmarked, toggleBookmark } = useBookmarks();
+
   const {
     selectedOption: votingOption,
     numCoins, setNumCoins,
@@ -88,19 +96,35 @@ const PollCard = memo(function PollCard({ poll }: Props) {
 
   // ── Handlers ──
   const handleOptionClick = (idx: number) => {
-    if (selectOption(idx)) setExpanded(true);
+    if (selectOption(idx)) {
+      playPop();
+      hapticFeedback("light");
+      setExpanded(true);
+    }
   };
 
   const handleSettle = async () => {
     setShowSettleConfirm(false);
-    if (await settlePoll(poll.id)) toast.success("Poll settled!");
-    else toast.error("Settlement failed");
+    if (await settlePoll(poll.id)) {
+      playSuccess();
+      toast.success("Poll settled!");
+    } else {
+      playError();
+      toast.error("Settlement failed");
+    }
   };
 
   const handleClaim = async () => {
     const reward = await claimReward(poll.id);
-    if (reward > 0) toast.success(`Claimed ${formatDollars(reward)}!`);
-    else toast.error("No reward to claim");
+    if (reward > 0) {
+      fireConfetti();
+      playReward();
+      hapticFeedback("heavy");
+      toast.success(`Claimed ${formatDollars(reward)}!`);
+    } else {
+      playError();
+      toast.error("No reward to claim");
+    }
   };
 
   // Colors for option badges (from shared constants)
@@ -135,7 +159,14 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 <h3 className="text-sm font-semibold leading-snug line-clamp-2">{poll.title}</h3>
               </Link>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] px-1.5 py-0.5 bg-primary-600/20 text-primary-400 rounded font-medium">{poll.category}</span>
+                {(() => {
+                  const catMeta = getCategoryMeta(poll.category);
+                  return (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium bg-gradient-to-r ${catMeta.bgGradient || "from-primary-600/20 to-primary-600/20"} ${catMeta.color}`}>
+                      {catMeta.icon} {poll.category}
+                    </span>
+                  );
+                })()}
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                   isSettled ? "bg-green-600/20 text-green-400" : isEnded ? "bg-yellow-600/20 text-yellow-400" : "bg-accent-500/20 text-accent-400"
                 }`}>
@@ -183,7 +214,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                     {isWinner && "✓ "}{opt.label}
                   </span>
                   {opt.multiplier !== "—" && (
-                    <span className="text-xs text-gray-400 font-mono shrink-0">{opt.multiplier}x</span>
+                    <span className="text-xs text-accent-400 font-mono font-bold shrink-0 bg-accent-500/10 px-1.5 py-0.5 rounded">{opt.multiplier}x</span>
                   )}
                   <span className={`shrink-0 px-2.5 py-1 rounded-md text-xs font-bold border transition-all ${
                     isWinner ? "bg-green-500/20 text-green-400 border-green-500/40" :
@@ -195,6 +226,22 @@ const PollCard = memo(function PollCard({ poll }: Props) {
               );
             })}
           </div>
+
+          {/* Odds/Multiplier badges — prominent display */}
+          {totalVotes > 0 && (
+            <div className="flex items-center gap-2 mt-2">
+              {optionData.map((opt) => {
+                const bc = badgeColors[opt.index % badgeColors.length];
+                return (
+                  <div key={opt.index} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold ${bc.bg} ${bc.text} border ${bc.border}`}>
+                    <span className="truncate max-w-[60px]">{opt.label}</span>
+                    <span className="text-[10px] opacity-70">→</span>
+                    <span>{opt.multiplier !== "—" ? `${opt.multiplier}x` : "—"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Footer stats */}
           <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-800/80">
@@ -270,7 +317,11 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                     Cancel
                   </button>
                   <button
-                    onClick={submitVote}
+                    onClick={async () => {
+                      const ok = await submitVote();
+                      if (ok) { playSuccess(); hapticFeedback("medium"); }
+                      else { playError(); }
+                    }}
                     disabled={voteLoading}
                     className={`flex-1 py-2.5 text-sm rounded-xl font-semibold transition-all ${
                       voteSuccess
@@ -382,12 +433,32 @@ const PollCard = memo(function PollCard({ poll }: Props) {
             {!isCreator && (
               <div className="mt-3 pt-2.5 border-t border-gray-800/60 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-[8px] font-bold text-white shrink-0">
-                    {poll.creator.slice(0, 1).toUpperCase()}
-                  </div>
-                  <span className="text-[11px] text-gray-400 truncate">by {poll.creator.slice(0, 4)}...{poll.creator.slice(-4)}</span>
+                  {getAvatarUrl(poll.creator) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={getAvatarUrl(poll.creator)} alt="" className="w-5 h-5 rounded-full object-cover border border-gray-700" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-[8px] font-bold text-white shrink-0">
+                      {getDisplayName(poll.creator).charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-[11px] text-gray-400 truncate">by {getDisplayName(poll.creator)}</span>
                 </div>
-                <ShareButton pollId={poll.id} pollTitle={poll.title} />
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleBookmark(poll.id); }}
+                    className={`p-1 rounded-md transition-colors ${
+                      isBookmarked(poll.id)
+                        ? "text-yellow-400 hover:text-yellow-300"
+                        : "text-gray-500 hover:text-gray-300"
+                    }`}
+                    title={isBookmarked(poll.id) ? "Remove bookmark" : "Bookmark"}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isBookmarked(poll.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+                    </svg>
+                  </button>
+                  <ShareButton pollId={poll.id} pollTitle={poll.title} />
+                </div>
               </div>
             )}
           </div>

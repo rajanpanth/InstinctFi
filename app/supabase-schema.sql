@@ -476,3 +476,39 @@ create policy "Authenticated users can insert comments"
 
 -- Enable realtime for comments
 alter publication supabase_realtime add table comments;
+
+-- ============================================================
+-- Referrals table
+-- ============================================================
+create table if not exists referrals (
+  referee text primary key,          -- the user who was referred (one referrer per user)
+  referrer text not null,            -- the user who shared the link
+  created_at bigint not null default 0
+);
+
+create index if not exists idx_referrals_referrer on referrals(referrer);
+
+alter table referrals enable row level security;
+
+create policy "Anyone can read referrals"
+  on referrals for select using (true);
+
+create policy "Anyone can insert referrals"
+  on referrals for insert with check (true);
+
+-- ============================================================
+-- Resolution proofs table
+-- ============================================================
+create table if not exists resolution_proofs (
+  poll_id text primary key references polls(id) on delete cascade,
+  source_url text not null,
+  created_at bigint not null default (extract(epoch from now()) * 1000)::bigint
+);
+
+alter table resolution_proofs enable row level security;
+
+create policy "Anyone can read resolution proofs"
+  on resolution_proofs for select using (true);
+
+create policy "Anyone can insert resolution proofs"
+  on resolution_proofs for insert with check (true);

@@ -9,6 +9,7 @@ import { CATEGORY_META, isAdminWallet } from "@/lib/constants";
 import { useDailyCountdown } from "@/lib/useCountdown";
 import { shortAddr } from "@/lib/utils";
 import DarkModeToggle from "./DarkModeToggle";
+import NotificationBell from "./NotificationBell";
 import toast from "react-hot-toast";
 
 /* ── Compact claim timer for navbar ── */
@@ -162,6 +163,16 @@ export function Navbar() {
               Leaderboard
             </Link>
             <Link
+              href="/activity"
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                pathname === "/activity"
+                  ? "bg-primary-600/20 text-primary-400"
+                  : "text-gray-400 hover:text-white hover:bg-dark-700"
+              }`}
+            >
+              Activity
+            </Link>
+            <Link
               href="/profile"
               className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 pathname === "/profile"
@@ -193,6 +204,7 @@ export function Navbar() {
           {/* Right side */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <DarkModeToggle />
+            {walletConnected && <NotificationBell />}
             {walletConnected ? (
               <>
                 {/* Timer + Balance combined pill */}
@@ -279,7 +291,7 @@ export function Navbar() {
             { href: "/", label: "Home", icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z", extra: "M9 22V12h6v10" },
             { href: "/polls", label: "Polls", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" },
             { href: "/create", label: "Create", icon: "M12 5v14M5 12h14" },
-            { href: "/leaderboard", label: "Board", icon: "M8 21V12H4l8-9 8 9h-4v9" },
+            { href: "/activity", label: "Feed", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" },
             { href: "/profile", label: "Profile", icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 7a4 4 0 100-8 4 4 0 000 8", hasBadge: dailyAvailable || unclaimedRewards > 0 },
           ].map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname === item.href;

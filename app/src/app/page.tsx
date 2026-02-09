@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
@@ -10,11 +10,20 @@ import { CATEGORY_META } from "@/lib/constants";
 
 const CATEGORY_SECTIONS = CATEGORY_META.filter(c => c.label !== "Trending");
 
-function getTrendingPolls(polls: DemoPoll[], limit = 6): DemoPoll[] {
+type TrendingWindow = "24h" | "7d" | "30d" | "all";
+const TRENDING_WINDOWS: { key: TrendingWindow; label: string; ms: number }[] = [
+  { key: "24h", label: "24h", ms: 24 * 60 * 60 * 1000 },
+  { key: "7d", label: "7 days", ms: 7 * 24 * 60 * 60 * 1000 },
+  { key: "30d", label: "30 days", ms: 30 * 24 * 60 * 60 * 1000 },
+  { key: "all", label: "All time", ms: Infinity },
+];
+
+function getTrendingPolls(polls: DemoPoll[], limit = 6, windowMs = Infinity): DemoPoll[] {
   const now = Date.now();
   const ONE_DAY = 24 * 60 * 60 * 1000;
+  const cutoff = windowMs === Infinity ? 0 : now - windowMs;
   return [...polls]
-    .filter((p) => p.status === 0)
+    .filter((p) => p.status === 0 && p.createdAt >= cutoff)
     .sort((a, b) => {
       const aVotes = a.voteCounts.reduce((s, v) => s + v, 0);
       const bVotes = b.voteCounts.reduce((s, v) => s + v, 0);
@@ -51,8 +60,10 @@ function HomeContent() {
   const { walletConnected, connectWallet, polls, userAccount, isLoading } = useApp();
   const searchParams = useSearchParams();
   const catFilter = searchParams.get("cat");
+  const [trendingWindow, setTrendingWindow] = useState<TrendingWindow>("24h");
 
-  const trending = useMemo(() => getTrendingPolls(polls), [polls]);
+  const windowMs = TRENDING_WINDOWS.find((w) => w.key === trendingWindow)?.ms ?? Infinity;
+  const trending = useMemo(() => getTrendingPolls(polls, 6, windowMs), [polls, windowMs]);
 
   // If a category filter is active, show only that category
   const filteredPolls = useMemo(() => {
@@ -172,9 +183,26 @@ function HomeContent() {
             <h2 className="text-xl font-bold flex items-center gap-2">
               <span>🔥</span> Trending
             </h2>
-            <Link href="/polls" className="text-sm text-primary-400 hover:text-primary-300 font-medium transition-colors">
-              See all &rarr;
-            </Link>
+            <div className="flex items-center gap-2">
+              <div className="flex bg-dark-800 rounded-lg p-0.5">
+                {TRENDING_WINDOWS.map((w) => (
+                  <button
+                    key={w.key}
+                    onClick={() => setTrendingWindow(w.key)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      trendingWindow === w.key
+                        ? "bg-accent-500 text-white"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+              <Link href="/polls" className="text-sm text-primary-400 hover:text-primary-300 font-medium transition-colors hidden sm:block">
+                See all &rarr;
+              </Link>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {trending.map((poll) => (

@@ -5,6 +5,7 @@ import { DemoPoll, useApp } from "./Providers";
 import { CATEGORIES } from "@/lib/constants";
 import ImageUpload from "./ImageUpload";
 import { uploadPollImage, sanitizeImageUrl } from "@/lib/uploadImage";
+import { sanitizeTitle, sanitizeDescription, sanitizeOptions } from "@/lib/sanitize";
 import Modal from "./Modal";
 import toast from "react-hot-toast";
 
@@ -105,12 +106,16 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
       setUploading(false);
     }
 
+    const cleanTitle = sanitizeTitle(title);
+    const cleanDesc = sanitizeDescription(description);
+    const cleanOptions = sanitizeOptions(options);
+
     const success = await editPoll(poll.id, {
-      title: title.trim(),
-      description: description.trim(),
+      title: cleanTitle,
+      description: cleanDesc,
       category: category.trim(),
       imageUrl: finalImageUrl,
-      options: options.map((o) => o.trim()),
+      options: cleanOptions,
       endTime,
     });
 

@@ -27,6 +27,15 @@ export default function ShareButton({ pollId, pollTitle, compact = false }: Prop
     setShowMenu(false);
   };
 
+  const handleCopyEmbed = async () => {
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const embedCode = `<iframe src="${baseUrl}/embed/${pollId}" width="420" height="340" frameborder="0" style="border-radius:16px;overflow:hidden;" title="${pollTitle}"></iframe>`;
+    const ok = await copyToClipboard(embedCode);
+    if (ok) toast.success("Embed code copied!");
+    else toast.error("Failed to copy");
+    setShowMenu(false);
+  };
+
   if (compact) {
     return (
       <button
@@ -85,6 +94,16 @@ export default function ShareButton({ pollId, pollTitle, compact = false }: Prop
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
               </svg>
               Share on X
+            </button>
+            <button
+              onClick={handleCopyEmbed}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-dark-700 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+              Copy Embed Code
             </button>
           </div>
         </>

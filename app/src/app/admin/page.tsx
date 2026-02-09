@@ -1,11 +1,24 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useApp, formatDollars, type DemoPoll } from "@/components/Providers";
 import { isAdminWallet } from "@/lib/constants";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import toast from "react-hot-toast";
 
 type TabFilter = "ended" | "active" | "settled" | "all";
+
+/** Resolution proofs stored per poll id */
+type ResolutionProofs = Record<string, string>;
+
+function loadProofs(): ResolutionProofs {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem("instinctfi_resolution_proofs") || "{}"); } catch { return {}; }
+}
+
+function saveProofsLocal(proofs: ResolutionProofs) {
+  try { localStorage.setItem("instinctfi_resolution_proofs", JSON.stringify(proofs)); } catch {}
+}
 
 export default function AdminPage() {
   const { walletConnected, walletAddress, polls, votes, settlePoll, deletePoll, editPoll } = useApp();
@@ -13,8 +26,23 @@ export default function AdminPage() {
   const [tab, setTab] = useState<TabFilter>("ended");
   const [settlingId, setSettlingId] = useState<string | null>(null);
   const [selectedWinners, setSelectedWinners] = useState<Record<string, number>>({});
+  const [resolutionSources, setResolutionSources] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [editingPoll, setEditingPoll] = useState<DemoPoll | null>(null);
+  const [proofs, setProofs] = useState<ResolutionProofs>(loadProofs);
+
+  // Load proofs from Supabase on mount
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase.from("resolution_proofs").select("poll_id, source_url");
+      if (data) {
+        const map: ResolutionProofs = {};
+        data.forEach((r: any) => { map[r.poll_id] = r.source_url; });
+        setProofs((prev) => ({ ...prev, ...map }));
+      }
+    })();
+  }, []);
 
   const now = Math.floor(Date.now() / 1000);
 
@@ -68,6 +96,22 @@ export default function AdminPage() {
     try {
       const ok = await settlePoll(pollId, winner);
       if (ok) {
+        // Save resolution proof if provided
+        const sourceUrl = resolutionSources[pollId]?.trim();
+        // Validate URL format
+        if (sourceUrl && !/^https?:\/\//i.test(sourceUrl)) {
+          toast.error("Resolution source must be a valid http/https URL");
+          setSettlingId(null);
+          return;
+        }
+        if (sourceUrl) {
+          const newProofs = { ...proofs, [pollId]: sourceUrl };
+          setProofs(newProofs);
+          saveProofsLocal(newProofs);
+          if (isSupabaseConfigured) {
+            await supabase.from("resolution_proofs").upsert({ poll_id: pollId, source_url: sourceUrl });
+          }
+        }
         toast.success("Poll settled with your chosen winner!");
       }
     } finally {
@@ -318,7 +362,19 @@ export default function AdminPage() {
 
               {/* Action buttons */}
               {needsSettlement && (
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-700/30">
+                <div className="space-y-2 pt-2 border-t border-gray-700/30">
+                  {/* Resolution source URL */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-500 shrink-0">🔗 Source:</label>
+                    <input
+                      type="url"
+                      placeholder="Resolution proof URL (optional)"
+                      value={resolutionSources[poll.id] || ""}
+                      onChange={(e) => setResolutionSources((prev) => ({ ...prev, [poll.id]: e.target.value }))}
+                      className="flex-1 bg-dark-800 border border-gray-700/50 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-primary-500/50"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleSettle(poll.id)}
                     disabled={settlingId === poll.id || selectedWinners[poll.id] === undefined}
@@ -367,6 +423,22 @@ export default function AdminPage() {
                   >
                     🗑 Delete
                   </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Show resolution proof for settled polls */}
+              {isSettled && proofs[poll.id] && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                  <span>🔗 Resolution:</span>
+                  <a
+                    href={proofs[poll.id]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-400 hover:text-primary-300 underline underline-offset-2 truncate max-w-xs"
+                  >
+                    {proofs[poll.id]}
+                  </a>
                 </div>
               )}
 

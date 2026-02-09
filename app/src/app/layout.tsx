@@ -7,16 +7,45 @@ import { Navbar } from "@/components/Navbar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PageTransition from "@/components/PageTransition";
 import WalletAdapterProvider from "@/components/WalletAdapterProvider";
+import { UserProfileProvider } from "@/lib/userProfiles";
+import { NotificationProvider } from "@/lib/notifications";
+import { BookmarkProvider } from "@/lib/bookmarks";
+import { ReferralGate } from "@/lib/referrals";
 import { Toaster } from "react-hot-toast";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "InstinctFi — Decentralized Prediction Polls",
+  title: {
+    default: "InstinctFi — Decentralized Prediction Polls",
+    template: "%s | InstinctFi",
+  },
   description:
     "Vote on prediction polls with play money. Winners take the losing pool. Powered by Solana.",
+  keywords: ["prediction market", "Solana", "voting", "DeFi", "polls", "crypto", "InstinctFi"],
+  authors: [{ name: "InstinctFi" }],
+  creator: "InstinctFi",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "https://instinctfi.com"),
+  openGraph: {
+    type: "website",
+    siteName: "InstinctFi",
+    title: "InstinctFi — Decentralized Prediction Polls",
+    description: "Vote on prediction polls with play money. Winners take the losing pool. Powered by Solana.",
+    images: ["/api/og"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "InstinctFi — Decentralized Prediction Polls",
+    description: "Vote on prediction polls with play money. Winners take the losing pool.",
+    images: ["/api/og"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   icons: {
     icon: "/logo.svg",
+    apple: "/icon-192.png",
   },
 };
 
@@ -27,8 +56,43 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#6366f1" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebApplication",
+              name: "InstinctFi",
+              description: "Decentralized prediction polls on Solana. Predict, vote, and win.",
+              applicationCategory: "FinanceApplication",
+              operatingSystem: "Web",
+              offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+            }),
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                });
+              }
+            `,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <WalletAdapterProvider>
+        <UserProfileProvider>
+        <NotificationProvider>
+        <BookmarkProvider>
+        <ReferralGate>
         <Providers>
           <Suspense fallback={null}>
             <Navbar />
@@ -51,6 +115,10 @@ export default function RootLayout({
             }}
           />
         </Providers>
+        </ReferralGate>
+        </BookmarkProvider>
+        </NotificationProvider>
+        </UserProfileProvider>
         </WalletAdapterProvider>
       </body>
     </html>
