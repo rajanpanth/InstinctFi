@@ -423,7 +423,7 @@ export function Providers({ children }: { children: ReactNode }) {
           }
         }
       } else {
-        // Demo mode: load shared data from Supabase (balance is virtual, don't overwrite)
+        // Demo mode: load shared data from Supabase
         if (isSupabaseConfigured) {
           try {
             const [pollsRes, votesRes] = await Promise.all([
@@ -440,7 +440,17 @@ export function Providers({ children }: { children: ReactNode }) {
             console.warn("Failed to load from Supabase, using localStorage cache:", e);
           }
         }
-        // Virtual balance: don't touch it in demo mode — it's managed by bonuses/spending
+        // Always refresh real wallet balance
+        if (walletAddress) {
+          try {
+            const bal = await getWalletBalance(new PublicKey(walletAddress));
+            setUsers(prev => prev.map(u =>
+              u.wallet === walletAddress ? { ...u, balance: bal } : u
+            ));
+          } catch {
+            // Keep existing balance on failure
+          }
+        }
       }
     } catch (e) {
       console.error("Failed to fetch data:", e);
@@ -546,12 +556,10 @@ export function Providers({ children }: { children: ReactNode }) {
             }];
           });
 
-          // In demo mode, don't overwrite virtual balance with devnet balance
-          if (PROGRAM_DEPLOYED) {
-            getWalletBalance(resp.publicKey).then(bal => {
-              setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
-            }).catch(() => {});
-          }
+          // Always fetch real wallet balance
+          getWalletBalance(resp.publicKey).then(bal => {
+            setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
+          }).catch(() => {});
         }
       } catch {}
     };
@@ -590,12 +598,10 @@ export function Providers({ children }: { children: ReactNode }) {
           }];
         });
 
-        // Fetch real balance in background (only when program is deployed)
-        if (PROGRAM_DEPLOYED) {
-          getWalletBalance(resp.publicKey).then(bal => {
-            setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
-          }).catch(() => {});
-        }
+        // Always fetch real wallet balance
+        getWalletBalance(resp.publicKey).then(bal => {
+          setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
+        }).catch(() => {});
       } else {
         window.open("https://phantom.app/", "_blank");
       }
@@ -632,18 +638,24 @@ export function Providers({ children }: { children: ReactNode }) {
         }
       }
 
-      // Give 5 SOL welcome bonus on first connect (only once)
+      // Fetch real wallet balance on signup
       const existingUser = users.find(u => u.wallet === walletAddress);
       if (existingUser && !existingUser.signupBonusClaimed) {
-        const welcomeBonus = 5 * LAMPORTS_PER_SOL;
         setUsers(prev => prev.map(u =>
           u.wallet === walletAddress
-            ? { ...u, balance: u.balance + welcomeBonus, signupBonusClaimed: true, lastWeeklyRewardTs: Date.now() }
+            ? { ...u, signupBonusClaimed: true, lastWeeklyRewardTs: Date.now() }
             : u
         ));
-        toast.success("Welcome! Received 5 SOL bonus!", { id: "signup-bonus" });
       }
-      // Virtual balance: no devnet balance fetch needed
+      // Always fetch real wallet balance
+      try {
+        const bal = await getWalletBalance(new PublicKey(walletAddress));
+        setUsers(prev => prev.map(u =>
+          u.wallet === walletAddress ? { ...u, balance: bal } : u
+        ));
+      } catch (e) {
+        console.warn("Failed to fetch wallet balance:", e);
+      }
       return;
     }
 
@@ -711,7 +723,7 @@ export function Providers({ children }: { children: ReactNode }) {
     if (!walletAddress) return false;
 
     if (!PROGRAM_DEPLOYED) {
-      // Demo mode: 1 SOL every 24 hours
+      // Demo mode: request real devnet airdrop (1 SOL every 24 hours)
       const user = users.find(u => u.wallet === walletAddress);
       if (user) {
         const hoursSinceLastClaim = (Date.now() - user.lastWeeklyRewardTs) / (1000 * 60 * 60);
@@ -721,14 +733,29 @@ export function Providers({ children }: { children: ReactNode }) {
           return false;
         }
       }
-      const bonus = 1 * LAMPORTS_PER_SOL;
-      setUsers(prev => prev.map(u =>
-        u.wallet === walletAddress
-          ? { ...u, balance: u.balance + bonus, lastWeeklyRewardTs: Date.now() }
-          : u
-      ));
-      toast.success("Received 1 SOL daily reward!", { id: "airdrop" });
-      return true;
+      try {
+        toast.loading("Requesting devnet SOL airdrop...", { id: "airdrop" });
+        const pubkey = new PublicKey(walletAddress);
+        const sig = await requestAirdrop(pubkey, 1);
+        console.log("Airdrop:", sig);
+        const newBal = await getWalletBalance(pubkey);
+        setUsers(prev => prev.map(u =>
+          u.wallet === walletAddress
+            ? { ...u, balance: newBal, lastWeeklyRewardTs: Date.now() }
+            : u
+        ));
+        toast.success("Received 1 SOL airdrop!", { id: "airdrop" });
+        return true;
+      } catch (e: any) {
+        console.error("Airdrop failed:", e);
+        const msg = e?.message || "";
+        if (msg.includes("429") || msg.includes("Too Many")) {
+          toast.error("Rate limited — wait a minute and try again", { id: "airdrop" });
+        } else {
+          toast.error("Airdrop failed — devnet may be congested, try again later", { id: "airdrop" });
+        }
+        return false;
+      }
     }
 
     try {
@@ -820,26 +847,17 @@ export function Providers({ children }: { children: ReactNode }) {
         }
 
         // Update balance
-        if (PROGRAM_DEPLOYED) {
-          try {
-            const newBal = await getWalletBalance(pubkey);
-            setUsers(prev => prev.map(u =>
-              u.wallet === walletAddress
-                ? { ...u, balance: newBal, pollsCreated: u.pollsCreated + 1 }
-                : u
-            ));
-          } catch {
-            setUsers(prev => prev.map(u =>
-              u.wallet === walletAddress
-                ? { ...u, pollsCreated: u.pollsCreated + 1 }
-                : u
-            ));
-          }
-        } else {
-          // Demo mode: deduct creator investment from virtual balance
+        try {
+          const newBal = await getWalletBalance(pubkey);
           setUsers(prev => prev.map(u =>
             u.wallet === walletAddress
-              ? { ...u, balance: Math.max(0, u.balance - poll.creatorInvestmentCents), pollsCreated: u.pollsCreated + 1 }
+              ? { ...u, balance: newBal, pollsCreated: u.pollsCreated + 1 }
+              : u
+          ));
+        } catch {
+          setUsers(prev => prev.map(u =>
+            u.wallet === walletAddress
+              ? { ...u, pollsCreated: u.pollsCreated + 1 }
               : u
           ));
         }
@@ -975,26 +993,17 @@ export function Providers({ children }: { children: ReactNode }) {
         setPolls(prev => prev.filter(p => p.id !== pollId));
 
         // Update balance
-        if (PROGRAM_DEPLOYED) {
-          try {
-            const newBal = await getWalletBalance(pubkey);
-            setUsers(prev => prev.map(u =>
-              u.wallet === walletAddress
-                ? { ...u, balance: newBal, pollsCreated: Math.max(0, u.pollsCreated - 1) }
-                : u
-            ));
-          } catch {
-            setUsers(prev => prev.map(u =>
-              u.wallet === walletAddress
-                ? { ...u, pollsCreated: Math.max(0, u.pollsCreated - 1) }
-                : u
-            ));
-          }
-        } else {
-          // Demo mode: refund creator investment to virtual balance
+        try {
+          const newBal = await getWalletBalance(pubkey);
           setUsers(prev => prev.map(u =>
             u.wallet === walletAddress
-              ? { ...u, balance: u.balance + poll.creatorInvestmentCents, pollsCreated: Math.max(0, u.pollsCreated - 1) }
+              ? { ...u, balance: newBal, pollsCreated: Math.max(0, u.pollsCreated - 1) }
+              : u
+          ));
+        } catch {
+          setUsers(prev => prev.map(u =>
+            u.wallet === walletAddress
+              ? { ...u, pollsCreated: Math.max(0, u.pollsCreated - 1) }
               : u
           ));
         }
@@ -1093,34 +1102,22 @@ export function Providers({ children }: { children: ReactNode }) {
           }]);
         }
 
-        // Update balance
-        if (PROGRAM_DEPLOYED) {
-          const newBal = await getWalletBalance(pubkey);
+        // Update balance — always fetch real wallet balance
+        {
+          let newBal: number;
+          try {
+            newBal = await getWalletBalance(pubkey);
+          } catch {
+            // Fallback: deduct cost locally
+            const currentUser = users.find(u => u.wallet === walletAddress);
+            newBal = currentUser ? Math.max(0, currentUser.balance - cost) : 0;
+          }
           setUsers(prev => prev.map(u => {
             if (u.wallet !== walletAddress) return u;
             const fresh = withFreshPeriods(u);
             return {
               ...fresh,
               balance: newBal,
-              totalVotesCast: fresh.totalVotesCast + numCoins,
-              weeklyVotesCast: fresh.weeklyVotesCast + numCoins,
-              monthlyVotesCast: fresh.monthlyVotesCast + numCoins,
-              totalSpentCents: fresh.totalSpentCents + cost,
-              weeklySpentCents: fresh.weeklySpentCents + cost,
-              monthlySpentCents: fresh.monthlySpentCents + cost,
-              totalPollsVoted: fresh.totalPollsVoted + (existing ? 0 : 1),
-              weeklyPollsVoted: fresh.weeklyPollsVoted + (existing ? 0 : 1),
-              monthlyPollsVoted: fresh.monthlyPollsVoted + (existing ? 0 : 1),
-            };
-          }));
-        } else {
-          // Demo mode: deduct cost from virtual balance
-          setUsers(prev => prev.map(u => {
-            if (u.wallet !== walletAddress) return u;
-            const fresh = withFreshPeriods(u);
-            return {
-              ...fresh,
-              balance: Math.max(0, fresh.balance - cost),
               totalVotesCast: fresh.totalVotesCast + numCoins,
               weeklyVotesCast: fresh.weeklyVotesCast + numCoins,
               monthlyVotesCast: fresh.monthlyVotesCast + numCoins,
@@ -1289,31 +1286,21 @@ export function Providers({ children }: { children: ReactNode }) {
           }
         }
 
-        // Update balance
-        if (PROGRAM_DEPLOYED) {
-          const newBal = await getWalletBalance(pubkey);
+        // Update balance — always fetch real wallet balance
+        {
+          let newBal: number;
+          try {
+            newBal = await getWalletBalance(pubkey);
+          } catch {
+            const currentUser = users.find(u => u.wallet === walletAddress);
+            newBal = currentUser ? currentUser.balance + reward : reward;
+          }
           setUsers(prev => prev.map(u => {
             if (u.wallet !== walletAddress) return u;
             const fresh = withFreshPeriods(u);
             return {
               ...fresh,
               balance: newBal,
-              pollsWon: fresh.pollsWon + 1,
-              weeklyPollsWon: fresh.weeklyPollsWon + 1,
-              monthlyPollsWon: fresh.monthlyPollsWon + 1,
-              totalWinningsCents: fresh.totalWinningsCents + reward,
-              weeklyWinningsCents: fresh.weeklyWinningsCents + reward,
-              monthlyWinningsCents: fresh.monthlyWinningsCents + reward,
-            };
-          }));
-        } else {
-          // Demo mode: add reward to virtual balance
-          setUsers(prev => prev.map(u => {
-            if (u.wallet !== walletAddress) return u;
-            const fresh = withFreshPeriods(u);
-            return {
-              ...fresh,
-              balance: fresh.balance + reward,
               pollsWon: fresh.pollsWon + 1,
               weeklyPollsWon: fresh.weeklyPollsWon + 1,
               monthlyPollsWon: fresh.monthlyPollsWon + 1,
