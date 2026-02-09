@@ -252,6 +252,23 @@ export function Providers({ children }: { children: ReactNode }) {
             // Keep existing balance on failure
           }
         }
+
+        // Demo mode fallback: if user's balance is still 0 (initial fetch may have failed),
+        // try fetching the real devnet balance so they see their actual SOL
+        if (!PROGRAM_DEPLOYED && walletAddress) {
+          const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
+          if (currentUser && currentUser.balance === 0) {
+            try {
+              const bal = await getWalletBalance(new PublicKey(walletAddress));
+              if (bal > 0) {
+                console.log(`[fetchAll fallback] Updating balance: ${bal} lamports (${bal / 1e9} SOL)`);
+                setUsers(prev => prev.map(u => u.wallet === walletAddress ? { ...u, balance: bal } : u));
+              }
+            } catch (e) {
+              console.warn("[fetchAll fallback] Balance fetch failed:", e);
+            }
+          }
+        }
       }
     } catch (e) {
       console.error("Failed to fetch data:", e);
@@ -362,9 +379,25 @@ export function Providers({ children }: { children: ReactNode }) {
           // - On-chain mode: always fetch
           // - Demo mode: only for NEW users (first connect); existing users keep their tracked balance
           if (PROGRAM_DEPLOYED || isNewUser) {
-            getWalletBalance(resp.publicKey).then(bal => {
-              setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
-            }).catch(() => {});
+            const fetchBalWithRetry = async (attempt = 1): Promise<void> => {
+              try {
+                const bal = await getWalletBalance(resp.publicKey);
+                console.log(`[auto-reconnect] Devnet balance: ${bal} lamports (${bal / 1e9} SOL)`);
+                if (bal > 0 || attempt >= 3) {
+                  setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
+                } else if (attempt < 3) {
+                  // Balance is 0 — could be RPC lag; retry after delay
+                  console.log(`[auto-reconnect] Balance is 0, retrying (attempt ${attempt + 1}/3)...`);
+                  setTimeout(() => fetchBalWithRetry(attempt + 1), 2000);
+                }
+              } catch (e) {
+                console.error(`[auto-reconnect] Failed to fetch balance (attempt ${attempt}/3):`, e);
+                if (attempt < 3) {
+                  setTimeout(() => fetchBalWithRetry(attempt + 1), 2000);
+                }
+              }
+            };
+            fetchBalWithRetry();
           }
         }
       } catch {}
@@ -410,9 +443,24 @@ export function Providers({ children }: { children: ReactNode }) {
         // - On-chain mode: always fetch
         // - Demo mode: only for NEW users (first connect); existing users keep their tracked balance
         if (PROGRAM_DEPLOYED || isNewUser) {
-          getWalletBalance(resp.publicKey).then(bal => {
-            setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
-          }).catch(() => {});
+          const fetchBalWithRetry = async (attempt = 1): Promise<void> => {
+            try {
+              const bal = await getWalletBalance(resp.publicKey);
+              console.log(`[connectWallet] Devnet balance: ${bal} lamports (${bal / 1e9} SOL)`);
+              if (bal > 0 || attempt >= 3) {
+                setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
+              } else if (attempt < 3) {
+                console.log(`[connectWallet] Balance is 0, retrying (attempt ${attempt + 1}/3)...`);
+                setTimeout(() => fetchBalWithRetry(attempt + 1), 2000);
+              }
+            } catch (e) {
+              console.error(`[connectWallet] Failed to fetch balance (attempt ${attempt}/3):`, e);
+              if (attempt < 3) {
+                setTimeout(() => fetchBalWithRetry(attempt + 1), 2000);
+              }
+            }
+          };
+          fetchBalWithRetry();
         }
       } else {
         window.open("https://phantom.app/", "_blank");
