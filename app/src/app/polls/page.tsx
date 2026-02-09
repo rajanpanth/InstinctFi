@@ -6,6 +6,8 @@ import { useApp, DemoPoll } from "@/components/Providers";
 import PollCard from "@/components/PollCard";
 import SkeletonCard from "@/components/SkeletonCard";
 import { CATEGORIES as CONST_CATEGORIES } from "@/lib/constants";
+import { useLanguage } from "@/lib/languageContext";
+import { tCat } from "@/lib/translations";
 
 const CATEGORIES = ["All", ...CONST_CATEGORIES];
 
@@ -36,6 +38,7 @@ function sortPolls(polls: DemoPoll[], sort: SortOption): DemoPoll[] {
 
 export default function PollsPage() {
   const { polls, walletConnected, isLoading } = useApp();
+  const { t, lang } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "settled">("all");
   const [sortBy, setSortBy] = useState<SortOption>("most-voted");
@@ -73,10 +76,10 @@ export default function PollsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Polls</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("polls")}</h1>
         {walletConnected && (
           <Link href="/create" className="btn-glow px-4 sm:px-6 py-2 sm:py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-500 hover:to-indigo-500 rounded-xl font-semibold transition-all text-sm sm:text-base active:scale-[0.97]">
-            + Create Poll
+            {t("createPollPlus")}
           </Link>
         )}
       </div>
@@ -90,7 +93,7 @@ export default function PollsPage() {
           type="text"
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder="Search polls by title or description..."
+          placeholder={t("searchPlaceholder")}
           className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-dark-700/60 border border-gray-800/80 rounded-2xl text-sm focus:border-primary-500/60 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all placeholder-gray-600"
         />
         {search && (
@@ -117,7 +120,7 @@ export default function PollsPage() {
                   : "bg-dark-700 text-gray-400 hover:text-white"
               }`}
             >
-              {cat}
+              {tCat(cat, lang)}
             </button>
           ))}
         </div>
@@ -172,11 +175,11 @@ export default function PollsPage() {
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </div>
-          <p className="text-gray-400 text-lg mb-2 font-medium">No polls found</p>
-          <p className="text-gray-600 text-sm mb-5">Try adjusting your filters or create a new poll.</p>
+          <p className="text-gray-400 text-lg mb-2 font-medium">{t("noPollsFound")}</p>
+          <p className="text-gray-600 text-sm mb-5">{t("noPollsHint")}</p>
           {walletConnected && (
             <Link href="/create" className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 font-medium transition-colors">
-              Create the first poll <span className="text-lg">→</span>
+              {t("createFirstPoll")} <span className="text-lg">→</span>
             </Link>
           )}
         </div>
@@ -197,7 +200,7 @@ export default function PollsPage() {
                 className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-dark-700 text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Previous page"
               >
-                ← Prev
+                {t("prev")}
               </button>
               <div className="flex gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -224,7 +227,7 @@ export default function PollsPage() {
                 className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-dark-700 text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Next page"
               >
-                Next →
+                {t("next")}
               </button>
             </div>
           )}

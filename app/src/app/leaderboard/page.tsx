@@ -3,6 +3,7 @@
 import { useApp, formatDollars, UserAccount } from "@/components/Providers";
 import { useState } from "react";
 import { shortAddr } from "@/lib/utils";
+import { useLanguage } from "@/lib/languageContext";
 
 type Period = "weekly" | "monthly" | "allTime";
 
@@ -16,6 +17,7 @@ function isPeriodFresh(resetTs: number, periodMs: number): boolean {
 
 export default function LeaderboardPage() {
   const { allUsers, walletAddress } = useApp();
+  const { t } = useLanguage();
   const [period, setPeriod] = useState<Period>("allTime");
   const [sortBy, setSortBy] = useState<"winnings" | "pollsWon" | "votes" | "creatorEarnings">("winnings");
 
@@ -85,9 +87,9 @@ export default function LeaderboardPage() {
       {/* Period tabs */}
       <div className="flex gap-1.5 sm:gap-2 mb-3 sm:mb-4">
         {([
-          { key: "weekly", label: "This Week" },
-          { key: "monthly", label: "This Month" },
-          { key: "allTime", label: "All Time" },
+          { key: "weekly", label: t("thisWeek") },
+          { key: "monthly", label: t("thisMonth") },
+          { key: "allTime", label: t("allTime") },
         ] as const).map(({ key, label }) => (
           <button
             key={key}
@@ -106,10 +108,10 @@ export default function LeaderboardPage() {
       {/* Sort tabs */}
       <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4 sm:mb-6">
         {([
-          { key: "winnings", label: "Profit" },
-          { key: "pollsWon", label: "Wins" },
-          { key: "votes", label: "Votes" },
-          { key: "creatorEarnings", label: "Creator $" },
+          { key: "winnings", label: t("profit") },
+          { key: "pollsWon", label: t("wins") },
+          { key: "votes", label: t("votes") },
+          { key: "creatorEarnings", label: t("creatorDollar") },
         ] as const).map(({ key, label }) => (
           <button
             key={key}
@@ -131,8 +133,8 @@ export default function LeaderboardPage() {
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
           </div>
-          <p className="text-gray-400 text-lg mb-2 font-medium">No users yet</p>
-          <p className="text-gray-600 text-sm">Create & vote on polls to appear on the leaderboard!</p>
+          <p className="text-gray-400 text-lg mb-2 font-medium">{t("noUsersYet")}</p>
+          <p className="text-gray-600 text-sm">{t("leaderboardHint")}</p>
         </div>
       ) : (
         <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl overflow-hidden">
@@ -142,12 +144,12 @@ export default function LeaderboardPage() {
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">#</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">User</th>
-                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Net Profit</th>
-                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Win %</th>
-                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Votes</th>
-                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Polls Won</th>
-                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Creator $</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">{t("user")}</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">{t("netProfit")}</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">{t("winPercent")}</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">{t("votes")}</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">{t("pollsWon")}</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">{t("creatorDollar")}</th>
                 </tr>
               </thead>
               <tbody>

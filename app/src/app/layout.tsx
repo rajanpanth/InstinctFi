@@ -12,6 +12,7 @@ import { UserProfileProvider } from "@/lib/userProfiles";
 import { NotificationProvider } from "@/lib/notifications";
 import { BookmarkProvider } from "@/lib/bookmarks";
 import { ReferralGate } from "@/lib/referrals";
+import { LanguageProvider } from "@/lib/languageContext";
 import { Toaster } from "react-hot-toast";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -62,6 +63,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#6366f1" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -89,6 +91,7 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
+        <LanguageProvider>
         <WalletAdapterProvider>
         <UserProfileProvider>
         <NotificationProvider>
@@ -99,8 +102,10 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <Navbar />
           </Suspense>
+          {/* Spacer to push content below the fixed navbar */}
+          <div className="navbar-spacer" aria-hidden="true" />
           <ErrorBoundary>
-            <main className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-20 md:pb-8">
+            <main className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-28 md:pb-8 mobile-content-pad md:!pb-8">
               <PageTransition>
                 {children}
               </PageTransition>
@@ -122,6 +127,7 @@ export default function RootLayout({
         </NotificationProvider>
         </UserProfileProvider>
         </WalletAdapterProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

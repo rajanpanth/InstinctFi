@@ -17,6 +17,7 @@ import { fireConfetti } from "@/lib/confetti";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminWallet } from "@/lib/constants";
 import toast from "react-hot-toast";
+import { useLanguage } from "@/lib/languageContext";
 
 export default function PollDetailPage() {
   const params = useParams();
@@ -66,6 +67,7 @@ export default function PollDetailPage() {
   const [settling, setSettling] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [resolutionProof, setResolutionProof] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   const { text: timeLeft } = useCountdown(poll?.endTime ?? 0);
 
@@ -91,7 +93,7 @@ export default function PollDetailPage() {
       return (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <div className="w-10 h-10 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">Loading poll...</p>
+          <p className="text-gray-500 text-sm">{t("loadingPoll")}</p>
         </div>
       );
     }
@@ -100,9 +102,9 @@ export default function PollDetailPage() {
         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         </div>
-        <p className="text-gray-400 text-lg font-medium mb-2">Poll not found</p>
+        <p className="text-gray-400 text-lg font-medium mb-2">{t("pollNotFound")}</p>
         <button onClick={() => router.push("/polls")} className="text-primary-400 hover:text-primary-300 text-sm font-medium transition-colors">
-          ← Back to Polls
+          ← {t("backToPolls")}
         </button>
       </div>
     );
@@ -131,8 +133,8 @@ export default function PollDetailPage() {
     setSettling(true);
     try {
       const success = await settlePoll(pollId);
-      if (success) toast.success("Poll settled!");
-      else toast.error("Settlement failed");
+      if (success) toast.success(t("pollSettled"));
+      else toast.error(t("settlementFailed"));
     } finally {
       setSettling(false);
     }
@@ -147,7 +149,7 @@ export default function PollDetailPage() {
         fireConfetti();
         toast.success(`Claimed ${formatDollars(reward)}!`);
       } else {
-        toast.error("No reward to claim");
+        toast.error(t("noRewardToClaim"));
       }
     } finally {
       setClaiming(false);
@@ -188,7 +190,7 @@ export default function PollDetailPage() {
       {/* Back */}
       <button onClick={() => router.push("/polls")} className="flex items-center gap-1.5 text-gray-400 hover:text-white mb-6 text-sm font-medium transition-colors group">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="group-hover:-translate-x-0.5 transition-transform"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Back to Polls
+        {t("backToPolls")}
       </button>
 
       {/* Header */}
@@ -217,7 +219,7 @@ export default function PollDetailPage() {
                     : "bg-accent-500/20 text-accent-400"
                 }`}
               >
-                {isSettled ? "Settled" : isEnded ? "Awaiting Settlement" : timeLeft}
+                {isSettled ? t("settled") : isEnded ? "Awaiting Settlement" : timeLeft}
               </span>
             </div>
           </div>
@@ -235,7 +237,7 @@ export default function PollDetailPage() {
             </div>
             <div>
               <div className="text-lg font-bold">{totalVotes}</div>
-              <div className="text-xs text-gray-500">Total Votes</div>
+              <div className="text-xs text-gray-500">{t("totalVotes")}</div>
             </div>
             <div>
               <div className="text-lg font-bold">{poll.totalVoters}</div>
@@ -276,7 +278,7 @@ export default function PollDetailPage() {
 
       {/* Options */}
       <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-5 sm:p-8 mb-6">
-        <h2 className="font-semibold text-lg mb-4">Options</h2>
+        <h2 className="font-semibold text-lg mb-4">{t("options")}</h2>
         <div className="space-y-3">
           {poll.options.map((opt, i) => {
             const pct = totalVotes > 0 ? (poll.voteCounts[i] / totalVotes) * 100 : 0;
@@ -343,7 +345,7 @@ export default function PollDetailPage() {
       {/* Vote action */}
       {!isEnded && !isSettled && (
         <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-5 sm:p-8 mb-6">
-          <h2 className="font-semibold text-lg mb-4">Buy Option-Coins</h2>
+          <h2 className="font-semibold text-lg mb-4">{t("step2Title")}</h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-4">
             <div className="flex-1">
               <label className="block text-sm text-gray-400 mb-2">Number of coins</label>
@@ -376,9 +378,9 @@ export default function PollDetailPage() {
             }`}
           >
             {!walletConnected
-              ? "Connect Wallet to Vote"
+              ? t("connectWalletToStart")
               : selectedOption !== null
-              ? `Vote for "${poll.options[selectedOption]}"`
+              ? `${t("vote")} "${poll.options[selectedOption]}"`
               : "Select an option above"}
           </button>
         </div>
@@ -400,7 +402,7 @@ export default function PollDetailPage() {
                 : "bg-accent-500 hover:bg-accent-600 text-dark-900"
             }`}
           >
-            {settling ? "Settling..." : "Settle Poll"}
+            {settling ? "Settling..." : t("settlePoll")}
           </button>
         </div>
       )}
@@ -408,7 +410,7 @@ export default function PollDetailPage() {
       {/* Claim */}
       {canClaim && (
         <div className="bg-dark-700/40 border border-green-600/30 rounded-2xl p-5 sm:p-8 mb-6">
-          <h2 className="font-semibold text-lg mb-2 text-green-400">You Won!</h2>
+          <h2 className="font-semibold text-lg mb-2 text-green-400">{t("youWon")}</h2>
           <p className="text-gray-400 text-sm mb-4">
             Your reward:{" "}
             <span className="text-green-400 font-bold">{formatDollars(potentialReward)}</span>
@@ -422,7 +424,7 @@ export default function PollDetailPage() {
                 : "bg-green-600 hover:bg-green-700"
             }`}
           >
-            {claiming ? "Claiming..." : "Claim Reward"}
+            {claiming ? "Claiming..." : t("claimReward")}
           </button>
         </div>
       )}
@@ -457,7 +459,7 @@ export default function PollDetailPage() {
                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
-              Edit Poll
+              {t("edit")} Poll
             </button>
             <button
               onClick={() => setShowDeleteModal(true)}
@@ -467,7 +469,7 @@ export default function PollDetailPage() {
                 <polyline points="3 6 5 6 21 6" />
                 <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
               </svg>
-              Delete Poll
+              {t("delete")} Poll
             </button>
           </div>
         </div>

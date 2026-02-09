@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 :root {
+  /* Navbar height tokens (top bar + category bar + safe-area) */
+  --navbar-h-top: 3.5rem;   /* h-14 = 56px */
+  --navbar-h-cats: 2.375rem; /* category bar ~38px */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --navbar-height: calc(var(--navbar-h-top) + var(--navbar-h-cats) + var(--safe-area-top));
+
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 13, 14, 36;
   --background-end-rgb: 26, 27, 46;
@@ -154,10 +160,24 @@ body {
 
 /* ── Mobile-first responsive utilities ── */
 
-/* Prevent horizontal overflow globally */
+/* Prevent horizontal overflow globally — use 'clip' so sticky/fixed positioning is not broken */
 html, body {
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Navbar spacer — pushes content below the fixed navbar */
+.navbar-spacer {
+  height: var(--navbar-height);
+  flex-shrink: 0;
+}
+
+/* Responsive navbar height for md+ screens */
+@media (min-width: 768px) {
+  :root {
+    --navbar-h-top: 4rem;    /* h-16 = 64px */
+    --navbar-h-cats: 2.75rem; /* category bar ~44px */
+  }
 }
 
 /* Better touch targets on mobile */
@@ -252,9 +272,13 @@ html:not(.dark) .card-hover:hover {
 .section-animate:nth-child(4) { animation-delay: 0.3s; }
 
 /* Safe-area insets for notched devices */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
+@supports (padding: env(safe-area-inset-bottom)) {
   .mobile-bottom-nav {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Ensure bottom padding on main content accounts for mobile bottom nav + safe area */
+  .mobile-content-pad {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 

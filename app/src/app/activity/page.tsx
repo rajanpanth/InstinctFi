@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { useApp, type DemoPoll, type DemoVote, formatDollarsShort } from "@/components/Providers";
 import Link from "next/link";
+import { useLanguage } from "@/lib/languageContext";
 
 type ActivityItem = {
   id: string;
@@ -111,6 +112,7 @@ function formatTimestamp(ts: number) {
 
 export default function ActivityPage() {
   const { polls, votes, walletAddress } = useApp();
+  const { t } = useLanguage();
   const [filter, setFilter] = useState<FilterType>("all");
   const [showMyOnly, setShowMyOnly] = useState(false);
 
@@ -126,8 +128,8 @@ export default function ActivityPage() {
   return (
     <div className="min-h-screen bg-dark-950 text-white">
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-2">Activity Feed</h1>
-        <p className="text-gray-400 mb-6">Recent activity across all polls</p>
+        <h1 className="text-3xl font-bold mb-2">{t("activityFeed")}</h1>
+        <p className="text-gray-400 mb-6">{t("recentActivity")}</p>
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -154,7 +156,7 @@ export default function ActivityPage() {
                   : "bg-dark-800 text-gray-400 hover:bg-dark-700"
               }`}
             >
-              {showMyOnly ? "My Activity" : "Everyone"}
+              {showMyOnly ? t("myActivity") : t("everyone")}
             </button>
           )}
         </div>
@@ -163,7 +165,7 @@ export default function ActivityPage() {
         {filtered.length === 0 ? (
           <div className="text-center py-20 text-gray-500">
             <p className="text-5xl mb-4">📭</p>
-            <p className="text-lg">No activity yet</p>
+            <p className="text-lg">{t("noActivityYet")}</p>
           </div>
         ) : (
           <div className="relative">

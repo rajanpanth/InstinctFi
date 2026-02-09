@@ -11,6 +11,7 @@ import { useReferralData } from "@/lib/referrals";
 import { uploadPollImage } from "@/lib/uploadImage";
 import { sanitizeDisplayName } from "@/lib/sanitize";
 import toast from "react-hot-toast";
+import { useLanguage } from "@/lib/languageContext";
 
 export default function ProfilePage() {
   const {
@@ -31,6 +32,7 @@ export default function ProfilePage() {
   const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
   const [profileAvatarPreview, setProfileAvatarPreview] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const { t } = useLanguage();
 
   if (!walletConnected) {
     return (
@@ -38,9 +40,9 @@ export default function ProfilePage() {
         <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-500"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
-        <p className="text-gray-400 text-lg mb-5 font-medium">Connect your wallet to view your profile</p>
+        <p className="text-gray-400 text-lg mb-5 font-medium">{t("connectWalletToView")}</p>
         <button onClick={connectWallet} className="btn-glow px-7 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-2xl font-semibold transition-all active:scale-[0.97] shadow-lg shadow-purple-600/20">
-          Connect Phantom
+          {t("connectPhantom")}
         </button>
       </div>
     );
@@ -57,7 +59,7 @@ export default function ProfilePage() {
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 tracking-tight flex items-center gap-2.5">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary-400"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Profile
+        {t("profile")}
       </h1>
 
       {/* Wallet Card */}
@@ -87,10 +89,10 @@ export default function ProfilePage() {
               }}
               className="px-3 py-1.5 text-xs font-medium border border-gray-700 text-gray-300 rounded-lg hover:bg-dark-600 transition-colors"
             >
-              Edit Profile
+              {t("editProfile")}
             </button>
             <div className="sm:text-right">
-              <div className="text-sm text-gray-400">Balance</div>
+              <div className="text-sm text-gray-400">{t("balance")}</div>
               <div className="text-xl font-bold text-accent-400">
                 {u ? formatDollars(u.balance) : "0 SOL"}
               </div>
@@ -101,22 +103,22 @@ export default function ProfilePage() {
         {/* Profile Editor */}
         {editingProfile && (
           <div className="mb-6 p-4 bg-dark-800/80 border border-gray-700 rounded-xl animate-scaleIn">
-            <h3 className="text-sm font-semibold mb-3">Edit Profile</h3>
+            <h3 className="text-sm font-semibold mb-3">{t("editProfile")}</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Display Name</label>
+                <label className="block text-xs text-gray-400 mb-1">{t("displayName")}</label>
                 <input
                   type="text"
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
                   maxLength={24}
-                  placeholder="Enter a display name..."
+                  placeholder={t("enterDisplayName")}
                   className="w-full px-3 py-2 bg-dark-900 border border-gray-700 rounded-lg text-sm focus:border-primary-500 outline-none"
                 />
                 <span className="text-[10px] text-gray-600">{profileName.length}/24</span>
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Profile Picture</label>
+                <label className="block text-xs text-gray-400 mb-1">{t("profilePicture")}</label>
                 <div className="flex items-center gap-3">
                   {profileAvatarPreview ? (
                     <div className="relative group">
@@ -132,7 +134,7 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <label className="flex items-center gap-2 px-3 py-2 bg-dark-700/50 border border-gray-700 border-dashed rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
-                      <span className="text-xs text-gray-500">Upload avatar</span>
+                      <span className="text-xs text-gray-500">{t("uploadAvatar")}</span>
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
@@ -155,7 +157,7 @@ export default function ProfilePage() {
                   onClick={() => setEditingProfile(false)}
                   className="flex-1 px-3 py-2 text-sm border border-gray-700 text-gray-400 rounded-lg hover:bg-dark-700"
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button
                   disabled={savingProfile}
@@ -167,7 +169,7 @@ export default function ProfilePage() {
                         try {
                           avatarUrl = await uploadPollImage(profileAvatarFile);
                         } catch {
-                          toast.error("Avatar upload failed");
+                          toast.error(t("avatarUploadFailed"));
                           setSavingProfile(false);
                           return;
                         }
@@ -175,10 +177,10 @@ export default function ProfilePage() {
                       if (!profileAvatarPreview) avatarUrl = "";
                       const ok = await updateProfile(addr, sanitizeDisplayName(profileName), avatarUrl);
                       if (ok) {
-                        toast.success("Profile updated!");
+                        toast.success(t("profileUpdated"));
                         setEditingProfile(false);
                       } else {
-                        toast.error("Failed to save profile");
+                        toast.error(t("failedToSaveProfile"));
                       }
                     } finally {
                       setSavingProfile(false);
@@ -186,7 +188,7 @@ export default function ProfilePage() {
                   }}
                   className="flex-1 px-3 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold"
                 >
-                  {savingProfile ? "Saving..." : "Save"}
+                  {savingProfile ? t("saving") : t("save")}
                 </button>
               </div>
             </div>
@@ -198,8 +200,8 @@ export default function ProfilePage() {
           <div className="mb-4 p-3 bg-purple-600/10 border border-purple-500/20 rounded-xl flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center text-lg shrink-0">🎁</div>
             <div>
-              <div className="text-sm font-medium text-purple-300">Welcome Bonus Claimed</div>
-              <div className="text-xs text-gray-500">On-chain account active</div>
+              <div className="text-sm font-medium text-purple-300">{t("welcomeBonusClaimed")}</div>
+              <div className="text-xs text-gray-500">{t("onChainActive")}</div>
             </div>
           </div>
         )}
@@ -210,18 +212,18 @@ export default function ProfilePage() {
         {/* Stats grid */}
         {u && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="Polls Created" value={u.pollsCreated.toString()} />
-            <Stat label="Polls Voted" value={u.totalPollsVoted.toString()} />
-            <Stat label="Total Votes" value={u.totalVotesCast.toString()} />
-            <Stat label="Polls Won" value={u.pollsWon.toString()} />
-            <Stat label="Total Spent" value={formatDollars(u.totalSpentCents)} />
-            <Stat label="Total Won" value={formatDollars(u.totalWinningsCents)} highlight />
+            <Stat label={t("pollsCreated")} value={u.pollsCreated.toString()} />
+            <Stat label={t("pollsVoted")} value={u.totalPollsVoted.toString()} />
+            <Stat label={t("totalVotes")} value={u.totalVotesCast.toString()} />
+            <Stat label={t("pollsWon")} value={u.pollsWon.toString()} />
+            <Stat label={t("totalSpent")} value={formatDollars(u.totalSpentCents)} />
+            <Stat label={t("totalWon")} value={formatDollars(u.totalWinningsCents)} highlight />
             <Stat
-              label="Net Profit"
+              label={t("netProfit")}
               value={`${netProfit >= 0 ? "+" : ""}${formatDollars(netProfit)}`}
               highlight
             />
-            <Stat label="Creator Earnings" value={formatDollars(u.creatorEarningsCents)} />
+            <Stat label={t("creatorEarnings")} value={formatDollars(u.creatorEarningsCents)} />
           </div>
         )}
       </div>
@@ -232,25 +234,25 @@ export default function ProfilePage() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary-400">
             <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
           </svg>
-          Invite Friends
+          {t("inviteFriends")}
         </h2>
 
         {/* Referral link */}
         <div className="mb-4 p-3 bg-dark-800/60 border border-gray-700 rounded-xl">
-          <div className="text-xs text-gray-400 mb-1.5">Your Referral Link</div>
+          <div className="text-xs text-gray-400 mb-1.5">{t("yourReferralLink")}</div>
           <div className="flex items-center gap-2">
             <code className="flex-1 text-sm font-mono text-primary-300 truncate bg-dark-900/50 px-3 py-2 rounded-lg">
-              {referralLink || "Connect wallet to get link"}
+              {referralLink || t("connectWalletGetLink")}
             </code>
             <button
               onClick={() => {
                 copyReferralLink();
-                toast.success("Referral link copied!");
+                toast.success(t("referralCopied"));
               }}
               disabled={!referralLink}
               className="px-3 py-2 text-xs font-semibold bg-primary-600 hover:bg-primary-500 rounded-lg transition-colors disabled:opacity-40"
             >
-              Copy
+              {t("copy")}
             </button>
           </div>
           {referralCode && (
@@ -262,18 +264,18 @@ export default function ProfilePage() {
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="text-center p-3 bg-dark-800/50 rounded-xl">
             <div className="text-lg font-bold text-primary-400">{referralCount}</div>
-            <div className="text-xs text-gray-500 mt-1">Friends Invited</div>
+            <div className="text-xs text-gray-500 mt-1">{t("friendsInvited")}</div>
           </div>
           <div className="text-center p-3 bg-dark-800/50 rounded-xl">
             <div className="text-lg font-bold">{referredBy ? "Yes" : "—"}</div>
-            <div className="text-xs text-gray-500 mt-1">Referred By</div>
+            <div className="text-xs text-gray-500 mt-1">{t("referredBy")}</div>
           </div>
         </div>
 
         {/* Recent referrals */}
         {referrals.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-gray-400 mb-2">Recent Referrals</h3>
+            <h3 className="text-sm font-medium text-gray-400 mb-2">{t("recentReferrals")}</h3>
             <div className="space-y-2">
               {referrals.slice(0, 5).map((r, i) => (
                 <div key={i} className="flex items-center justify-between p-2.5 bg-dark-800/30 rounded-lg text-sm">
@@ -298,7 +300,7 @@ export default function ProfilePage() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" className="text-yellow-400">
               <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
             </svg>
-            Watchlist
+            {t("watchlist")}
           </h2>
           <div className="space-y-3">
             {polls
@@ -314,7 +316,7 @@ export default function ProfilePage() {
                   <span className={`text-xs font-semibold px-2 py-1 rounded ${
                     p.status === 1 ? "bg-green-600/20 text-green-400" : "bg-accent-500/20 text-accent-400"
                   }`}>
-                    {p.status === 1 ? "Settled" : "Active"}
+                    {p.status === 1 ? t("settled") : t("active")}
                   </span>
                 </Link>
               ))}
@@ -324,9 +326,9 @@ export default function ProfilePage() {
 
       {/* My Polls */}
       <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
-        <h2 className="font-semibold text-lg mb-4">My Created Polls</h2>
+        <h2 className="font-semibold text-lg mb-4">{t("myCreatedPolls")}</h2>
         {myPolls.length === 0 ? (
-          <p className="text-gray-500 text-sm">No polls created yet.</p>
+          <p className="text-gray-500 text-sm">{t("noPollsCreatedYet")}</p>
         ) : (
           <div className="space-y-3">
             {myPolls.map((p) => (
@@ -340,9 +342,9 @@ export default function ProfilePage() {
                 <span className={`text-xs font-semibold px-2 py-1 rounded ${
                   p.status === 1 ? "bg-green-600/20 text-green-400" : "bg-accent-500/20 text-accent-400"
                 }`}>
-                  {p.status === 1 ? "Settled" : "Active"}
-                </span>
-              </Link>
+{p.status === 1 ? t("settled") : t("active")}
+                  </span>
+                </Link>
             ))}
           </div>
         )}
@@ -351,34 +353,34 @@ export default function ProfilePage() {
       {/* ── Creator Dashboard ── */}
       {myPolls.length > 0 && (
         <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-4 sm:mb-6">
-          <h2 className="font-semibold text-lg mb-4">Creator Dashboard</h2>
+          <h2 className="font-semibold text-lg mb-4">{t("creatorDashboard")}</h2>
 
           {/* Creator summary stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
             <div className="text-center p-3 bg-dark-800/50 rounded-xl">
               <div className="text-lg font-bold text-primary-400">{myPolls.length}</div>
-              <div className="text-xs text-gray-500 mt-1">Polls Created</div>
+              <div className="text-xs text-gray-500 mt-1">{t("pollsCreated")}</div>
             </div>
             <div className="text-center p-3 bg-dark-800/50 rounded-xl">
               <div className="text-lg font-bold">{myPolls.filter(p => p.status === 0).length}</div>
-              <div className="text-xs text-gray-500 mt-1">Active</div>
+              <div className="text-xs text-gray-500 mt-1">{t("active")}</div>
             </div>
             <div className="text-center p-3 bg-dark-800/50 rounded-xl">
               <div className="text-lg font-bold text-green-400">
                 {formatDollars(myPolls.reduce((s, p) => s + p.creatorRewardCents, 0))}
               </div>
-              <div className="text-xs text-gray-500 mt-1">Creator Revenue</div>
+              <div className="text-xs text-gray-500 mt-1">{t("creatorRevenue")}</div>
             </div>
             <div className="text-center p-3 bg-dark-800/50 rounded-xl">
               <div className="text-lg font-bold">
                 {formatDollars(myPolls.reduce((s, p) => s + p.totalPoolCents, 0))}
               </div>
-              <div className="text-xs text-gray-500 mt-1">Total Volume</div>
+              <div className="text-xs text-gray-500 mt-1">{t("totalVolume")}</div>
             </div>
           </div>
 
           {/* Per-poll breakdown */}
-          <h3 className="text-sm font-medium text-gray-400 mb-2">Per-Poll Breakdown</h3>
+          <h3 className="text-sm font-medium text-gray-400 mb-2">{t("perPollBreakdown")}</h3>
           <div className="space-y-2">
             {myPolls.map(p => {
               const totalVotes = p.voteCounts.reduce((a, b) => a + b, 0);
@@ -405,9 +407,9 @@ export default function ProfilePage() {
 
       {/* My Vote History */}
       <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-8 mb-20 sm:mb-6">
-        <h2 className="font-semibold text-lg mb-4">My Vote History</h2>
+        <h2 className="font-semibold text-lg mb-4">{t("myVoteHistory")}</h2>
         {myVotes.length === 0 ? (
-          <p className="text-gray-500 text-sm">No votes cast yet.</p>
+          <p className="text-gray-500 text-sm">{t("noVotesCastYet")}</p>
         ) : (
           <div className="space-y-3">
             {myVotes.map((v, i) => {
@@ -454,6 +456,7 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
   const { timeLeft, canClaim, progress } = useDailyCountdown(lastClaimTs);
   const [claimed, setClaimed] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const { t } = useLanguage();
 
   const handleClaim = async () => {
     if (claiming) return;
@@ -482,8 +485,8 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
               💰
             </div>
             <div>
-              <div className="text-sm font-semibold">Daily Reward</div>
-              <div className="text-xs text-gray-500">Claim 1 SOL every 24 hours</div>
+              <div className="text-sm font-semibold">{t("dailyReward")}</div>
+              <div className="text-xs text-gray-500">{t("claimEvery24h")}</div>
             </div>
           </div>
           <button
@@ -497,7 +500,7 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
                 : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
             }`}
           >
-            {claimed ? "✓ Claimed!" : canClaim ? "Claim 1 SOL" : timeLeft}
+            {claimed ? `✓ ${t("claimed")}` : canClaim ? t("claimOneSol") : timeLeft}
           </button>
         </div>
 
@@ -511,9 +514,9 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
           />
         </div>
         <div className="flex justify-between mt-1.5">
-          <span className="text-[10px] text-gray-600">Last claimed</span>
+          <span className="text-[10px] text-gray-600">{t("lastClaimed")}</span>
           <span className="text-[10px] text-gray-600">
-            {canClaim ? "Ready now!" : `${timeLeft} remaining`}
+            {canClaim ? t("readyNow") : `${timeLeft} ${t("remaining")}`}
           </span>
         </div>
       </div>

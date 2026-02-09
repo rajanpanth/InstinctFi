@@ -2,6 +2,7 @@
 
 import { useApp } from "./Providers";
 import Modal from "./Modal";
+import { useLanguage } from "@/lib/languageContext";
 
 type Props = {
   isOpen: boolean;
@@ -10,6 +11,7 @@ type Props = {
 
 export default function WalletConnectModal({ isOpen, onClose }: Props) {
   const { connectWallet } = useApp();
+  const { t } = useLanguage();
 
   const handleConnect = async () => {
     await connectWallet();
@@ -39,19 +41,19 @@ export default function WalletConnectModal({ isOpen, onClose }: Props) {
             </svg>
           </div>
 
-          <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
+          <h2 className="text-2xl font-bold mb-2">{t("connectYourWallet")}</h2>
           <p className="text-gray-400 mb-6">
-            Connect your Phantom wallet to start predicting and earn rewards.
+            {t("walletModalDesc")}
           </p>
 
           {/* Bonus CTA */}
           <div className="bg-gradient-to-r from-accent-500/10 to-green-500/10 border border-accent-500/30 rounded-xl p-4 mb-6">
             <div className="flex items-center justify-center gap-2 mb-1">
               <span className="text-2xl">🎁</span>
-              <span className="text-accent-400 font-bold text-lg">On-Chain Account Setup</span>
+              <span className="text-accent-400 font-bold text-lg">{t("onChainSetup")}</span>
             </div>
             <p className="text-gray-400 text-sm">
-              Create your Solana account and start predicting with real SOL!
+              {t("onChainSetupDesc")}
             </p>
           </div>
 
@@ -70,19 +72,19 @@ export default function WalletConnectModal({ isOpen, onClose }: Props) {
           <div className="mt-6 grid grid-cols-2 gap-3 text-left">
             <div className="flex items-start gap-2">
               <span className="text-green-400 mt-0.5 shrink-0">&#10003;</span>
-              <span className="text-xs text-gray-400">Devnet SOL airdrop</span>
+              <span className="text-xs text-gray-400">{t("devnetAirdrop")}</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-green-400 mt-0.5 shrink-0">&#10003;</span>
-              <span className="text-xs text-gray-400">Leaderboard rankings</span>
+              <span className="text-xs text-gray-400">{t("leaderboardRankings")}</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-green-400 mt-0.5 shrink-0">&#10003;</span>
-              <span className="text-xs text-gray-400">Create your own polls</span>
+              <span className="text-xs text-gray-400">{t("createOwnPolls")}</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-green-400 mt-0.5 shrink-0">&#10003;</span>
-              <span className="text-xs text-gray-400">Win from the pool</span>
+              <span className="text-xs text-gray-400">{t("winFromPool")}</span>
             </div>
           </div>
         </div>

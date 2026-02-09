@@ -7,6 +7,7 @@ import { shortAddr, timeAgo } from "@/lib/utils";
 import { useUserProfiles } from "@/lib/userProfiles";
 import { sanitizeComment } from "@/lib/sanitize";
 import toast from "react-hot-toast";
+import { useLanguage } from "@/lib/languageContext";
 
 type Comment = {
   id: string;
@@ -28,6 +29,7 @@ export default function PollComments({ pollId }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [cooldownEnd, setCooldownEnd] = useState(0);
+  const { t } = useLanguage();
 
   const COMMENT_COOLDOWN_MS = 30_000; // 30 seconds between comments
 
@@ -91,7 +93,7 @@ export default function PollComments({ pollId }: Props) {
     }
     if (!newComment.trim()) return;
     if (newComment.trim().length > 500) {
-      toast.error("Comment too long (max 500 chars)");
+      toast.error(t("commentTooLong"));
       return;
     }
 
@@ -125,7 +127,7 @@ export default function PollComments({ pollId }: Props) {
       setCooldownEnd(Date.now() + COMMENT_COOLDOWN_MS);
     } catch (e) {
       console.error("Failed to post comment:", e);
-      toast.error("Failed to post comment");
+      toast.error(t("failedToPostComment"));
     }
     setSubmitting(false);
   };
@@ -136,7 +138,7 @@ export default function PollComments({ pollId }: Props) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
         </svg>
-        Discussion ({comments.length})
+        {t("discussion")} ({comments.length})
       </h2>
 
       {/* Comment input */}
@@ -146,7 +148,7 @@ export default function PollComments({ pollId }: Props) {
             type="text"
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            placeholder={walletConnected ? "Share your thoughts..." : "Connect wallet to comment"}
+            placeholder={walletConnected ? t("shareThoughts") : t("connectWalletToComment")}
             disabled={!walletConnected}
             maxLength={500}
             className="flex-1 px-4 py-2.5 bg-dark-800 border border-gray-700 rounded-xl text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors placeholder-gray-600 disabled:opacity-50"
@@ -156,7 +158,7 @@ export default function PollComments({ pollId }: Props) {
             disabled={submitting || !newComment.trim() || !walletConnected}
             className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-xl text-sm font-medium transition-colors shrink-0"
           >
-            {submitting ? "..." : "Post"}
+            {submitting ? "..." : t("post")}
           </button>
         </div>
         {newComment.length > 400 && (
@@ -181,7 +183,7 @@ export default function PollComments({ pollId }: Props) {
         </div>
       ) : comments.length === 0 ? (
         <p className="text-gray-500 text-sm text-center py-6">
-          No comments yet. Be the first to share your thoughts!
+          {t("noCommentsYet")}
         </p>
       ) : (
         <div className="space-y-4 max-h-96 overflow-y-auto">

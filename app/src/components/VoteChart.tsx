@@ -1,6 +1,7 @@
 "use client";
 
 import { DemoPoll } from "@/components/Providers";
+import { useLanguage } from "@/lib/languageContext";
 
 type Props = {
   poll: DemoPoll;
@@ -10,14 +11,15 @@ const BAR_COLORS = ["#5c7cfa", "#f03e3e", "#ae3ec9", "#fd7e14", "#40c057", "#e64
 
 export default function VoteChart({ poll }: Props) {
   const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
+  const { t } = useLanguage();
   if (totalVotes === 0) return null;
 
   const maxVotes = Math.max(...poll.voteCounts);
   
   return (
     <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-6 sm:p-8 mb-6">
-      <h2 className="font-semibold text-lg mb-1">Vote Distribution</h2>
-      <p className="text-xs text-gray-500 mb-5">{totalVotes} total votes</p>
+      <h2 className="font-semibold text-lg mb-1">{t("voteDistribution")}</h2>
+      <p className="text-xs text-gray-500 mb-5">{totalVotes} {t("totalVotesLabel")}</p>
 
       {/* Horizontal Bar Chart */}
       <div className="space-y-4">
@@ -42,7 +44,7 @@ export default function VoteChart({ poll }: Props) {
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-xs">
-                  <span className="text-gray-400">{votes} votes</span>
+                    <span className="text-gray-400">{votes} {t("votesLabel")}</span>
                   <span className="font-bold" style={{ color }}>{pct.toFixed(1)}%</span>
                   <span className="text-accent-400 font-mono bg-accent-500/10 px-1.5 py-0.5 rounded">
                     {multiplier}x
@@ -103,7 +105,7 @@ export default function VoteChart({ poll }: Props) {
             {totalVotes}
           </text>
           <text x="60" y="72" textAnchor="middle" className="fill-gray-500" fontSize="10">
-            votes
+            {t("votesLabel")}
           </text>
         </svg>
 

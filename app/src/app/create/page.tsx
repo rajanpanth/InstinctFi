@@ -8,12 +8,15 @@ import { uploadPollImage } from "@/lib/uploadImage";
 import { sanitizeTitle, sanitizeDescription, sanitizeOptions } from "@/lib/sanitize";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/languageContext";
+import { tCat } from "@/lib/translations";
 
 const MAX_OPTIONS = 4;
 
 export default function CreatePollPage() {
   const { walletConnected, walletAddress, userAccount, createPoll, connectWallet } = useApp();
   const router = useRouter();
+  const { t, lang } = useLanguage();
 
   // ── Form state ──
   const [title, setTitle] = useState("");
@@ -56,9 +59,9 @@ export default function CreatePollPage() {
   if (!walletConnected) {
     return (
       <div className="text-center py-20">
-        <p className="text-gray-400 text-lg mb-4">Connect your Phantom wallet to create polls</p>
+        <p className="text-gray-400 text-lg mb-4">{t("connectWalletToCreate")}</p>
         <button onClick={connectWallet} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-semibold transition-colors">
-          Connect Phantom
+          {t("connectPhantom")}
         </button>
       </div>
     );
@@ -287,12 +290,12 @@ export default function CreatePollPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-2">Create a Poll</h1>
-      <p className="text-gray-500 text-sm mb-4">Set up a prediction market for others to vote on.</p>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-2">{t("createAPoll")}</h1>
+      <p className="text-gray-500 text-sm mb-4">{t("createPollSubtitle")}</p>
 
       {/* Quick Templates */}
       <div className="mb-6">
-        <p className="text-xs text-gray-500 mb-2">Quick start with a template:</p>
+        <p className="text-xs text-gray-500 mb-2">{t("quickStart")}</p>
         <div className="flex flex-wrap gap-2">
           {TEMPLATES.map((t) => (
             <button
@@ -311,7 +314,7 @@ export default function CreatePollPage() {
         {/* Main Poll Image (optional) */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
-            Poll Image <span className="text-gray-600">(optional)</span>
+            {t("pollImage")} <span className="text-gray-600">{t("optional")}</span>
           </label>
           <ImageUpload
             imagePreview={imagePreview}
@@ -324,7 +327,7 @@ export default function CreatePollPage() {
 
         {/* Title */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Poll Title</label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">{t("pollTitle")}</label>
           <input
             type="text"
             value={title}
@@ -338,7 +341,7 @@ export default function CreatePollPage() {
 
         {/* Description */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">{t("description")}</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -352,7 +355,7 @@ export default function CreatePollPage() {
 
         {/* Category */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">{t("category")}</label>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map((cat) => (
               <button
@@ -365,7 +368,7 @@ export default function CreatePollPage() {
                     : "bg-dark-700 text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600"
                 }`}
               >
-                {cat}
+                {tCat(cat, lang)}
               </button>
             ))}
           </div>
@@ -373,7 +376,7 @@ export default function CreatePollPage() {
 
         {/* Options */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Options (2-6)</label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">{t("options")} (2-6)</label>
           <div className="space-y-3">
             {options.map((opt, i) => (
               <div key={i} className="space-y-2">
@@ -431,7 +434,7 @@ export default function CreatePollPage() {
                             <rect x="3" y="3" width="18" height="18" rx="9" />
                             <path d="M12 8v8M8 12h8" />
                           </svg>
-                          <span className="text-xs text-gray-500">Add avatar</span>
+                          <span className="text-xs text-gray-500">{t("addAvatar")}</span>
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp"
@@ -462,7 +465,7 @@ export default function CreatePollPage() {
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M7 1v12M1 7h12" />
               </svg>
-              Add Option
+              {t("addOption")}
             </button>
           )}
         </div>
@@ -470,7 +473,7 @@ export default function CreatePollPage() {
         {/* Pricing */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Unit Price (SOL)</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">{t("unitPrice")}</label>
             <input
               type="number"
               value={unitPrice}
@@ -481,7 +484,7 @@ export default function CreatePollPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Duration (hours)</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">{t("duration")}</label>
             <input
               type="number"
               value={durationHours}
@@ -495,7 +498,7 @@ export default function CreatePollPage() {
 
         {/* Investment */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Creator Investment (SOL)</label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">{t("creatorInvestment")}</label>
           <input
             type="number"
             value={investment}
@@ -510,16 +513,16 @@ export default function CreatePollPage() {
         <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-6">
           <h3 className="font-semibold mb-4 text-gray-300 flex items-center gap-2">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent-400"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-            Tokenomics Preview
+            {t("tokenomicsPreview")}
           </h3>
           <div className="grid grid-cols-2 gap-2 sm:gap-3 text-sm">
-            <div className="text-gray-400">Pool Seed:</div>
+            <div className="text-gray-400">{t("poolSeed")}</div>
             <div className="text-right font-mono">{formatDollars(poolSeed)}</div>
-            <div className="text-gray-400">Platform Fee (1%):</div>
+            <div className="text-gray-400">{t("platformFee")}</div>
             <div className="text-right font-mono">{formatDollars(platformFee)}</div>
-            <div className="text-gray-400">Creator Reward (1%):</div>
+            <div className="text-gray-400">{t("creatorReward")}</div>
             <div className="text-right font-mono">{formatDollars(creatorReward)}</div>
-            <div className="text-gray-400 font-semibold border-t border-gray-700 pt-2">Total Investment:</div>
+            <div className="text-gray-400 font-semibold border-t border-gray-700 pt-2">{t("totalInvestment")}</div>
             <div className="text-right font-mono font-semibold border-t border-gray-700 pt-2">{formatDollars(investCents)}</div>
           </div>
         </div>
@@ -527,7 +530,7 @@ export default function CreatePollPage() {
         {/* Balance check */}
         {userAccount && (
           <div className="text-sm text-gray-400">
-            Your balance: <span className="text-accent-400 font-semibold">{formatDollars(userAccount.balance)}</span>
+            {t("yourBalance")} <span className="text-accent-400 font-semibold">{formatDollars(userAccount.balance)}</span>
           </div>
         )}
 
@@ -543,9 +546,9 @@ export default function CreatePollPage() {
         >
           {submitting
             ? imageUploading
-              ? "Uploading Images..."
-              : "Creating Poll..."
-            : "Create Poll"}
+              ? t("uploadingImages")
+              : t("creatingPoll")
+            : t("createPoll")}
         </button>
       </form>
     </div>
