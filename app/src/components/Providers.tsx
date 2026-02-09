@@ -342,6 +342,7 @@ export function Providers({ children }: { children: ReactNode }) {
           setWalletConnected(true);
 
           // Placeholder user for instant UI (only if not already in state from localStorage)
+          const isNewUser = !users.find(u => u.wallet === addr);
           setUsers(prev => {
             if (prev.find(u => u.wallet === addr)) return prev;
             return [...prev, {
@@ -357,9 +358,10 @@ export function Providers({ children }: { children: ReactNode }) {
             }];
           });
 
-          // Only fetch on-chain balance when on-chain mode is active
-          // In demo mode, balance is tracked locally and must not be overwritten
-          if (PROGRAM_DEPLOYED) {
+          // Fetch real devnet balance:
+          // - On-chain mode: always fetch
+          // - Demo mode: only for NEW users (first connect); existing users keep their tracked balance
+          if (PROGRAM_DEPLOYED || isNewUser) {
             getWalletBalance(resp.publicKey).then(bal => {
               setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
             }).catch(() => {});
@@ -388,6 +390,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
         // Immediately create a placeholder user so UI shows connected state
         // Only add if not already in state (preserves demo balance from localStorage)
+        const isNewUser = !users.find(u => u.wallet === addr);
         setUsers(prev => {
           if (prev.find(u => u.wallet === addr)) return prev;
           return [...prev, {
@@ -403,8 +406,10 @@ export function Providers({ children }: { children: ReactNode }) {
           }];
         });
 
-        // Only fetch on-chain balance in on-chain mode
-        if (PROGRAM_DEPLOYED) {
+        // Fetch real devnet balance:
+        // - On-chain mode: always fetch
+        // - Demo mode: only for NEW users (first connect); existing users keep their tracked balance
+        if (PROGRAM_DEPLOYED || isNewUser) {
           getWalletBalance(resp.publicKey).then(bal => {
             setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
           }).catch(() => {});
