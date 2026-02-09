@@ -225,12 +225,14 @@ export function Providers({ children }: { children: ReactNode }) {
               supabase.from("polls").select("*").order("created_at", { ascending: false }),
               supabase.from("votes").select("*"),
             ]);
-            if (pollsRes.data && pollsRes.data.length > 0) {
+            if (pollsRes.data) {
               const fetched = pollsRes.data.map(rowToDemoPoll);
               // Filter out polls that were recently deleted locally
               const filtered = deletedPollIds.current.size > 0
                 ? fetched.filter(p => !deletedPollIds.current.has(p.id))
                 : fetched;
+              // Always update — Supabase is the source of truth.
+              // An empty array means all polls were deleted; don't keep stale local data.
               setPolls(filtered);
             }
             if (votesRes.data) {
@@ -927,23 +929,47 @@ export function Providers({ children }: { children: ReactNode }) {
         // Mark as deleted so fetchAll won't resurrect it
         deletedPollIds.current.add(pollId);
 
-        // Delete votes + poll from Supabase to remove for all users
+        // Delete votes + poll from Supabase FIRST to ensure all users see the change
+        let supabaseDeleteOk = true;
         if (isSupabaseConfigured) {
           // Delete votes first (even though ON DELETE CASCADE exists, be explicit)
-          const votesRes = await supabase.from("votes").delete().eq("poll_id", pollId);
+          const votesRes = await supabase.from("votes").delete().eq("poll_id", pollId).select();
           if (votesRes.error) {
             console.warn("Failed to delete votes from Supabase:", votesRes.error);
           }
 
-          const pollRes = await supabase.from("polls").delete().eq("id", pollId);
+          // Delete poll and verify it was actually removed using .select()
+          const pollRes = await supabase.from("polls").delete().eq("id", pollId).select();
           if (pollRes.error) {
             console.error("Failed to delete poll from Supabase:", pollRes.error);
             // Retry once
-            const retry = await supabase.from("polls").delete().eq("id", pollId);
-            if (retry.error) {
-              console.error("Retry delete also failed:", retry.error);
-              toast.error("Poll removed locally but failed to sync. Other users may still see it.", { id: "delete-poll" });
+            const retry = await supabase.from("polls").delete().eq("id", pollId).select();
+            if (retry.error || !retry.data || retry.data.length === 0) {
+              // Check if the poll is actually gone already (maybe first attempt worked)
+              const checkRes = await supabase.from("polls").select("id").eq("id", pollId).single();
+              if (checkRes.data) {
+                // Poll still exists in Supabase — delete truly failed
+                supabaseDeleteOk = false;
+                console.error("Poll still exists in Supabase after delete attempts");
+              }
             }
+          } else if (!pollRes.data || pollRes.data.length === 0) {
+            // .delete() returned no error but deleted 0 rows — poll ID didn't match
+            // Verify if the poll actually exists
+            const checkRes = await supabase.from("polls").select("id").eq("id", pollId).single();
+            if (checkRes.data) {
+              // Poll exists but delete didn't match — likely an RLS or ID mismatch issue
+              supabaseDeleteOk = false;
+              console.error("Supabase delete returned 0 rows but poll still exists. Possible RLS issue.");
+            }
+            // else: poll doesn't exist (already deleted or never synced) — safe to proceed
+          }
+
+          if (!supabaseDeleteOk) {
+            // Rollback: remove from deleted tracking since Supabase still has it
+            deletedPollIds.current.delete(pollId);
+            toast.error("Failed to delete poll from database. Other users would still see it. Please check Supabase RLS policies or try again.", { id: "delete-poll" });
+            return false;
           }
         }
 
@@ -1024,8 +1050,8 @@ export function Providers({ children }: { children: ReactNode }) {
           }
         }
 
-        // Clear from deleted tracking after 30s (enough for all pending fetches to complete)
-        setTimeout(() => { deletedPollIds.current.delete(pollId); }, 30_000);
+        // Keep deleted tracking for 5 minutes (enough for all connected users to refresh)
+        setTimeout(() => { deletedPollIds.current.delete(pollId); }, 300_000);
 
         const refundTotal = poll.creatorInvestmentCents + pollVotes.reduce((s, v) => s + v.totalStakedCents, 0);
         toast.success(`Poll deleted! ${formatSOL(refundTotal)} refunded to ${Object.keys(
