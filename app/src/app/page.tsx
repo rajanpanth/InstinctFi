@@ -23,15 +23,16 @@ const TRENDING_WINDOWS: { key: TrendingWindow; label: string; ms: number }[] = [
 function getTrendingPolls(polls: DemoPoll[], limit = 6, windowMs = Infinity): DemoPoll[] {
   const now = Date.now();
   const ONE_DAY = 24 * 60 * 60 * 1000;
+  // createdAt is in seconds, convert to ms for comparison
   const cutoff = windowMs === Infinity ? 0 : now - windowMs;
   return [...polls]
-    .filter((p) => p.status === 0 && p.createdAt >= cutoff)
+    .filter((p) => p.status === 0 && p.createdAt * 1000 >= cutoff)
     .sort((a, b) => {
       const aVotes = a.voteCounts.reduce((s, v) => s + v, 0);
       const bVotes = b.voteCounts.reduce((s, v) => s + v, 0);
       // Time-weighted trending: recent polls with high votes score higher
-      const aAge = Math.max(1, (now - a.createdAt) / ONE_DAY);
-      const bAge = Math.max(1, (now - b.createdAt) / ONE_DAY);
+      const aAge = Math.max(1, (now - a.createdAt * 1000) / ONE_DAY);
+      const bAge = Math.max(1, (now - b.createdAt * 1000) / ONE_DAY);
       const aScore = aVotes / Math.pow(aAge, 0.8);
       const bScore = bVotes / Math.pow(bAge, 0.8);
       return bScore - aScore;
@@ -62,7 +63,7 @@ function HomeContent() {
   const { walletConnected, connectWallet, polls, userAccount, isLoading } = useApp();
   const searchParams = useSearchParams();
   const catFilter = searchParams.get("cat");
-  const [trendingWindow, setTrendingWindow] = useState<TrendingWindow>("24h");
+  const [trendingWindow, setTrendingWindow] = useState<TrendingWindow>("all");
   const { t, lang } = useLanguage();
 
   const windowMs = TRENDING_WINDOWS.find((w) => w.key === trendingWindow)?.ms ?? Infinity;
@@ -195,7 +196,7 @@ function HomeContent() {
             ))}
           </div>
         </section>
-      ) : trending.length > 0 ? (
+      ) : polls.length > 0 ? (
         <section>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-bold flex items-center gap-2">
@@ -222,11 +223,17 @@ function HomeContent() {
               </Link>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {trending.map((poll) => (
-              <PollCard key={poll.id} poll={poll} />
-            ))}
-          </div>
+          {trending.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {trending.map((poll) => (
+                <PollCard key={poll.id} poll={poll} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-500">
+              <p className="text-sm">No trending polls in this time window. Try a longer period.</p>
+            </div>
+          )}
         </section>
       ) : null}
 
