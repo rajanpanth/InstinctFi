@@ -154,6 +154,9 @@ export function Providers({ children }: { children: ReactNode }) {
   // Track recently created polls so fetchAll doesn't discard them before Supabase confirms
   const recentlyCreatedPolls = useRef<Map<string, { poll: DemoPoll; createdAt: number }>>(new Map());
 
+  // Track recently updated polls (votes, settles) so fetchAll uses optimistic data instead of stale Supabase data
+  const recentlyUpdatedPolls = useRef<Map<string, { poll: DemoPoll; updatedAt: number }>>(new Map());
+
   const userAccount = walletAddress
     ? users.find((u) => u.wallet === walletAddress) ?? null
     : null;
@@ -224,7 +227,21 @@ export function Providers({ children }: { children: ReactNode }) {
           }
         }
 
-        setPolls([...recentToKeep, ...onChainFiltered]);
+        // Apply optimistic overrides for recently updated polls (votes, settles)
+        const nowUpd = Date.now();
+        const mergedOnChain = onChainFiltered.map(p => {
+          const updated = recentlyUpdatedPolls.current.get(p.id);
+          if (updated) {
+            if (nowUpd - updated.updatedAt > RECENT_THRESHOLD_MS) {
+              recentlyUpdatedPolls.current.delete(p.id);
+              return p;
+            }
+            return updated.poll;
+          }
+          return p;
+        });
+
+        setPolls([...recentToKeep, ...mergedOnChain]);
         setUsers(usersWithBalances);
 
         // If wallet connected, fetch votes for current user
@@ -270,7 +287,21 @@ export function Providers({ children }: { children: ReactNode }) {
                 }
               }
 
-              setPolls([...recentToKeep, ...filtered]);
+              // Apply optimistic overrides for recently updated polls (votes, settles)
+              const nowUpd = Date.now();
+              const mergedFiltered = filtered.map(p => {
+                const updated = recentlyUpdatedPolls.current.get(p.id);
+                if (updated) {
+                  if (nowUpd - updated.updatedAt > RECENT_THRESHOLD_MS) {
+                    recentlyUpdatedPolls.current.delete(p.id);
+                    return p;
+                  }
+                  return updated.poll;
+                }
+                return p;
+              });
+
+              setPolls([...recentToKeep, ...mergedFiltered]);
             }
             if (votesRes.data) {
               setVotes(votesRes.data.map(rowToDemoVote));
@@ -1177,6 +1208,9 @@ export function Providers({ children }: { children: ReactNode }) {
         };
         setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
 
+        // Track as recently updated so fetchAll won't overwrite with stale data
+        recentlyUpdatedPolls.current.set(pollId, { poll: updatedPoll, updatedAt: Date.now() });
+
         if (existing) {
           const updatedVote: DemoVote = {
             ...existing,
@@ -1252,6 +1286,10 @@ export function Providers({ children }: { children: ReactNode }) {
               }).eq("id", pollId),
             ]);
 
+            // Supabase confirmed — clear optimistic tracking after a short delay
+            // to let any in-flight fetchAll complete
+            setTimeout(() => recentlyUpdatedPolls.current.delete(pollId), 5_000);
+
             // Sync user balance deduction (use ref for latest state)
             await new Promise(r => setTimeout(r, 50));
             const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
@@ -1281,6 +1319,7 @@ export function Providers({ children }: { children: ReactNode }) {
         // Rollback optimistic update on failure
         setPolls(prevPolls);
         setVotes(prevVotes);
+        recentlyUpdatedPolls.current.delete(pollId);
         console.error("Cast vote failed:", e);
         toast.error(friendlyErrorMessage(e, "Vote"), { id: "cast-vote" });
         return false;
@@ -1333,6 +1372,12 @@ export function Providers({ children }: { children: ReactNode }) {
           p.id === pollId ? { ...p, status: 1, winningOption: finalWinningOption } : p
         ));
 
+        // Track as recently updated so fetchAll won't overwrite with stale data
+        recentlyUpdatedPolls.current.set(pollId, {
+          poll: { ...poll, status: 1, winningOption: finalWinningOption },
+          updatedAt: Date.now(),
+        });
+
         // ── Credit creator reward ──
         // The creator gets their creatorRewardCents back on settlement
         if (poll.creatorRewardCents > 0) {
@@ -1372,6 +1417,8 @@ export function Providers({ children }: { children: ReactNode }) {
               status: 1,
               winning_option: finalWinningOption,
             }).eq("id", pollId);
+            // Supabase confirmed — clear optimistic tracking after delay
+            setTimeout(() => recentlyUpdatedPolls.current.delete(pollId), 5_000);
           } catch (e) {
             console.warn("Failed to sync settlement to Supabase:", e);
           }
@@ -1405,6 +1452,7 @@ export function Providers({ children }: { children: ReactNode }) {
       } catch (e: any) {
         // Rollback optimistic update
         setPolls(prevPolls);
+        recentlyUpdatedPolls.current.delete(pollId);
         console.error("Settle poll failed:", e);
         toast.error(friendlyErrorMessage(e, "Settlement"), { id: "settle-poll" });
         return false;
