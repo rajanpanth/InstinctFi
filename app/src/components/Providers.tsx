@@ -151,10 +151,10 @@ export function Providers({ children }: { children: ReactNode }) {
   // Track recently deleted poll IDs so fetchAll doesn't resurrect them
   const deletedPollIds = useRef<Set<string>>(new Set());
 
-  // Mutation cooldown: skip fetchAll for a few seconds after local mutations
-  // to prevent stale in-flight fetches from overwriting optimistic state
-  const lastMutationTs = useRef<number>(0);
-  const MUTATION_COOLDOWN_MS = 10_000; // 10 seconds
+  // Mutation generation counter: incremented on every local mutation (create/vote/settle/delete/edit).
+  // fetchAll captures the generation at start; if it changed by the time results arrive,
+  // the fetched data is stale and must be discarded.
+  const mutationGeneration = useRef<number>(0);
 
   const userAccount = walletAddress
     ? users.find((u) => u.wallet === walletAddress) ?? null
@@ -163,14 +163,12 @@ export function Providers({ children }: { children: ReactNode }) {
   // ── Fetch all on-chain data ──
   const fetchAll = useCallback(async () => {
     if (fetchingRef.current) return;
-
-    // Skip fetch if we recently did a local mutation (create/vote/settle/delete/edit)
-    // to prevent stale data from overwriting optimistic state
-    if (Date.now() - lastMutationTs.current < MUTATION_COOLDOWN_MS && initialFetchDone.current) {
-      return;
-    }
-
     fetchingRef.current = true;
+
+    // Capture generation at start — if a mutation happens while we're fetching,
+    // the generation will differ and we must discard the stale results.
+    const gen = mutationGeneration.current;
+
     try {
       if (PROGRAM_DEPLOYED) {
         // Fetch all polls from on-chain
@@ -218,11 +216,14 @@ export function Providers({ children }: { children: ReactNode }) {
           ? demoPolls.filter(p => !deletedPollIds.current.has(p.id))
           : demoPolls;
 
-        setPolls(onChainFiltered);
-        setUsers(usersWithBalances);
+        // Only apply if no mutations happened while we were fetching
+        if (gen === mutationGeneration.current) {
+          setPolls(onChainFiltered);
+          setUsers(usersWithBalances);
+        }
 
         // If wallet connected, fetch votes for current user
-        if (walletAddress) {
+        if (walletAddress && gen === mutationGeneration.current) {
           try {
             const userVotes = await fetchVotesForUser(new PublicKey(walletAddress));
             setVotes(userVotes.map(onChainVoteToDemo));
@@ -245,9 +246,12 @@ export function Providers({ children }: { children: ReactNode }) {
                 ? fetched.filter(p => !deletedPollIds.current.has(p.id))
                 : fetched;
 
-              setPolls(filtered);
+              // Only apply if no mutations happened while we were fetching
+              if (gen === mutationGeneration.current) {
+                setPolls(filtered);
+              }
             }
-            if (votesRes.data) {
+            if (votesRes.data && gen === mutationGeneration.current) {
               setVotes(votesRes.data.map(rowToDemoVote));
             }
           } catch (e) {
@@ -755,8 +759,8 @@ export function Providers({ children }: { children: ReactNode }) {
 
         setPolls(prev => [newPoll, ...prev]);
 
-        // Set mutation cooldown so fetchAll won't overwrite optimistic state
-        lastMutationTs.current = Date.now();
+        // Increment mutation generation so any in-flight fetchAll discards stale results
+        mutationGeneration.current++;
 
         // Save full poll to Supabase for cross-account sharing
         if (isSupabaseConfigured) {
@@ -858,8 +862,8 @@ export function Providers({ children }: { children: ReactNode }) {
       };
       setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
 
-      // Set mutation cooldown so fetchAll won't overwrite optimistic state
-      lastMutationTs.current = Date.now();
+      // Increment mutation generation so any in-flight fetchAll discards stale results
+      mutationGeneration.current++;
 
       try {
         if (PROGRAM_DEPLOYED) {
@@ -949,7 +953,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
         // Mark as deleted so fetchAll won't resurrect it
         deletedPollIds.current.add(pollId);
-        lastMutationTs.current = Date.now();
+        mutationGeneration.current++;
 
         // Delete votes + poll from Supabase FIRST to ensure all users see the change
         let supabaseDeleteOk = true;
@@ -1151,8 +1155,8 @@ export function Providers({ children }: { children: ReactNode }) {
         };
         setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
 
-        // Set mutation cooldown so fetchAll won't overwrite with stale data
-        lastMutationTs.current = Date.now();
+        // Increment mutation generation so any in-flight fetchAll discards stale results
+        mutationGeneration.current++;
 
         if (existing) {
           const updatedVote: DemoVote = {
@@ -1258,7 +1262,6 @@ export function Providers({ children }: { children: ReactNode }) {
         // Rollback optimistic update on failure
         setPolls(prevPolls);
         setVotes(prevVotes);
-        lastMutationTs.current = 0; // Allow fetchAll to run again
         console.error("Cast vote failed:", e);
         toast.error(friendlyErrorMessage(e, "Vote"), { id: "cast-vote" });
         return false;
@@ -1311,8 +1314,8 @@ export function Providers({ children }: { children: ReactNode }) {
           p.id === pollId ? { ...p, status: 1, winningOption: finalWinningOption } : p
         ));
 
-        // Set mutation cooldown so fetchAll won't overwrite with stale data
-        lastMutationTs.current = Date.now();
+        // Increment mutation generation so any in-flight fetchAll discards stale results
+        mutationGeneration.current++;
 
         // ── Credit creator reward ──
         // The creator gets their creatorRewardCents back on settlement
@@ -1386,7 +1389,6 @@ export function Providers({ children }: { children: ReactNode }) {
       } catch (e: any) {
         // Rollback optimistic update
         setPolls(prevPolls);
-        lastMutationTs.current = 0; // Allow fetchAll to run again
         console.error("Settle poll failed:", e);
         toast.error(friendlyErrorMessage(e, "Settlement"), { id: "settle-poll" });
         return false;
