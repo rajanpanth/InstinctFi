@@ -156,6 +156,12 @@ export function Providers({ children }: { children: ReactNode }) {
   // the fetched data is stale and must be discarded.
   const mutationGeneration = useRef<number>(0);
 
+  // Mutation cooldown: blocks NEW fetchAll calls for a period after a mutation.
+  // This prevents Supabase Realtime or interval-triggered fetches from applying
+  // stale/incomplete data before the mutation fully propagates.
+  const lastMutationTs = useRef<number>(0);
+  const MUTATION_COOLDOWN_MS = 10_000; // 10 seconds
+
   const userAccount = walletAddress
     ? users.find((u) => u.wallet === walletAddress) ?? null
     : null;
@@ -163,6 +169,13 @@ export function Providers({ children }: { children: ReactNode }) {
   // ── Fetch all on-chain data ──
   const fetchAll = useCallback(async () => {
     if (fetchingRef.current) return;
+
+    // Block new fetches during mutation cooldown to prevent stale data
+    // from Supabase Realtime or interval overwriting optimistic state
+    if (initialFetchDone.current && Date.now() - lastMutationTs.current < MUTATION_COOLDOWN_MS) {
+      return;
+    }
+
     fetchingRef.current = true;
 
     // Capture generation at start — if a mutation happens while we're fetching,
@@ -760,7 +773,9 @@ export function Providers({ children }: { children: ReactNode }) {
         setPolls(prev => [newPoll, ...prev]);
 
         // Increment mutation generation so any in-flight fetchAll discards stale results
+        // and set cooldown so new fetchAll calls are blocked until data propagates
         mutationGeneration.current++;
+        lastMutationTs.current = Date.now();
 
         // Save full poll to Supabase for cross-account sharing
         if (isSupabaseConfigured) {
@@ -862,8 +877,9 @@ export function Providers({ children }: { children: ReactNode }) {
       };
       setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
 
-      // Increment mutation generation so any in-flight fetchAll discards stale results
+      // Increment mutation generation + set cooldown
       mutationGeneration.current++;
+      lastMutationTs.current = Date.now();
 
       try {
         if (PROGRAM_DEPLOYED) {
@@ -954,6 +970,7 @@ export function Providers({ children }: { children: ReactNode }) {
         // Mark as deleted so fetchAll won't resurrect it
         deletedPollIds.current.add(pollId);
         mutationGeneration.current++;
+        lastMutationTs.current = Date.now();
 
         // Delete votes + poll from Supabase FIRST to ensure all users see the change
         let supabaseDeleteOk = true;
@@ -1155,8 +1172,9 @@ export function Providers({ children }: { children: ReactNode }) {
         };
         setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
 
-        // Increment mutation generation so any in-flight fetchAll discards stale results
+        // Increment mutation generation + set cooldown
         mutationGeneration.current++;
+        lastMutationTs.current = Date.now();
 
         if (existing) {
           const updatedVote: DemoVote = {
@@ -1314,8 +1332,9 @@ export function Providers({ children }: { children: ReactNode }) {
           p.id === pollId ? { ...p, status: 1, winningOption: finalWinningOption } : p
         ));
 
-        // Increment mutation generation so any in-flight fetchAll discards stale results
+        // Increment mutation generation + set cooldown
         mutationGeneration.current++;
+        lastMutationTs.current = Date.now();
 
         // ── Credit creator reward ──
         // The creator gets their creatorRewardCents back on settlement
