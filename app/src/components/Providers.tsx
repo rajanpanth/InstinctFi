@@ -217,7 +217,7 @@ export function Providers({ children }: { children: ReactNode }) {
         const RECENT_THRESHOLD_MS = 30_000;
         const onChainIds = new Set(onChainFiltered.map(p => p.id));
         const recentToKeep: DemoPoll[] = [];
-        for (const [id, entry] of recentlyCreatedPolls.current) {
+        recentlyCreatedPolls.current.forEach((entry, id) => {
           if (now - entry.createdAt > RECENT_THRESHOLD_MS) {
             recentlyCreatedPolls.current.delete(id);
           } else if (!onChainIds.has(id)) {
@@ -225,7 +225,7 @@ export function Providers({ children }: { children: ReactNode }) {
           } else {
             recentlyCreatedPolls.current.delete(id);
           }
-        }
+        });
 
         // Apply optimistic overrides for recently updated polls (votes, settles)
         const nowUpd = Date.now();
@@ -274,18 +274,15 @@ export function Providers({ children }: { children: ReactNode }) {
               const RECENT_THRESHOLD_MS = 30_000; // 30 seconds
               const fetchedIds = new Set(filtered.map(p => p.id));
               const recentToKeep: DemoPoll[] = [];
-              for (const [id, entry] of recentlyCreatedPolls.current) {
+              recentlyCreatedPolls.current.forEach((entry, id) => {
                 if (now - entry.createdAt > RECENT_THRESHOLD_MS) {
-                  // Expired — remove from tracking
                   recentlyCreatedPolls.current.delete(id);
                 } else if (!fetchedIds.has(id)) {
-                  // Not yet in Supabase — keep the optimistic version
                   recentToKeep.push(entry.poll);
                 } else {
-                  // Successfully in Supabase — stop tracking
                   recentlyCreatedPolls.current.delete(id);
                 }
-              }
+              });
 
               // Apply optimistic overrides for recently updated polls (votes, settles)
               const nowUpd = Date.now();
