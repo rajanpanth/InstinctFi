@@ -151,6 +151,9 @@ export function Providers({ children }: { children: ReactNode }) {
   // Track recently deleted poll IDs so fetchAll doesn't resurrect them
   const deletedPollIds = useRef<Set<string>>(new Set());
 
+  // Track recently created polls so fetchAll doesn't discard them before Supabase confirms
+  const recentlyCreatedPolls = useRef<Map<string, { poll: DemoPoll; createdAt: number }>>(new Map());
+
   const userAccount = walletAddress
     ? users.find((u) => u.wallet === walletAddress) ?? null
     : null;
@@ -202,10 +205,26 @@ export function Providers({ children }: { children: ReactNode }) {
           })
         );
 
-        setPolls(deletedPollIds.current.size > 0
+        const onChainFiltered = deletedPollIds.current.size > 0
           ? demoPolls.filter(p => !deletedPollIds.current.has(p.id))
-          : demoPolls
-        );
+          : demoPolls;
+
+        // Merge recently created polls not yet visible on-chain
+        const now = Date.now();
+        const RECENT_THRESHOLD_MS = 30_000;
+        const onChainIds = new Set(onChainFiltered.map(p => p.id));
+        const recentToKeep: DemoPoll[] = [];
+        for (const [id, entry] of recentlyCreatedPolls.current) {
+          if (now - entry.createdAt > RECENT_THRESHOLD_MS) {
+            recentlyCreatedPolls.current.delete(id);
+          } else if (!onChainIds.has(id)) {
+            recentToKeep.push(entry.poll);
+          } else {
+            recentlyCreatedPolls.current.delete(id);
+          }
+        }
+
+        setPolls([...recentToKeep, ...onChainFiltered]);
         setUsers(usersWithBalances);
 
         // If wallet connected, fetch votes for current user
@@ -231,9 +250,27 @@ export function Providers({ children }: { children: ReactNode }) {
               const filtered = deletedPollIds.current.size > 0
                 ? fetched.filter(p => !deletedPollIds.current.has(p.id))
                 : fetched;
-              // Always update — Supabase is the source of truth.
-              // An empty array means all polls were deleted; don't keep stale local data.
-              setPolls(filtered);
+
+              // Merge recently created polls that aren't yet in Supabase
+              // (prevents optimistic polls from disappearing due to race conditions)
+              const now = Date.now();
+              const RECENT_THRESHOLD_MS = 30_000; // 30 seconds
+              const fetchedIds = new Set(filtered.map(p => p.id));
+              const recentToKeep: DemoPoll[] = [];
+              for (const [id, entry] of recentlyCreatedPolls.current) {
+                if (now - entry.createdAt > RECENT_THRESHOLD_MS) {
+                  // Expired — remove from tracking
+                  recentlyCreatedPolls.current.delete(id);
+                } else if (!fetchedIds.has(id)) {
+                  // Not yet in Supabase — keep the optimistic version
+                  recentToKeep.push(entry.poll);
+                } else {
+                  // Successfully in Supabase — stop tracking
+                  recentlyCreatedPolls.current.delete(id);
+                }
+              }
+
+              setPolls([...recentToKeep, ...filtered]);
             }
             if (votesRes.data) {
               setVotes(votesRes.data.map(rowToDemoVote));
@@ -743,10 +780,21 @@ export function Providers({ children }: { children: ReactNode }) {
 
         setPolls(prev => [newPoll, ...prev]);
 
+        // Track as recently created so fetchAll won't discard it
+        recentlyCreatedPolls.current.set(newPoll.id, { poll: newPoll, createdAt: Date.now() });
+
         // Save full poll to Supabase for cross-account sharing
         if (isSupabaseConfigured) {
           try {
-            await supabase.from("polls").upsert(demoPollToRow(newPoll), { onConflict: "id" });
+            const { error: upsertError } = await supabase.from("polls").upsert(demoPollToRow(newPoll), { onConflict: "id" });
+            if (upsertError) {
+              console.error("Supabase poll upsert error:", upsertError);
+              // Poll stays in recentlyCreatedPolls so it won't vanish
+            } else {
+              // Successfully saved — clear from recently created after a short delay
+              // to allow any in-flight fetchAll to complete
+              setTimeout(() => recentlyCreatedPolls.current.delete(newPoll.id), 5_000);
+            }
           } catch (e) {
             console.warn("Failed to save poll to Supabase:", e);
           }
