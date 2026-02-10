@@ -35,3 +35,11 @@ yarn-error.log*
 # Misc
 *.tsbuildinfo
 next-env.d.ts
+
+# Anchor
+test-ledger/
+.anchor/
+
+# Lock files (optional — remove if you want to track them)
+# package-lock.json
+# yarn.lock
