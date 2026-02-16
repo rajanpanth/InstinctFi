@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Inter } from "next/font/google";
+import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
@@ -15,7 +15,12 @@ import { ReferralGate } from "@/lib/referrals";
 import { LanguageProvider } from "@/lib/languageContext";
 import { Toaster } from "react-hot-toast";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-heading",
+  weight: ["500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: {
@@ -57,10 +62,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className={`dark ${inter.variable} ${spaceGrotesk.variable}`}>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#6366f1" />
+        <meta name="theme-color" content="#0a0a0a" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -92,41 +97,41 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <LanguageProvider>
-        <WalletAdapterProvider>
-        <UserProfileProvider>
-        <NotificationProvider>
-        <BookmarkProvider>
-        <ReferralGate>
-        <Providers>
-          <LoadingScreen />
-          <Suspense fallback={null}>
-            <Navbar />
-          </Suspense>
-          {/* Spacer to push content below the fixed navbar */}
-          <div className="navbar-spacer" aria-hidden="true" />
-          <ErrorBoundary>
-            <main className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-28 md:pb-8 mobile-content-pad md:!pb-8">
-              <PageTransition>
-                {children}
-              </PageTransition>
-            </main>
-          </ErrorBoundary>
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              style: {
-                background: "#1a1b2e",
-                color: "#fff",
-                border: "1px solid #2d2e4a",
-              },
-            }}
-          />
-        </Providers>
-        </ReferralGate>
-        </BookmarkProvider>
-        </NotificationProvider>
-        </UserProfileProvider>
-        </WalletAdapterProvider>
+          <WalletAdapterProvider>
+            <UserProfileProvider>
+              <NotificationProvider>
+                <BookmarkProvider>
+                  <ReferralGate>
+                    <Providers>
+                      <LoadingScreen />
+                      <Suspense fallback={null}>
+                        <Navbar />
+                      </Suspense>
+                      <div className="navbar-spacer" aria-hidden="true" />
+                      <ErrorBoundary>
+                        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-8 mobile-content-pad md:!pb-8">
+                          <PageTransition>
+                            {children}
+                          </PageTransition>
+                        </main>
+                      </ErrorBoundary>
+                      <Toaster
+                        position="bottom-right"
+                        toastOptions={{
+                          style: {
+                            background: "#161616",
+                            color: "#e5e5e5",
+                            border: "1px solid #222",
+                            fontSize: "14px",
+                          },
+                        }}
+                      />
+                    </Providers>
+                  </ReferralGate>
+                </BookmarkProvider>
+              </NotificationProvider>
+            </UserProfileProvider>
+          </WalletAdapterProvider>
         </LanguageProvider>
       </body>
     </html>

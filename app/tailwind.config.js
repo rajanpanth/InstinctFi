@@ -8,38 +8,42 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        heading: ["var(--font-heading)", "system-ui", "sans-serif"],
+      },
       colors: {
-        primary: {
-          50: "#f0f4ff",
-          100: "#dbe4ff",
-          200: "#bac8ff",
-          300: "#91a7ff",
-          400: "#748ffc",
-          500: "#5c7cfa",
-          600: "#4c6ef5",
-          700: "#4263eb",
-          800: "#3b5bdb",
-          900: "#364fc7",
+        brand: {
+          50: "#f0fdfa",
+          100: "#ccfbf1",
+          200: "#99f6e4",
+          300: "#5eead4",
+          400: "#2dd4bf",
+          500: "#14b8a6",
+          600: "#0d9488",
+          700: "#0f766e",
+          800: "#115e59",
+          900: "#134e4a",
         },
-        accent: {
-          400: "#ffd43b",
-          500: "#fcc419",
-          600: "#fab005",
+        surface: {
+          0: "#0a0a0a",
+          50: "#111111",
+          100: "#161616",
+          200: "#1c1c1c",
+          300: "#222222",
+          400: "#2a2a2a",
+          500: "#333333",
         },
-        dark: {
-          700: "#1a1b2e",
-          800: "#13142b",
-          900: "#0d0e24",
+        border: {
+          DEFAULT: "#222222",
+          light: "#2a2a2a",
+          hover: "#333333",
         },
       },
       animation: {
         fadeIn: "fadeIn 0.2s ease-out",
-        scaleIn: "scaleIn 0.25s ease-out",
+        scaleIn: "scaleIn 0.2s ease-out",
         slideUp: "slideUp 0.3s ease-out",
         shimmer: "shimmer 1.5s infinite ease-in-out",
-        countdownPulse: "countdownPulse 1s ease-in-out infinite",
-        float: "float 6s ease-in-out infinite",
-        glow: "glow 2s ease-in-out infinite alternate",
       },
       keyframes: {
         fadeIn: {
@@ -47,32 +51,17 @@ module.exports = {
           to: { opacity: "1" },
         },
         scaleIn: {
-          from: { opacity: "0", transform: "scale(0.95) translateY(8px)" },
-          to: { opacity: "1", transform: "scale(1) translateY(0)" },
+          from: { opacity: "0", transform: "scale(0.97)" },
+          to: { opacity: "1", transform: "scale(1)" },
         },
         slideUp: {
-          from: { opacity: "0", transform: "translateY(10px)" },
+          from: { opacity: "0", transform: "translateY(8px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
         shimmer: {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
-        countdownPulse: {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.6" },
-        },
-        float: {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-6px)" },
-        },
-        glow: {
-          from: { boxShadow: "0 0 10px rgba(99, 102, 241, 0.15)" },
-          to: { boxShadow: "0 0 20px rgba(99, 102, 241, 0.3), 0 0 40px rgba(99, 102, 241, 0.1)" },
-        },
-      },
-      borderRadius: {
-        "3xl": "1.5rem",
       },
     },
   },

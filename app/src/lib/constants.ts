@@ -35,7 +35,7 @@ export const CATEGORY_META: {
   borderColor?: string; // accent border for cards
 }[] = [
   { label: "Trending", icon: "🔥", color: "text-orange-400", bgGradient: "from-orange-600/20 to-red-600/20", borderColor: "border-orange-500/30" },
-  { label: "Politics", icon: "🏛️", color: "text-blue-400", bgGradient: "from-blue-600/20 to-indigo-600/20", borderColor: "border-blue-500/30" },
+  { label: "Politics", icon: "🏛️", color: "text-blue-400", bgGradient: "from-blue-600/20 to-brand-600/20", borderColor: "border-blue-500/30" },
   { label: "Sports", icon: "⚽", color: "text-green-400", bgGradient: "from-green-600/20 to-emerald-600/20", borderColor: "border-green-500/30" },
   { label: "Culture", icon: "🎭", color: "text-pink-400", bgGradient: "from-pink-600/20 to-rose-600/20", borderColor: "border-pink-500/30" },
   { label: "Crypto", icon: "◎", color: "text-purple-500", bgGradient: "from-purple-600/20 to-violet-600/20", borderColor: "border-purple-500/30" },
@@ -45,7 +45,7 @@ export const CATEGORY_META: {
   { label: "Tech", icon: "💻", color: "text-cyan-400", bgGradient: "from-cyan-600/20 to-sky-600/20", borderColor: "border-cyan-500/30" },
   { label: "Entertainment", icon: "🎬", color: "text-pink-400", bgGradient: "from-pink-600/20 to-purple-600/20", borderColor: "border-pink-500/30" },
   { label: "Mentions", icon: "💬", color: "text-sky-400", bgGradient: "from-sky-600/20 to-blue-600/20", borderColor: "border-sky-500/30" },
-  { label: "Companies", icon: "🏢", color: "text-indigo-400", bgGradient: "from-indigo-600/20 to-blue-600/20", borderColor: "border-indigo-500/30" },
+  { label: "Companies", icon: "🏢", color: "text-brand-400", bgGradient: "from-indigo-600/20 to-blue-600/20", borderColor: "border-brand-500/20" },
   { label: "Financials", icon: "💰", color: "text-yellow-400", bgGradient: "from-yellow-600/20 to-amber-600/20", borderColor: "border-yellow-500/30" },
   { label: "Other", icon: "📋", color: "text-gray-400", bgGradient: "from-gray-600/20 to-slate-600/20", borderColor: "border-gray-500/30" },
 ];

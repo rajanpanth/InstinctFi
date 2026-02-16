@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useApp, formatDollars, type DemoPoll } from "@/components/Providers";
+import { useApp, formatDollars, type DemoPoll, PollStatus } from "@/components/Providers";
 import { isAdminWallet } from "@/lib/constants";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import toast from "react-hot-toast";
@@ -17,7 +17,7 @@ function loadProofs(): ResolutionProofs {
 }
 
 function saveProofsLocal(proofs: ResolutionProofs) {
-  try { localStorage.setItem("instinctfi_resolution_proofs", JSON.stringify(proofs)); } catch {}
+  try { localStorage.setItem("instinctfi_resolution_proofs", JSON.stringify(proofs)); } catch { }
 }
 
 export default function AdminPage() {
@@ -52,13 +52,13 @@ export default function AdminPage() {
     // Filter by tab
     switch (tab) {
       case "ended":
-        list = list.filter(p => p.status === 0 && now >= p.endTime);
+        list = list.filter(p => p.status === PollStatus.Active && now >= p.endTime);
         break;
       case "active":
-        list = list.filter(p => p.status === 0 && now < p.endTime);
+        list = list.filter(p => p.status === PollStatus.Active && now < p.endTime);
         break;
       case "settled":
-        list = list.filter(p => p.status === 1);
+        list = list.filter(p => p.status === PollStatus.Settled);
         break;
       case "all":
         break;
@@ -76,8 +76,8 @@ export default function AdminPage() {
 
     // Sort: ended unsettled first, then by created date desc
     list.sort((a, b) => {
-      const aEnded = a.status === 0 && now >= a.endTime;
-      const bEnded = b.status === 0 && now >= b.endTime;
+      const aEnded = a.status === PollStatus.Active && now >= a.endTime;
+      const bEnded = b.status === PollStatus.Active && now >= b.endTime;
       if (aEnded && !bEnded) return -1;
       if (!aEnded && bEnded) return 1;
       return b.createdAt - a.createdAt;
@@ -137,9 +137,9 @@ export default function AdminPage() {
 
   const totalPool = polls.reduce((s, p) => s + p.totalPoolCents, 0);
   const totalVoters = polls.reduce((s, p) => s + p.totalVoters, 0);
-  const endedUnsettled = polls.filter(p => p.status === 0 && now >= p.endTime).length;
-  const activeCount = polls.filter(p => p.status === 0 && now < p.endTime).length;
-  const settledCount = polls.filter(p => p.status === 1).length;
+  const endedUnsettled = polls.filter(p => p.status === PollStatus.Active && now >= p.endTime).length;
+  const activeCount = polls.filter(p => p.status === PollStatus.Active && now < p.endTime).length;
+  const settledCount = polls.filter(p => p.status === PollStatus.Settled).length;
 
   if (!walletConnected) {
     return (
@@ -190,9 +190,9 @@ export default function AdminPage() {
           { label: "Active", value: activeCount, color: "text-green-400" },
           { label: "Needs Settlement", value: endedUnsettled, color: "text-red-400" },
           { label: "Settled", value: settledCount, color: "text-blue-400" },
-          { label: "Total Pool", value: formatDollars(totalPool), color: "text-accent-400" },
+          { label: "Total Pool", value: formatDollars(totalPool), color: "text-brand-400" },
         ].map(stat => (
-          <div key={stat.label} className="bg-dark-800 border border-gray-700/50 rounded-xl p-3 text-center">
+          <div key={stat.label} className="bg-surface-50 border border-border rounded-xl p-3 text-center">
             <div className={`text-lg font-bold ${stat.color}`}>{stat.value}</div>
             <div className="text-xs text-gray-500">{stat.label}</div>
           </div>
@@ -201,16 +201,15 @@ export default function AdminPage() {
 
       {/* Tabs + Search */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <div className="flex bg-dark-800 border border-gray-700/50 rounded-lg p-0.5">
+        <div className="flex bg-surface-50 border border-border rounded-lg p-0.5">
           {(["ended", "active", "settled", "all"] as TabFilter[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${
-                tab === t
-                  ? t === "ended" ? "bg-red-600/20 text-red-400" : "bg-primary-600/20 text-primary-400"
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${tab === t
+                  ? t === "ended" ? "bg-red-600/20 text-red-400" : "bg-brand-600/20 text-brand-400"
                   : "text-gray-400 hover:text-white"
-              }`}
+                }`}
             >
               {t === "ended" ? `Ended (${endedUnsettled})` : t}
             </button>
@@ -221,7 +220,7 @@ export default function AdminPage() {
           placeholder="Search polls..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full sm:w-64 px-3 py-2 bg-dark-800 border border-gray-700/50 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500/50"
+          className="w-full sm:w-64 px-3 py-2 bg-surface-50 border border-border rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500/50"
         />
       </div>
 
@@ -236,8 +235,8 @@ export default function AdminPage() {
 
         {filteredPolls.map(poll => {
           const isEnded = now >= poll.endTime;
-          const isSettled = poll.status === 1;
-          const needsSettlement = poll.status === 0 && isEnded;
+          const isSettled = poll.status === PollStatus.Settled;
+          const needsSettlement = poll.status === PollStatus.Active && isEnded;
           const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
           const pollVoters = getVotersForPoll(poll.id);
           const highestIdx = poll.voteCounts.indexOf(Math.max(...poll.voteCounts));
@@ -245,26 +244,24 @@ export default function AdminPage() {
           return (
             <div
               key={poll.id}
-              className={`bg-dark-800 border rounded-xl p-4 transition-colors ${
-                needsSettlement
+              className={`bg-surface-50 border rounded-xl p-4 transition-colors ${needsSettlement
                   ? "border-red-500/40 bg-red-500/5"
                   : isSettled
-                  ? "border-green-500/30"
-                  : "border-gray-700/50"
-              }`}
+                    ? "border-green-500/30"
+                    : "border-border"
+                }`}
             >
               {/* Poll header */}
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold text-white truncate">{poll.title}</h3>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                      needsSettlement
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${needsSettlement
                         ? "bg-red-500/20 text-red-400"
                         : isSettled
-                        ? "bg-green-500/20 text-green-400"
-                        : "bg-blue-500/20 text-blue-400"
-                    }`}>
+                          ? "bg-green-500/20 text-green-400"
+                          : "bg-blue-500/20 text-blue-400"
+                      }`}>
                       {needsSettlement ? "⏰ NEEDS SETTLEMENT" : isSettled ? "✓ SETTLED" : "● ACTIVE"}
                     </span>
                     {poll.category && (
@@ -306,30 +303,27 @@ export default function AdminPage() {
                       <button
                         disabled={isSettled || !needsSettlement}
                         onClick={() => setSelectedWinners(prev => ({ ...prev, [poll.id]: i }))}
-                        className={`w-full text-left relative overflow-hidden rounded-lg px-3 py-2 border transition-all ${
-                          isWinner
+                        className={`w-full text-left relative overflow-hidden rounded-lg px-3 py-2 border transition-all ${isWinner
                             ? "border-green-500/60 bg-green-500/10"
                             : isSelected
-                            ? "border-primary-500/60 bg-primary-500/10 ring-1 ring-primary-500/30"
-                            : needsSettlement
-                            ? "border-gray-600/50 hover:border-gray-500/70 cursor-pointer"
-                            : "border-gray-700/30"
-                        }`}
+                              ? "border-brand-500/60 bg-brand-500/10 ring-1 ring-brand-500/30"
+                              : needsSettlement
+                                ? "border-gray-600/50 hover:border-gray-500/70 cursor-pointer"
+                                : "border-border/30"
+                          }`}
                       >
                         {/* Progress bar background */}
                         <div
-                          className={`absolute inset-0 opacity-15 ${
-                            isWinner ? "bg-green-500" : isSelected ? "bg-primary-500" : "bg-gray-500"
-                          }`}
+                          className={`absolute inset-0 opacity-15 ${isWinner ? "bg-green-500" : isSelected ? "bg-brand-500" : "bg-gray-500"
+                            }`}
                           style={{ width: `${pct}%` }}
                         />
 
                         <div className="relative flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {needsSettlement && (
-                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                                isSelected ? "border-primary-500 bg-primary-500" : "border-gray-500"
-                              }`}>
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? "border-brand-500 bg-brand-500" : "border-gray-500"
+                                }`}>
                                 {isSelected && (
                                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                                     <polyline points="20 6 9 17 4 12" />
@@ -362,7 +356,7 @@ export default function AdminPage() {
 
               {/* Action buttons */}
               {needsSettlement && (
-                <div className="space-y-2 pt-2 border-t border-gray-700/30">
+                <div className="space-y-2 pt-2 border-t border-border/30">
                   {/* Resolution source URL */}
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-gray-500 shrink-0">🔗 Source:</label>
@@ -371,58 +365,57 @@ export default function AdminPage() {
                       placeholder="Resolution proof URL (optional)"
                       value={resolutionSources[poll.id] || ""}
                       onChange={(e) => setResolutionSources((prev) => ({ ...prev, [poll.id]: e.target.value }))}
-                      className="flex-1 bg-dark-800 border border-gray-700/50 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-primary-500/50"
+                      className="flex-1 bg-surface-50 border border-border rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-brand-500/50"
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleSettle(poll.id)}
-                    disabled={settlingId === poll.id || selectedWinners[poll.id] === undefined}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                      selectedWinners[poll.id] !== undefined
-                        ? "bg-gradient-to-r from-primary-600 to-accent-600 hover:from-primary-500 hover:to-accent-500 text-white"
-                        : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
-                    }`}
-                  >
-                    {settlingId === poll.id ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Settling...
-                      </span>
-                    ) : selectedWinners[poll.id] !== undefined ? (
-                      `✓ Settle → "${poll.options[selectedWinners[poll.id]]}"`
-                    ) : (
-                      "Select a winner above"
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleAutoSettle(poll.id)}
-                    disabled={settlingId === poll.id || totalVotes === 0}
-                    className="px-3 py-2 bg-dark-700 hover:bg-dark-600 border border-gray-600/50 rounded-lg text-sm text-gray-300 transition-colors disabled:opacity-40"
-                    title="Auto-settle by highest votes"
-                  >
-                    ⚡ Auto (highest votes)
-                  </button>
-                  <button
-                    onClick={() => setEditingPoll(poll)}
-                    className="px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg text-sm text-blue-400 transition-colors"
-                  >
-                    ✏️ Edit
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (confirm("Delete this poll? This cannot be undone.")) {
-                        await deletePoll(poll.id);
-                      }
-                    }}
-                    disabled={settlingId === poll.id}
-                    className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-sm text-red-400 transition-colors ml-auto"
-                  >
-                    🗑 Delete
-                  </button>
+                    <button
+                      onClick={() => handleSettle(poll.id)}
+                      disabled={settlingId === poll.id || selectedWinners[poll.id] === undefined}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${selectedWinners[poll.id] !== undefined
+                          ? "bg-brand-500 hover:bg-brand-600 text-white"
+                          : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
+                        }`}
+                    >
+                      {settlingId === poll.id ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Settling...
+                        </span>
+                      ) : selectedWinners[poll.id] !== undefined ? (
+                        `✓ Settle → "${poll.options[selectedWinners[poll.id]]}"`
+                      ) : (
+                        "Select a winner above"
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleAutoSettle(poll.id)}
+                      disabled={settlingId === poll.id || totalVotes === 0}
+                      className="px-3 py-2 bg-surface-100 hover:bg-dark-600 border border-gray-600/50 rounded-lg text-sm text-gray-300 transition-colors disabled:opacity-40"
+                      title="Auto-settle by highest votes"
+                    >
+                      ⚡ Auto (highest votes)
+                    </button>
+                    <button
+                      onClick={() => setEditingPoll(poll)}
+                      className="px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg text-sm text-blue-400 transition-colors"
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (confirm("Delete this poll? This cannot be undone.")) {
+                          await deletePoll(poll.id);
+                        }
+                      }}
+                      disabled={settlingId === poll.id}
+                      className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-sm text-red-400 transition-colors ml-auto"
+                    >
+                      🗑 Delete
+                    </button>
                   </div>
                 </div>
               )}
@@ -435,7 +428,7 @@ export default function AdminPage() {
                     href={proofs[poll.id]}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary-400 hover:text-primary-300 underline underline-offset-2 truncate max-w-xs"
+                    className="text-brand-400 hover:text-brand-300 underline underline-offset-2 truncate max-w-xs"
                   >
                     {proofs[poll.id]}
                   </a>
@@ -444,7 +437,7 @@ export default function AdminPage() {
 
               {/* Admin actions for active polls */}
               {!isSettled && !needsSettlement && (
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-700/30">
+                <div className="flex items-center gap-2 pt-2 border-t border-border/30">
                   <button
                     onClick={() => setEditingPoll(poll)}
                     className="px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg text-sm text-blue-400 transition-colors"
@@ -466,7 +459,7 @@ export default function AdminPage() {
 
               {/* Admin actions for settled polls */}
               {isSettled && (
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-700/30">
+                <div className="flex items-center gap-2 pt-2 border-t border-border/30">
                   <span className="text-xs text-gray-500">Winner:</span>
                   <span className="text-sm text-green-400 font-semibold">
                     🏆 {poll.winningOption < poll.options.length ? poll.options[poll.winningOption] : "None"}
@@ -503,21 +496,20 @@ export default function AdminPage() {
                   </summary>
                   <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
                     {pollVoters.map((v, vi) => (
-                      <div key={vi} className="flex items-center justify-between text-xs bg-dark-900/50 rounded-lg px-3 py-1.5">
+                      <div key={vi} className="flex items-center justify-between text-xs bg-surface-0/50 rounded-lg px-3 py-1.5">
                         <span className="text-gray-400 font-mono">
                           {v.voter.slice(0, 4)}...{v.voter.slice(-4)}
                         </span>
                         <div className="flex items-center gap-3">
                           {v.votesPerOption.map((count, oi) => (
                             count > 0 && (
-                              <span key={oi} className={`${
-                                isSettled && poll.winningOption === oi ? "text-green-400" : "text-gray-500"
-                              }`}>
+                              <span key={oi} className={`${isSettled && poll.winningOption === oi ? "text-green-400" : "text-gray-500"
+                                }`}>
                                 {poll.options[oi]}: {count}
                               </span>
                             )
                           ))}
-                          <span className="text-accent-400">{formatDollars(v.totalStakedCents)}</span>
+                          <span className="text-brand-400">{formatDollars(v.totalStakedCents)}</span>
                           {v.claimed && <span className="text-green-500">✓ claimed</span>}
                         </div>
                       </div>
@@ -592,7 +584,7 @@ function AdminEditModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div
-        className="bg-dark-800 border border-gray-700/50 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4"
+        className="bg-surface-50 border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -606,7 +598,7 @@ function AdminEditModal({
           <input
             value={title}
             onChange={e => setTitle(e.target.value)}
-            className="w-full px-3 py-2 bg-dark-900 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
           />
         </div>
 
@@ -617,7 +609,7 @@ function AdminEditModal({
             value={description}
             onChange={e => setDescription(e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 bg-dark-900 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50 resize-none"
+            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50 resize-none"
           />
         </div>
 
@@ -627,7 +619,7 @@ function AdminEditModal({
           <input
             value={category}
             onChange={e => setCategory(e.target.value)}
-            className="w-full px-3 py-2 bg-dark-900 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
           />
         </div>
 
@@ -637,7 +629,7 @@ function AdminEditModal({
           <input
             value={imageUrl}
             onChange={e => setImageUrl(e.target.value)}
-            className="w-full px-3 py-2 bg-dark-900 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
             placeholder="https://..."
           />
         </div>
@@ -656,7 +648,7 @@ function AdminEditModal({
                     next[i] = e.target.value;
                     setOptions(next);
                   }}
-                  className="flex-1 px-3 py-2 bg-dark-900 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+                  className="flex-1 px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
                 />
               </div>
             ))}
@@ -670,7 +662,7 @@ function AdminEditModal({
             type="datetime-local"
             value={endDate}
             onChange={e => setEndDate(e.target.value)}
-            className="w-full px-3 py-2 bg-dark-900 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
           />
         </div>
 
@@ -678,13 +670,13 @@ function AdminEditModal({
         <div className="flex items-center gap-3 pt-2">
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-accent-600 hover:from-primary-500 hover:to-accent-500 rounded-lg text-sm font-semibold text-white transition-all"
+            className="flex-1 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 rounded-lg text-sm font-semibold text-white transition-all"
           >
             Save Changes
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2.5 bg-dark-700 hover:bg-dark-600 border border-gray-600/50 rounded-lg text-sm text-gray-300 transition-colors"
+            className="px-4 py-2.5 bg-surface-100 hover:bg-dark-600 border border-gray-600/50 rounded-lg text-sm text-gray-300 transition-colors"
           >
             Cancel
           </button>

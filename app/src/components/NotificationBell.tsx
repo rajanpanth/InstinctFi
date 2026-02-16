@@ -43,7 +43,7 @@ export default function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-dark-700 border border-gray-700 hover:bg-dark-600 transition-colors"
+        className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-surface-100 border border-border hover:bg-dark-600 transition-colors"
         aria-label="Notifications"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
@@ -58,15 +58,15 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 max-h-96 bg-dark-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-scaleIn">
+        <div className="absolute right-0 top-full mt-2 w-80 max-h-96 bg-surface-50 border border-border rounded-xl shadow-2xl overflow-hidden z-50 animate-scaleIn">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/50">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h3 className="text-sm font-semibold">Notifications</h3>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="text-[10px] text-primary-400 hover:text-primary-300 font-medium"
+                  className="text-[10px] text-brand-400 hover:text-brand-300 font-medium"
                 >
                   Mark all read
                 </button>
@@ -93,8 +93,8 @@ export default function NotificationBell() {
                 <div
                   key={n.id}
                   onClick={() => markAsRead(n.id)}
-                  className={`flex gap-3 px-4 py-3 hover:bg-dark-700/50 transition-colors cursor-pointer border-b border-gray-800/30 ${
-                    !n.read ? "bg-primary-600/5" : ""
+                  className={`flex gap-3 px-4 py-3 hover:bg-surface-100 transition-colors cursor-pointer border-b border-border/30 ${
+                    !n.read ? "bg-brand-600/5" : ""
                   }`}
                 >
                   <span className="text-lg shrink-0">{notifIcon(n.type)}</span>
@@ -110,14 +110,14 @@ export default function NotificationBell() {
                       <Link
                         href={`/polls/${n.pollId}`}
                         onClick={(e) => { e.stopPropagation(); setOpen(false); }}
-                        className="text-[10px] text-primary-400 hover:text-primary-300 mt-1 inline-block"
+                        className="text-[10px] text-brand-400 hover:text-brand-300 mt-1 inline-block"
                       >
                         View poll &rarr;
                       </Link>
                     )}
                   </div>
                   {!n.read && (
-                    <div className="w-2 h-2 rounded-full bg-primary-500 shrink-0 mt-1" />
+                    <div className="w-2 h-2 rounded-full bg-brand-500 shrink-0 mt-1" />
                   )}
                 </div>
               ))

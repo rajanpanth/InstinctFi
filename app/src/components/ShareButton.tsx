@@ -61,7 +61,7 @@ export default function ShareButton({ pollId, pollTitle, compact = false }: Prop
     <div className="relative">
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="flex items-center gap-2 px-4 py-2 bg-dark-700 hover:bg-dark-600 border border-gray-700 rounded-xl text-sm font-medium text-gray-300 transition-colors"
+        className="flex items-center gap-2 px-4 py-2 bg-surface-100 hover:bg-dark-600 border border-border rounded-xl text-sm font-medium text-gray-300 transition-colors"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="18" cy="5" r="3" />
@@ -77,10 +77,10 @@ export default function ShareButton({ pollId, pollTitle, compact = false }: Prop
         <>
           {/* Backdrop to close menu */}
           <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-          <div className="absolute right-0 top-full mt-2 z-50 bg-dark-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden min-w-[180px] animate-scaleIn">
+          <div className="absolute right-0 top-full mt-2 z-50 bg-surface-50 border border-border rounded-xl shadow-xl overflow-hidden min-w-[180px] animate-scaleIn">
             <button
               onClick={handleCopyLink}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-dark-700 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-surface-100 transition-colors"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -90,7 +90,7 @@ export default function ShareButton({ pollId, pollTitle, compact = false }: Prop
             </button>
             <button
               onClick={handleTwitter}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-dark-700 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-surface-100 transition-colors"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -99,7 +99,7 @@ export default function ShareButton({ pollId, pollTitle, compact = false }: Prop
             </button>
             <button
               onClick={handleCopyEmbed}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-dark-700 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-surface-100 transition-colors"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="16 18 22 12 16 6" />

@@ -15,6 +15,16 @@ export const CENTS = SOL_UNIT;
 /** Maximum coins a single user can stake on one poll */
 export const MAX_COINS_PER_POLL = 100;
 
+// ─── Enums for type safety ──────────────────────────────────────────────────
+/** Poll lifecycle status */
+export enum PollStatus {
+  Active = 0,
+  Settled = 1,
+}
+
+/** Sentinel value when no winning option has been determined */
+export const WINNING_OPTION_UNSET = 255;
+
 /** Format lamports → "X.XXXX SOL" */
 export const formatDollars = formatSOL;
 export const formatDollarsShort = formatSOLShort;

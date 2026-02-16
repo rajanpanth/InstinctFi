@@ -12,7 +12,7 @@ export default function LanguageToggle() {
   return (
     <button
       onClick={toggleLang}
-      className="h-8 px-1.5 flex items-center gap-0.5 rounded-lg hover:bg-dark-700 transition-colors text-gray-400 hover:text-white select-none"
+      className="h-8 px-1.5 flex items-center gap-0.5 rounded-lg hover:bg-surface-100 transition-colors text-gray-400 hover:text-white select-none"
       title={lang === "en" ? "नेपालीमा परिवर्तन गर्नुहोस्" : "Switch to English"}
       aria-label={lang === "en" ? "Switch to Nepali" : "Switch to English"}
     >

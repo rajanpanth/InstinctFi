@@ -76,7 +76,7 @@ export default function ImageUpload({
   if (imagePreview) {
     return (
       <div className="relative group">
-        <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-gray-700 bg-dark-800">
+        <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-border bg-surface-50">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imagePreview}
@@ -85,9 +85,9 @@ export default function ImageUpload({
           />
           {/* Uploading overlay */}
           {uploading && (
-            <div className="absolute inset-0 bg-dark-900/70 flex items-center justify-center">
+            <div className="absolute inset-0 bg-surface-0/70 flex items-center justify-center">
               <div className="flex flex-col items-center gap-2">
-                <div className="w-8 h-8 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
                 <span className="text-sm text-gray-300">Uploading...</span>
               </div>
             </div>
@@ -97,7 +97,7 @@ export default function ImageUpload({
             <button
               type="button"
               onClick={onRemove}
-              className="absolute top-3 right-3 w-8 h-8 bg-dark-900/80 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
+              className="absolute top-3 right-3 w-8 h-8 bg-surface-0/80 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
               aria-label="Remove image"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
@@ -130,13 +130,13 @@ export default function ImageUpload({
           flex flex-col items-center justify-center gap-3 transition-all
           ${
             dragActive
-              ? "border-primary-400 bg-primary-600/10 scale-[1.01]"
-              : "border-gray-700 bg-dark-800/50 hover:border-gray-500 hover:bg-dark-800"
+              ? "border-brand-400 bg-brand-600/10 scale-[1.01]"
+              : "border-border bg-surface-50 hover:border-gray-500 hover:bg-surface-50"
           }
         `}
       >
         {/* Icon */}
-        <div className={`p-3 rounded-xl ${dragActive ? "bg-primary-600/20" : "bg-dark-700"}`}>
+        <div className={`p-3 rounded-xl ${dragActive ? "bg-brand-600/20" : "bg-surface-100"}`}>
           <svg
             width="28"
             height="28"
@@ -144,7 +144,7 @@ export default function ImageUpload({
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"
-            className={dragActive ? "text-primary-400" : "text-gray-500"}
+            className={dragActive ? "text-brand-400" : "text-gray-500"}
           >
             <rect x="3" y="3" width="18" height="18" rx="3" />
             <circle cx="8.5" cy="8.5" r="1.5" />
@@ -152,7 +152,7 @@ export default function ImageUpload({
           </svg>
         </div>
         <div className="text-center">
-          <p className={`text-sm font-medium ${dragActive ? "text-primary-300" : "text-gray-400"}`}>
+          <p className={`text-sm font-medium ${dragActive ? "text-brand-300" : "text-gray-400"}`}>
             {dragActive ? "Drop image here" : "Drag & drop or click to upload"}
           </p>
           <p className="text-xs text-gray-600 mt-1">

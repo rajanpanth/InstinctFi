@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { formatSOL } from "@/lib/program";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -8,17 +9,25 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL || "https://instinctfi.com";
 
   const defaults: Metadata = {
     title: "Poll | InstinctFi",
-    description: "View and vote on this prediction poll on InstinctFi.",
+    description: "View and vote on this prediction poll on InstinctFi — decentralized prediction polls on Solana.",
     openGraph: {
       title: "Poll | InstinctFi",
       description: "Decentralized prediction polls on Solana.",
       type: "website",
+      url: `${baseUrl}/polls/${id}`,
+      images: [{
+        url: `${baseUrl}/api/og?title=${encodeURIComponent("Prediction Poll")}&category=General&status=active`,
+        width: 1200,
+        height: 630,
+        alt: "InstinctFi Prediction Poll",
+      }],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: "Poll | InstinctFi",
       description: "Decentralized prediction polls on Solana.",
     },
@@ -29,16 +38,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const { data } = await supabase
       .from("polls")
-      .select("title, description, image_url, category, options, vote_counts, total_pool_cents")
+      .select("title, description, image_url, category, options, vote_counts, total_pool_cents, status")
       .eq("id", id)
       .single();
 
     if (!data) return defaults;
 
     const totalVotes = (data.vote_counts || []).reduce((a: number, b: number) => a + b, 0);
+    const poolSize = formatSOL(data.total_pool_cents || 0);
+    const statusLabel = data.status === 1 ? "settled" : "active";
+
     const description =
       data.description ||
-      `${data.options?.length || 0} options · ${totalVotes} votes · ${data.category || "General"}`;
+      `${data.options?.length || 0} options · ${totalVotes} votes · ${poolSize} pool · ${data.category || "General"}`;
+
+    // Build dynamic OG image: prefer poll image, fall back to generated OG card
+    const ogImageUrl = data.image_url
+      ? data.image_url
+      : `${baseUrl}/api/og?title=${encodeURIComponent(data.title)}&category=${encodeURIComponent(data.category || "General")}&status=${statusLabel}`;
 
     return {
       title: `${data.title} | InstinctFi`,
@@ -47,13 +64,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title: data.title,
         description,
         type: "website",
-        ...(data.image_url ? { images: [{ url: data.image_url, width: 1200, height: 630 }] } : {}),
+        url: `${baseUrl}/polls/${id}`,
+        siteName: "InstinctFi",
+        images: [{
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: data.title,
+        }],
       },
       twitter: {
-        card: data.image_url ? "summary_large_image" : "summary",
+        card: "summary_large_image",
         title: data.title,
         description,
-        ...(data.image_url ? { images: [data.image_url] } : {}),
+        images: [ogImageUrl],
       },
     };
   } catch {

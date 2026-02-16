@@ -47,23 +47,23 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
             <img
               src={mainImage}
               alt=""
-              className="w-12 h-12 rounded-lg object-cover shrink-0 border border-gray-700"
+              className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border"
             />
           ) : (
-            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-600/30 to-accent-500/20 shrink-0 border border-gray-700" />
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-brand-600/30 to-brand-500/20 shrink-0 border border-border" />
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm text-gray-400 leading-snug line-clamp-2">
               {poll.title}
             </p>
             <p className="text-sm font-semibold mt-0.5">
-              <span className="text-primary-400">Vote on option</span>
+              <span className="text-brand-400">Vote on option</span>
             </p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-dark-700 transition-colors shrink-0"
+            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-surface-100 transition-colors shrink-0"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M2 2l12 12M14 2L2 14" />
@@ -84,8 +84,8 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
                   onClick={() => setSelectedOption(i)}
                   className={`w-full py-2.5 px-3 rounded-xl text-sm font-medium border transition-all text-left flex items-center justify-between ${
                     isSelected
-                      ? "border-primary-500 bg-primary-500/15 text-primary-400"
-                      : "border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300"
+                      ? "border-brand-500 bg-brand-500/15 text-brand-400"
+                      : "border-border text-gray-400 hover:border-gray-600 hover:text-gray-300"
                   }`}
                 >
                   <span className="truncate mr-2">{opt}</span>
@@ -96,7 +96,7 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
           </div>
 
           {/* Amount input */}
-          <div className="bg-dark-900 border border-gray-700 rounded-xl p-4">
+          <div className="bg-surface-0 border border-border rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-400">Coins <span className="text-gray-600">(max {MAX_COINS_PER_POLL}/poll)</span></p>
@@ -117,7 +117,7 @@ export default function VotePopup({ isOpen, onClose, poll, optionIndex }: Props)
                 placeholder="0"
               />
             </div>
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-800">
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
               <span className="text-xs text-gray-400">Cost</span>
               <span className="text-sm font-medium text-gray-300">{formatDollars(cost)}</span>
             </div>

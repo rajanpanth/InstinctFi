@@ -133,7 +133,7 @@ export default function PollComments({ pollId }: Props) {
   };
 
   return (
-    <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-6 sm:p-8">
+    <div className="bg-surface-100 border border-border rounded-2xl p-6 sm:p-8">
       <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
@@ -151,12 +151,12 @@ export default function PollComments({ pollId }: Props) {
             placeholder={walletConnected ? t("shareThoughts") : t("connectWalletToComment")}
             disabled={!walletConnected}
             maxLength={500}
-            className="flex-1 px-4 py-2.5 bg-dark-800 border border-gray-700 rounded-xl text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors placeholder-gray-600 disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 bg-surface-50 border border-border rounded-xl text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition-colors placeholder-gray-600 disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={submitting || !newComment.trim() || !walletConnected}
-            className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-xl text-sm font-medium transition-colors shrink-0"
+            className="px-4 py-2.5 bg-brand-600 hover:bg-primary-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-xl text-sm font-medium transition-colors shrink-0"
           >
             {submitting ? "..." : t("post")}
           </button>
@@ -191,9 +191,9 @@ export default function PollComments({ pollId }: Props) {
             <div key={c.id} className="flex gap-3 group">
               {getAvatarUrl(c.wallet) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={getAvatarUrl(c.wallet)} alt="" className="w-8 h-8 rounded-full object-cover border border-gray-700 shrink-0" />
+                <img src={getAvatarUrl(c.wallet)} alt="" className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-600/30 to-accent-500/20 flex items-center justify-center text-xs font-bold text-primary-400 shrink-0 border border-gray-700">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-600/30 to-brand-500/20 flex items-center justify-center text-xs font-bold text-brand-400 shrink-0 border border-border">
                   {getDisplayName(c.wallet).charAt(0).toUpperCase()}
                 </div>
               )}

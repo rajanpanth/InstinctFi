@@ -109,7 +109,7 @@ export default function Modal({ isOpen, onClose, children, className = "", maxWi
     >
       <div
         ref={contentRef}
-        className={`relative bg-dark-800 border border-gray-700/80 rounded-2xl ${maxWidth} w-full mx-4 shadow-2xl shadow-black/40 animate-scaleIn ${className}`}
+        className={`relative bg-surface-50 border border-border/80 rounded-2xl ${maxWidth} w-full mx-4 shadow-2xl shadow-black/40 animate-scaleIn ${className}`}
       >
         {title && (
           <span id={titleId} className="sr-only">{title}</span>

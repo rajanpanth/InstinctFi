@@ -302,7 +302,7 @@ export default function CreatePollPage() {
               key={t.name}
               type="button"
               onClick={() => applyTemplate(t)}
-              className="px-3 py-1.5 bg-dark-800 hover:bg-dark-700 border border-gray-700/50 rounded-lg text-xs text-gray-300 transition-colors hover:border-primary-500/30"
+              className="px-3 py-1.5 bg-surface-50 hover:bg-surface-100 border border-border rounded-lg text-xs text-gray-300 transition-colors hover:border-brand-500/25"
             >
               {t.name}
             </button>
@@ -334,7 +334,7 @@ export default function CreatePollPage() {
             onChange={(e) => setTitle(e.target.value)}
             maxLength={64}
             placeholder="Will BTC hit $100k by March 2026?"
-            className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors"
+            className="w-full px-4 py-3 bg-surface-100 border border-border rounded-xl focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition-colors"
           />
           <div className="text-xs text-gray-600 mt-1 text-right">{title.length}/64</div>
         </div>
@@ -348,7 +348,7 @@ export default function CreatePollPage() {
             maxLength={256}
             rows={3}
             placeholder="Describe the poll conditions and how the winner is determined..."
-            className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors resize-none"
+            className="w-full px-4 py-3 bg-surface-100 border border-border rounded-xl focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition-colors resize-none"
           />
           <div className="text-xs text-gray-600 mt-1 text-right">{description.length}/256</div>
         </div>
@@ -364,8 +364,8 @@ export default function CreatePollPage() {
                 onClick={() => setCategory(cat)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   category === cat
-                    ? "bg-primary-600 text-white shadow-lg shadow-primary-600/20"
-                    : "bg-dark-700 text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600"
+                    ? "bg-brand-600 text-white shadow-lg shadow-brand-500/15"
+                    : "bg-surface-100 text-gray-400 hover:text-white border border-border hover:border-gray-600"
                 }`}
               >
                 {tCat(cat, lang)}
@@ -390,7 +390,7 @@ export default function CreatePollPage() {
                     onChange={(e) => updateOption(i, e.target.value)}
                     maxLength={32}
                     placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                    className="flex-1 px-4 py-2.5 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 outline-none transition-colors"
+                    className="flex-1 px-4 py-2.5 bg-surface-100 border border-border rounded-xl focus:border-brand-500 outline-none transition-colors"
                   />
                   {options.length > 2 && (
                     <button
@@ -418,7 +418,7 @@ export default function CreatePollPage() {
                           <img
                             src={optionImagePreviews[i]!}
                             alt={`Option ${String.fromCharCode(65 + i)}`}
-                            className="w-16 h-16 rounded-full object-cover border-2 border-gray-700"
+                            className="w-16 h-16 rounded-full object-cover border-2 border-border"
                           />
                           <button
                             type="button"
@@ -429,7 +429,7 @@ export default function CreatePollPage() {
                           </button>
                         </div>
                       ) : (
-                        <label className="flex items-center gap-2 px-3 py-2 bg-dark-700/50 border border-gray-700 border-dashed rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
+                        <label className="flex items-center gap-2 px-3 py-2 bg-surface-100 border border-border border-dashed rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-500">
                             <rect x="3" y="3" width="18" height="18" rx="9" />
                             <path d="M12 8v8M8 12h8" />
@@ -460,7 +460,7 @@ export default function CreatePollPage() {
             <button
               type="button"
               onClick={addOption}
-              className="mt-3 text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1 transition-colors"
+              className="mt-3 text-sm text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M7 1v12M1 7h12" />
@@ -480,7 +480,7 @@ export default function CreatePollPage() {
               onChange={(e) => setUnitPrice(e.target.value)}
               step="0.001"
               min="0.001"
-              className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 outline-none transition-colors"
+              className="w-full px-4 py-3 bg-surface-100 border border-border rounded-xl focus:border-brand-500 outline-none transition-colors"
             />
           </div>
           <div>
@@ -491,7 +491,7 @@ export default function CreatePollPage() {
               onChange={(e) => setDurationHours(e.target.value)}
               min="1"
               max="720"
-              className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 outline-none transition-colors"
+              className="w-full px-4 py-3 bg-surface-100 border border-border rounded-xl focus:border-brand-500 outline-none transition-colors"
             />
           </div>
         </div>
@@ -505,14 +505,14 @@ export default function CreatePollPage() {
             onChange={(e) => setInvestment(e.target.value)}
             step="0.1"
             min="0.5"
-            className="w-full px-4 py-3 bg-dark-700 border border-gray-700 rounded-xl focus:border-primary-500 outline-none transition-colors"
+            className="w-full px-4 py-3 bg-surface-100 border border-border rounded-xl focus:border-brand-500 outline-none transition-colors"
           />
         </div>
 
         {/* Preview */}
-        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-4 sm:p-6">
+        <div className="bg-surface-100 border border-border rounded-2xl p-4 sm:p-6">
           <h3 className="font-semibold mb-4 text-gray-300 flex items-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent-400"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-400"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
             {t("tokenomicsPreview")}
           </h3>
           <div className="grid grid-cols-2 gap-2 sm:gap-3 text-sm">
@@ -522,15 +522,15 @@ export default function CreatePollPage() {
             <div className="text-right font-mono">{formatDollars(platformFee)}</div>
             <div className="text-gray-400">{t("creatorReward")}</div>
             <div className="text-right font-mono">{formatDollars(creatorReward)}</div>
-            <div className="text-gray-400 font-semibold border-t border-gray-700 pt-2">{t("totalInvestment")}</div>
-            <div className="text-right font-mono font-semibold border-t border-gray-700 pt-2">{formatDollars(investCents)}</div>
+            <div className="text-gray-400 font-semibold border-t border-border pt-2">{t("totalInvestment")}</div>
+            <div className="text-right font-mono font-semibold border-t border-border pt-2">{formatDollars(investCents)}</div>
           </div>
         </div>
 
         {/* Balance check */}
         {userAccount && (
           <div className="text-sm text-gray-400">
-            {t("yourBalance")} <span className="text-accent-400 font-semibold">{formatDollars(userAccount.balance)}</span>
+            {t("yourBalance")} <span className="text-brand-400 font-semibold">{formatDollars(userAccount.balance)}</span>
           </div>
         )}
 
@@ -538,10 +538,10 @@ export default function CreatePollPage() {
         <button
           type="submit"
           disabled={submitting || imageUploading}
-          className={`btn-glow w-full py-3.5 sm:py-4 rounded-2xl font-semibold text-base sm:text-lg transition-all transform hover:scale-[1.01] active:scale-[0.99] ${
+          className={`w-full py-3.5 sm:py-4 rounded-2xl font-semibold text-base sm:text-lg transition-all transform hover:scale-[1.01] active:scale-[0.99] ${
             submitting || imageUploading
               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-              : "bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-500 hover:to-indigo-500 shadow-lg shadow-primary-600/20"
+              : "bg-brand-500 hover:bg-brand-600 shadow-lg shadow-brand-500/15"
           }`}
         >
           {submitting

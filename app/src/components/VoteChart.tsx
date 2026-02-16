@@ -1,6 +1,6 @@
 "use client";
 
-import { DemoPoll } from "@/components/Providers";
+import { DemoPoll, PollStatus } from "@/components/Providers";
 import { useLanguage } from "@/lib/languageContext";
 
 type Props = {
@@ -15,9 +15,9 @@ export default function VoteChart({ poll }: Props) {
   if (totalVotes === 0) return null;
 
   const maxVotes = Math.max(...poll.voteCounts);
-  
+
   return (
-    <div className="bg-dark-700/50 border border-gray-800 rounded-2xl p-6 sm:p-8 mb-6">
+    <div className="bg-surface-100 border border-border rounded-2xl p-6 sm:p-8 mb-6">
       <h2 className="font-semibold text-lg mb-1">{t("voteDistribution")}</h2>
       <p className="text-xs text-gray-500 mb-5">{totalVotes} {t("totalVotesLabel")}</p>
 
@@ -29,7 +29,7 @@ export default function VoteChart({ poll }: Props) {
           const width = maxVotes > 0 ? (votes / maxVotes) * 100 : 0;
           const color = BAR_COLORS[i % BAR_COLORS.length];
           const multiplier = votes > 0 ? (totalVotes / votes).toFixed(2) : "—";
-          const isWinner = poll.status === 1 && poll.winningOption === i;
+          const isWinner = poll.status === PollStatus.Settled && poll.winningOption === i;
 
           return (
             <div key={i}>
@@ -44,14 +44,14 @@ export default function VoteChart({ poll }: Props) {
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-xs">
-                    <span className="text-gray-400">{votes} {t("votesLabel")}</span>
+                  <span className="text-gray-400">{votes} {t("votesLabel")}</span>
                   <span className="font-bold" style={{ color }}>{pct.toFixed(1)}%</span>
-                  <span className="text-accent-400 font-mono bg-accent-500/10 px-1.5 py-0.5 rounded">
+                  <span className="text-brand-400 font-mono bg-brand-500/10 px-1.5 py-0.5 rounded">
                     {multiplier}x
                   </span>
                 </div>
               </div>
-              <div className="h-6 bg-dark-900 rounded-lg overflow-hidden relative">
+              <div className="h-6 bg-surface-0 rounded-lg overflow-hidden relative">
                 <div
                   className="h-full rounded-lg transition-all duration-700 ease-out relative"
                   style={{

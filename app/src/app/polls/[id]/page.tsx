@@ -92,18 +92,18 @@ export default function PollDetailPage() {
     if (isLoading || !graceExpired) {
       return (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <div className="w-10 h-10 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-10 h-10 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-500 text-sm">{t("loadingPoll")}</p>
         </div>
       );
     }
     return (
       <div className="text-center py-20">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface-100 border border-border flex items-center justify-center">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         </div>
         <p className="text-gray-400 text-lg font-medium mb-2">{t("pollNotFound")}</p>
-        <button onClick={() => router.push("/polls")} className="text-primary-400 hover:text-primary-300 text-sm font-medium transition-colors">
+        <button onClick={() => router.push("/polls")} className="text-brand-400 hover:text-brand-300 text-sm font-medium transition-colors">
           ← {t("backToPolls")}
         </button>
       </div>
@@ -194,7 +194,7 @@ export default function PollDetailPage() {
       </button>
 
       {/* Header */}
-      <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl overflow-hidden mb-6">
+      <div className="bg-surface-100 border border-border rounded-2xl overflow-hidden mb-6">
         {poll.imageUrl && (
           <PollImage
             src={poll.imageUrl}
@@ -205,7 +205,7 @@ export default function PollDetailPage() {
 
         <div className="p-5 sm:p-8">
           <div className="flex items-start justify-between mb-4">
-            <span className="px-3 py-1 bg-primary-600/20 text-primary-400 rounded-lg text-xs font-medium">
+            <span className="px-3 py-1 bg-brand-600/20 text-brand-400 rounded-lg text-xs font-medium">
               {poll.category}
             </span>
             <div className="flex items-center gap-2">
@@ -216,7 +216,7 @@ export default function PollDetailPage() {
                     ? "bg-green-600/20 text-green-400"
                     : isEnded
                     ? "bg-red-600/20 text-red-400"
-                    : "bg-accent-500/20 text-accent-400"
+                    : "bg-brand-500/20 text-brand-400"
                 }`}
               >
                 {isSettled ? t("settled") : isEnded ? "Awaiting Settlement" : timeLeft}
@@ -228,9 +228,9 @@ export default function PollDetailPage() {
           {poll.description && <p className="text-gray-400 mb-6 leading-relaxed text-sm sm:text-base">{poll.description}</p>}
 
           {/* Stats bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-center p-3 sm:p-4 bg-dark-800/40 border border-gray-800/40 rounded-xl">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-center p-3 sm:p-4 bg-surface-50 border border-border rounded-xl">
             <div>
-              <div className="text-lg font-bold text-primary-400">
+              <div className="text-lg font-bold text-brand-400">
                 {formatDollars(poll.totalPoolCents)}
               </div>
               <div className="text-xs text-gray-500">Pool</div>
@@ -267,7 +267,7 @@ export default function PollDetailPage() {
                 href={resolutionProof}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-primary-400 hover:text-primary-300 underline underline-offset-2 truncate"
+                className="text-xs text-brand-400 hover:text-brand-300 underline underline-offset-2 truncate"
               >
                 {resolutionProof}
               </a>
@@ -277,7 +277,7 @@ export default function PollDetailPage() {
       </div>
 
       {/* Options */}
-      <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-5 sm:p-8 mb-6">
+      <div className="bg-surface-100 border border-border rounded-2xl p-5 sm:p-8 mb-6">
         <h2 className="font-semibold text-lg mb-4">{t("options")}</h2>
         <div className="space-y-3">
           {poll.options.map((opt, i) => {
@@ -297,8 +297,8 @@ export default function PollDetailPage() {
                   isWinner
                     ? "border-green-500/50 bg-green-500/10"
                     : isSelected
-                    ? "border-primary-500 bg-primary-500/10"
-                    : "border-gray-800 bg-dark-800/50 hover:border-gray-700"
+                    ? "border-brand-500 bg-brand-500/10"
+                    : "border-border bg-surface-50 hover:border-border"
                 } cursor-pointer`}
               >
                 <div className="flex justify-between items-center mb-2">
@@ -308,10 +308,10 @@ export default function PollDetailPage() {
                       <img
                         src={optImage}
                         alt={opt}
-                        className="w-8 h-8 rounded-full object-cover border border-gray-700"
+                        className="w-8 h-8 rounded-full object-cover border border-border"
                       />
                     ) : (
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white border border-gray-700 ${
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white border border-border ${
                         i === 0 ? "bg-blue-600" : i === 1 ? "bg-red-600" : "bg-purple-600"
                       }`}>
                         {opt.charAt(0).toUpperCase()}
@@ -325,14 +325,14 @@ export default function PollDetailPage() {
                     {poll.voteCounts[i]} votes ({pct.toFixed(1)}%)
                   </span>
                 </div>
-                <div className="h-2 bg-dark-900 rounded-full overflow-hidden">
+                <div className="h-2 bg-surface-0 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${isWinner ? "bg-green-500" : "bg-primary-600"}`}
+                    className={`h-full rounded-full transition-all ${isWinner ? "bg-green-500" : "bg-brand-600"}`}
                     style={{ width: `${Math.max(pct, 0.5)}%` }}
                   />
                 </div>
                 {userVotes > 0 && (
-                  <div className="mt-2 text-xs text-accent-400">
+                  <div className="mt-2 text-xs text-brand-400">
                     Your votes: {userVotes} ({formatDollars(userVotes * poll.unitPriceCents)})
                   </div>
                 )}
@@ -344,7 +344,7 @@ export default function PollDetailPage() {
 
       {/* Vote action */}
       {!isEnded && !isSettled && (
-        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-5 sm:p-8 mb-6">
+        <div className="bg-surface-100 border border-border rounded-2xl p-5 sm:p-8 mb-6">
           <h2 className="font-semibold text-lg mb-4">{t("step2Title")}</h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-4">
             <div className="flex-1">
@@ -354,7 +354,7 @@ export default function PollDetailPage() {
                 value={numCoins}
                 onChange={(e) => setNumCoins(Math.max(1, parseInt(e.target.value) || 1))}
                 min={1}
-                className="w-full px-4 py-3 bg-dark-800/60 border border-gray-800/80 rounded-xl focus:border-primary-500/60 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
+                className="w-full px-4 py-3 bg-surface-50 border border-border rounded-xl focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
               />
             </div>
             <div className="text-left sm:text-right pb-0 sm:pb-3">
@@ -369,11 +369,11 @@ export default function PollDetailPage() {
           )}
           <button
             onClick={handleVote}
-            className={`btn-glow w-full mt-4 py-3.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${
+            className={`w-full mt-4 py-3.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${
               walletConnected && selectedOption !== null
-                ? "bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-500 hover:to-indigo-500 shadow-lg shadow-primary-600/20"
+                ? "bg-brand-500 hover:bg-brand-600 shadow-lg shadow-brand-500/15"
                 : !walletConnected
-                ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500"
+                ? "bg-brand-500 hover:bg-brand-600"
                 : "bg-gray-700 text-gray-500 cursor-not-allowed"
             }`}
           >
@@ -388,8 +388,8 @@ export default function PollDetailPage() {
 
       {/* Settlement (admin only) */}
       {isEnded && !isSettled && isAdminWallet(walletAddress) && (
-        <div className="bg-dark-700/40 border border-yellow-600/30 rounded-2xl p-5 sm:p-8 mb-6">
-          <h2 className="font-semibold text-lg mb-2 text-accent-400">Poll Ended — Ready to Settle</h2>
+        <div className="bg-surface-100 border border-yellow-600/30 rounded-2xl p-5 sm:p-8 mb-6">
+          <h2 className="font-semibold text-lg mb-2 text-brand-400">Poll Ended — Ready to Settle</h2>
           <p className="text-gray-400 text-sm mb-4">
             Anyone can trigger settlement. The option with the most votes wins.
           </p>
@@ -398,8 +398,8 @@ export default function PollDetailPage() {
             disabled={settling}
             className={`w-full py-3 rounded-xl font-semibold transition-colors ${
               settling
-                ? "bg-accent-500/60 text-dark-900/60 cursor-wait"
-                : "bg-accent-500 hover:bg-accent-600 text-dark-900"
+                ? "bg-brand-500/60 text-dark-900/60 cursor-wait"
+                : "bg-brand-500 hover:bg-brand-600 text-dark-900"
             }`}
           >
             {settling ? "Settling..." : t("settlePoll")}
@@ -409,7 +409,7 @@ export default function PollDetailPage() {
 
       {/* Claim */}
       {canClaim && (
-        <div className="bg-dark-700/40 border border-green-600/30 rounded-2xl p-5 sm:p-8 mb-6">
+        <div className="bg-surface-100 border border-green-600/30 rounded-2xl p-5 sm:p-8 mb-6">
           <h2 className="font-semibold text-lg mb-2 text-green-400">{t("youWon")}</h2>
           <p className="text-gray-400 text-sm mb-4">
             Your reward:{" "}
@@ -431,21 +431,21 @@ export default function PollDetailPage() {
 
       {/* Already claimed */}
       {vote?.claimed && (
-        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-6 text-center text-gray-400">
+        <div className="bg-surface-100 border border-border rounded-2xl p-6 text-center text-gray-400">
           Reward already claimed for this poll.
         </div>
       )}
 
       {/* Creator notice */}
       {isCreator && !isSettled && (
-        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-6 text-center text-gray-500 text-sm">
+        <div className="bg-surface-100 border border-border rounded-2xl p-6 text-center text-gray-500 text-sm">
           You created this poll — you cannot vote on it.
         </div>
       )}
 
       {/* Manage Poll (edit/delete) — visible only to creator when no votes */}
       {canManage && (
-        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl p-5 sm:p-6 mt-6">
+        <div className="bg-surface-100 border border-border rounded-2xl p-5 sm:p-6 mt-6">
           <h2 className="font-semibold text-lg mb-1">Manage Poll</h2>
           <p className="text-gray-500 text-sm mb-4">
             No votes yet — you can edit or delete this poll.
@@ -453,7 +453,7 @@ export default function PollDetailPage() {
           <div className="flex gap-3">
             <button
               onClick={() => setShowEditModal(true)}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-gray-700 text-gray-300 rounded-xl hover:bg-dark-600 hover:border-gray-600 transition-colors font-medium"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-border text-gray-300 rounded-xl hover:bg-dark-600 hover:border-gray-600 transition-colors font-medium"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />

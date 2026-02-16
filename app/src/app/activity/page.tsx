@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useApp, type DemoPoll, type DemoVote, formatDollarsShort } from "@/components/Providers";
+import { useApp, type DemoPoll, type DemoVote, formatDollarsShort, PollStatus, WINNING_OPTION_UNSET } from "@/components/Providers";
 import Link from "next/link";
 import { useLanguage } from "@/lib/languageContext";
 
@@ -35,7 +35,7 @@ function buildActivities(polls: DemoPoll[], votes: DemoVote[]): ActivityItem[] {
     });
 
     // Poll settled
-    if (poll.status === 1 && poll.winningOption !== 255) {
+    if (poll.status === PollStatus.Settled && poll.winningOption !== WINNING_OPTION_UNSET) {
       items.push({
         id: `settled-${poll.id}`,
         type: "poll_settled",
@@ -49,7 +49,7 @@ function buildActivities(polls: DemoPoll[], votes: DemoVote[]): ActivityItem[] {
     }
 
     // Poll ended (expired but not necessarily settled)
-    if (poll.endTime * 1000 < Date.now() && poll.status === 0) {
+    if (poll.endTime * 1000 < Date.now() && poll.status === PollStatus.Active) {
       items.push({
         id: `ended-${poll.id}`,
         type: "poll_ended",
@@ -90,7 +90,7 @@ function buildActivities(polls: DemoPoll[], votes: DemoVote[]): ActivityItem[] {
 
 const TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
   poll_created: { label: "Created", icon: "➕", color: "text-green-400" },
-  vote_cast: { label: "Voted", icon: "🗳️", color: "text-accent-400" },
+  vote_cast: { label: "Voted", icon: "🗳️", color: "text-brand-400" },
   poll_settled: { label: "Settled", icon: "✅", color: "text-blue-400" },
   poll_ended: { label: "Ended", icon: "⏰", color: "text-yellow-400" },
 };
@@ -137,11 +137,10 @@ export default function ActivityPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                filter === f
-                  ? "bg-accent-500 text-white"
-                  : "bg-dark-800 text-gray-400 hover:bg-dark-700"
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f
+                  ? "bg-brand-500 text-white"
+                  : "bg-surface-50 text-gray-400 hover:bg-surface-100"
+                }`}
             >
               {f === "all" ? "All" : TYPE_META[f].label}
             </button>
@@ -150,11 +149,10 @@ export default function ActivityPage() {
           {walletAddress && (
             <button
               onClick={() => setShowMyOnly((v) => !v)}
-              className={`ml-auto px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                showMyOnly
-                  ? "bg-primary-500 text-white"
-                  : "bg-dark-800 text-gray-400 hover:bg-dark-700"
-              }`}
+              className={`ml-auto px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showMyOnly
+                  ? "bg-brand-500 text-white"
+                  : "bg-surface-50 text-gray-400 hover:bg-surface-100"
+                }`}
             >
               {showMyOnly ? t("myActivity") : t("everyone")}
             </button>
@@ -170,7 +168,7 @@ export default function ActivityPage() {
         ) : (
           <div className="relative">
             {/* Timeline line */}
-            <div className="absolute left-5 top-0 bottom-0 w-px bg-dark-700" />
+            <div className="absolute left-5 top-0 bottom-0 w-px bg-surface-100" />
 
             <div className="space-y-1">
               {filtered.map((item) => {
@@ -179,10 +177,10 @@ export default function ActivityPage() {
                   <Link
                     key={item.id}
                     href={`/polls/${item.pollId}`}
-                    className="block relative pl-12 pr-4 py-3 rounded-xl hover:bg-dark-800/60 transition-colors group"
+                    className="block relative pl-12 pr-4 py-3 rounded-xl hover:bg-surface-50/60 transition-colors group"
                   >
                     {/* Timeline dot */}
-                    <div className="absolute left-3.5 top-5 w-3 h-3 rounded-full bg-dark-700 border-2 border-dark-600 group-hover:border-accent-500 transition-colors" />
+                    <div className="absolute left-3.5 top-5 w-3 h-3 rounded-full bg-surface-100 border-2 border-dark-600 group-hover:border-brand-500 transition-colors" />
 
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -192,7 +190,7 @@ export default function ActivityPage() {
                             {meta.label}
                           </span>
                           {item.category && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-dark-700 text-gray-500">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-100 text-gray-500">
                               {item.category}
                             </span>
                           )}

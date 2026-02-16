@@ -132,12 +132,12 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl" className="max-h-[90vh] overflow-y-auto shadow-purple-900/20">
         {/* Header */}
-        <div className="sticky top-0 bg-dark-800 border-b border-gray-700 p-6 rounded-t-2xl z-10">
+        <div className="sticky top-0 bg-surface-50 border-b border-border p-6 rounded-t-2xl z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold">Edit Poll</h2>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-dark-700 transition-colors"
+              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-surface-100 transition-colors"
               aria-label="Close"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -159,7 +159,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={64}
-              className="w-full px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white placeholder-gray-500"
+              className="w-full px-4 py-3 bg-surface-0 border border-border rounded-xl focus:border-brand-500 outline-none text-white placeholder-gray-500"
               placeholder="Poll title"
             />
             <p className="text-xs text-gray-400 mt-1">{title.length}/64</p>
@@ -173,7 +173,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
               onChange={(e) => setDescription(e.target.value)}
               maxLength={256}
               rows={3}
-              className="w-full px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white placeholder-gray-500 resize-none"
+              className="w-full px-4 py-3 bg-surface-0 border border-border rounded-xl focus:border-brand-500 outline-none text-white placeholder-gray-500 resize-none"
               placeholder="Describe your poll..."
             />
             <p className="text-xs text-gray-400 mt-1">{description.length}/256</p>
@@ -187,7 +187,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white"
+              className="w-full px-4 py-3 bg-surface-0 border border-border rounded-xl focus:border-brand-500 outline-none text-white"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -225,7 +225,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
                     value={opt}
                     onChange={(e) => handleOptionChange(i, e.target.value)}
                     maxLength={32}
-                    className="flex-1 px-4 py-2.5 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white placeholder-gray-500"
+                    className="flex-1 px-4 py-2.5 bg-surface-0 border border-border rounded-xl focus:border-brand-500 outline-none text-white placeholder-gray-500"
                     placeholder={`Option ${String.fromCharCode(65 + i)}`}
                   />
                 </div>
@@ -243,7 +243,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white"
+                className="w-full px-4 py-3 bg-surface-0 border border-border rounded-xl focus:border-brand-500 outline-none text-white"
               />
             </div>
             <div>
@@ -254,13 +254,13 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
                 type="time"
                 value={endTimeStr}
                 onChange={(e) => setEndTimeStr(e.target.value)}
-                className="w-full px-4 py-3 bg-dark-900 border border-gray-700 rounded-xl focus:border-primary-500 outline-none text-white"
+                className="w-full px-4 py-3 bg-surface-0 border border-border rounded-xl focus:border-brand-500 outline-none text-white"
               />
             </div>
           </div>
 
           {/* Locked fields notice */}
-          <div className="bg-dark-900/50 border border-gray-700/50 rounded-xl p-4">
+          <div className="bg-surface-0/50 border border-border rounded-xl p-4">
             <p className="text-sm text-gray-400">
               <span className="text-yellow-400 font-medium">Note:</span> Unit price, investment, and fees cannot be changed after creation.
             </p>
@@ -268,17 +268,17 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-dark-800 border-t border-gray-700 p-6 rounded-b-2xl flex gap-3 justify-end">
+        <div className="sticky bottom-0 bg-surface-50 border-t border-border p-6 rounded-b-2xl flex gap-3 justify-end">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 border border-gray-700 text-gray-300 rounded-xl hover:bg-dark-700 transition-colors font-medium"
+            className="px-6 py-2.5 border border-border text-gray-300 rounded-xl hover:bg-surface-100 transition-colors font-medium"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-semibold transition-colors"
+            className="px-6 py-2.5 bg-brand-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-semibold transition-colors"
           >
             {saving ? "Saving..." : "Save Changes"}
           </button>

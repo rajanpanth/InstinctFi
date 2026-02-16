@@ -36,7 +36,7 @@ export default function PollImage({
     // Gradient placeholder with icon
     return (
       <div
-        className={`${aspect} bg-gradient-to-br from-primary-600/20 via-dark-800 to-accent-500/10 flex items-center justify-center ${className}`}
+        className={`${aspect} bg-gradient-to-br from-brand-600/20 via-dark-800 to-brand-500/10 flex items-center justify-center ${className}`}
       >
         <svg
           width="32"
@@ -58,10 +58,10 @@ export default function PollImage({
   const isDataUrl = sanitized.startsWith("data:");
 
   return (
-    <div className={`${aspect} relative overflow-hidden bg-dark-800 ${className}`}>
+    <div className={`${aspect} relative overflow-hidden bg-surface-50 ${className}`}>
       {/* Skeleton loader */}
       {!loaded && (
-        <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-dark-800 via-dark-700 to-dark-800 bg-[length:200%_100%]" />
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-surface-50 via-surface-100 to-surface-50 bg-[length:200%_100%]" />
       )}
       {isDataUrl ? (
         /* eslint-disable-next-line @next/next/no-img-element */

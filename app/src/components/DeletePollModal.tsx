@@ -93,7 +93,7 @@ export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Pr
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 px-6 py-3 border border-gray-700 text-gray-300 rounded-xl hover:bg-dark-700 transition-colors font-medium"
+              className="flex-1 px-6 py-3 border border-border text-gray-300 rounded-xl hover:bg-surface-100 transition-colors font-medium"
             >
               Cancel
             </button>

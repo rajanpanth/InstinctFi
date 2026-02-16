@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useApp, formatDollars, MAX_COINS_PER_POLL, DemoPoll } from "@/components/Providers";
+import { useApp, formatDollars, MAX_COINS_PER_POLL, DemoPoll, PollStatus } from "@/components/Providers";
 import { classifyError } from "@/lib/errorRecovery";
 import toast from "react-hot-toast";
 
@@ -20,7 +20,7 @@ export function useVote(poll: DemoPoll) {
 
   const now = Math.floor(Date.now() / 1000);
   const isEnded = now >= poll.endTime;
-  const isSettled = poll.status === 1;
+  const isSettled = poll.status === PollStatus.Settled;
   const isCreator = walletAddress === poll.creator;
   const canVote = !isEnded && !isSettled && !isCreator && walletConnected;
   const cost = numCoins * poll.unitPriceCents;

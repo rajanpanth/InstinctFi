@@ -10,9 +10,6 @@ export default function DarkModeToggle() {
     if (saved === "light") {
       setIsDark(false);
       document.documentElement.classList.remove("dark");
-      document.documentElement.style.setProperty("--foreground-rgb", "17, 24, 39");
-      document.documentElement.style.setProperty("--background-start-rgb", "249, 250, 251");
-      document.documentElement.style.setProperty("--background-end-rgb", "243, 244, 246");
     } else {
       document.documentElement.classList.add("dark");
     }
@@ -23,15 +20,9 @@ export default function DarkModeToggle() {
     setIsDark(newDark);
     if (newDark) {
       document.documentElement.classList.add("dark");
-      document.documentElement.style.setProperty("--foreground-rgb", "255, 255, 255");
-      document.documentElement.style.setProperty("--background-start-rgb", "13, 14, 36");
-      document.documentElement.style.setProperty("--background-end-rgb", "26, 27, 46");
       localStorage.setItem("instinctfi_theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
-      document.documentElement.style.setProperty("--foreground-rgb", "17, 24, 39");
-      document.documentElement.style.setProperty("--background-start-rgb", "249, 250, 251");
-      document.documentElement.style.setProperty("--background-end-rgb", "243, 244, 246");
       localStorage.setItem("instinctfi_theme", "light");
     }
   };
@@ -39,7 +30,7 @@ export default function DarkModeToggle() {
   return (
     <button
       onClick={toggle}
-      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-dark-700 transition-colors text-gray-400 hover:text-white"
+      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-100 transition-colors text-gray-400 hover:text-white"
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >

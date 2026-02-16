@@ -79,7 +79,7 @@ export default function LeaderboardPage() {
     <div>
       <div className="flex items-center justify-between mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2.5">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent-400"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-400"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
           Leaderboard
         </h1>
       </div>
@@ -96,8 +96,8 @@ export default function LeaderboardPage() {
             onClick={() => setPeriod(key)}
             className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               period === key
-                ? "bg-accent-500 text-dark-900"
-                : "bg-dark-700 text-gray-400 hover:text-white"
+                ? "bg-brand-500 text-dark-900"
+                : "bg-surface-100 text-gray-400 hover:text-white"
             }`}
           >
             {label}
@@ -118,8 +118,8 @@ export default function LeaderboardPage() {
             onClick={() => setSortBy(key)}
             className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               sortBy === key
-                ? "bg-primary-600 text-white"
-                : "bg-dark-700 text-gray-400 hover:text-white"
+                ? "bg-brand-600 text-white"
+                : "bg-surface-100 text-gray-400 hover:text-white"
             }`}
           >
             {label}
@@ -130,19 +130,19 @@ export default function LeaderboardPage() {
       {/* Table */}
       {sorted.length === 0 ? (
         <div className="text-center py-20">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-700/60 border border-gray-800/60 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface-100 border border-border flex items-center justify-center">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
           </div>
           <p className="text-gray-400 text-lg mb-2 font-medium">{t("noUsersYet")}</p>
           <p className="text-gray-600 text-sm">{t("leaderboardHint")}</p>
         </div>
       ) : (
-        <div className="bg-dark-700/40 border border-gray-800/60 rounded-2xl overflow-hidden">
+        <div className="bg-surface-100 border border-border rounded-2xl overflow-hidden">
           {/* Desktop table */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-800">
+                <tr className="border-b border-border">
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">#</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">{t("user")}</th>
                   <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">{t("netProfit")}</th>
@@ -159,18 +159,18 @@ export default function LeaderboardPage() {
                   return (
                     <tr
                       key={u.wallet}
-                      className={`border-b border-gray-800/50 ${isMe ? "bg-primary-600/10" : "hover:bg-dark-800/30"}`}
+                      className={`border-b border-border ${isMe ? "bg-brand-600/10" : "hover:bg-surface-50/30"}`}
                     >
                       <td className="px-4 sm:px-6 py-3 sm:py-4">
                         <span className={`font-bold ${
-                          i === 0 ? "text-accent-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-orange-400" : "text-gray-500"
+                          i === 0 ? "text-brand-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-orange-400" : "text-gray-500"
                         }`}>
                           {i + 1}
                         </span>
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 font-mono text-sm">
                         {shortAddr(u.wallet)}
-                        {isMe && <span className="ml-2 text-xs text-primary-400">(you)</span>}
+                        {isMe && <span className="ml-2 text-xs text-brand-400">(you)</span>}
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono">
                         <span className={profit >= 0 ? "text-green-400" : "text-red-400"}>
@@ -180,7 +180,7 @@ export default function LeaderboardPage() {
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono">{winRate(u)}%</td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono">{getVotes(u)}</td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono">{getPollsWon(u)}</td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono text-accent-400">
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono text-brand-400">
                         {formatDollars(u.creatorEarningsCents)}
                       </td>
                     </tr>
@@ -196,17 +196,17 @@ export default function LeaderboardPage() {
               const profit = netProfit(u);
               const isMe = u.wallet === walletAddress;
               return (
-                <div key={u.wallet} className={`p-3 ${isMe ? "bg-primary-600/10" : ""}`}>
+                <div key={u.wallet} className={`p-3 ${isMe ? "bg-brand-600/10" : ""}`}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-bold ${
-                        i === 0 ? "text-accent-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-orange-400" : "text-gray-500"
+                        i === 0 ? "text-brand-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-orange-400" : "text-gray-500"
                       }`}>
                         #{i + 1}
                       </span>
                       <span className="font-mono text-xs text-gray-300">
                         {shortAddr(u.wallet)}
-                        {isMe && <span className="ml-1 text-primary-400">(you)</span>}
+                        {isMe && <span className="ml-1 text-brand-400">(you)</span>}
                       </span>
                     </div>
                     <span className={`font-mono text-sm font-bold ${profit >= 0 ? "text-green-400" : "text-red-400"}`}>
@@ -217,7 +217,7 @@ export default function LeaderboardPage() {
                     <span>Win {winRate(u)}%</span>
                     <span>{getVotes(u)} votes</span>
                     <span>{getPollsWon(u)} won</span>
-                    <span className="text-accent-400">{formatDollars(u.creatorEarningsCents)} earned</span>
+                    <span className="text-brand-400">{formatDollars(u.creatorEarningsCents)} earned</span>
                   </div>
                 </div>
               );
