@@ -40,6 +40,8 @@ interface PollOpsArgs {
     setUsers: React.Dispatch<React.SetStateAction<UserAccount[]>>;
     tracker: MutationTracker;
     usersRef: React.MutableRefObject<UserAccount[]>;
+    pollsRef: React.MutableRefObject<DemoPoll[]>;
+    votesRef: React.MutableRefObject<DemoVote[]>;
     initialFetchDone: React.MutableRefObject<boolean>;
     addNotification: (n: any) => void;
 }
@@ -58,6 +60,8 @@ export function usePollOperations({
     setUsers,
     tracker,
     usersRef,
+    pollsRef,
+    votesRef,
     initialFetchDone,
     addNotification,
 }: PollOpsArgs) {
@@ -67,6 +71,9 @@ export function usePollOperations({
         tracker.mutationGeneration.current++;
         tracker.lastMutationTs.current = Date.now();
     };
+
+    // ── Voting lock to prevent concurrent submissions (#4) ──
+    const votingLock = useRef<Set<string>>(new Set());
 
     // ── Signup ──
     const signup = useCallback(async () => {
@@ -81,7 +88,8 @@ export function usePollOperations({
                     console.warn("Failed to sync user to Supabase:", e);
                 }
             }
-            const existingUser = users.find(u => u.wallet === walletAddress);
+            const currentUsers = usersRef.current;
+            const existingUser = currentUsers.find(u => u.wallet === walletAddress);
             if (existingUser && !existingUser.signupBonusClaimed) {
                 setUsers(prev => prev.map(u =>
                     u.wallet === walletAddress
@@ -135,8 +143,7 @@ export function usePollOperations({
                 toast.error("Failed to create account — make sure you have SOL for gas");
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [walletAddress]);
+    }, [walletAddress, setUsers, usersRef, initialFetchDone]);
 
     // ── Claim daily reward ──
     const DAILY_REWARD_LAMPORTS = LAMPORTS_PER_SOL; // 1 SOL worth of internal balance
@@ -144,7 +151,7 @@ export function usePollOperations({
         if (!walletAddress) return false;
 
         // ── 24-hour cooldown check ──
-        const user = users.find(u => u.wallet === walletAddress);
+        const user = usersRef.current.find(u => u.wallet === walletAddress);
         if (user) {
             const hoursSinceLastClaim = (Date.now() - user.lastWeeklyRewardTs) / (1000 * 60 * 60);
             if (hoursSinceLastClaim < 24) {
@@ -181,7 +188,7 @@ export function usePollOperations({
             toast.error("Failed to claim daily reward — try again", { id: "daily-reward" });
             return false;
         }
-    }, [walletAddress, users, setUsers, usersRef]);
+    }, [walletAddress, setUsers, usersRef]);
 
     // ── Create poll ──
     const createPoll = useCallback(
@@ -288,7 +295,7 @@ export function usePollOperations({
             updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">>
         ): Promise<boolean> => {
             if (!walletAddress) return false;
-            const poll = polls.find((p) => p.id === pollId);
+            const poll = pollsRef.current.find((p) => p.id === pollId);
             if (!poll) return false;
 
             const admin = isAdminWallet(walletAddress);
@@ -359,14 +366,17 @@ export function usePollOperations({
                 return false;
             }
         },
-        [walletAddress, polls, setPolls, tracker]
+        [walletAddress, setPolls, tracker, pollsRef]
     );
 
     // ── Delete poll ──
     const deletePoll = useCallback(
         async (pollId: string): Promise<boolean> => {
             if (!walletAddress) return false;
-            const poll = polls.find((p) => p.id === pollId);
+            const currentPolls = pollsRef.current;
+            const currentVotes = votesRef.current;
+            const currentUsers = usersRef.current;
+            const poll = currentPolls.find((p) => p.id === pollId);
             if (!poll) return false;
 
             const admin = isAdminWallet(walletAddress);
@@ -379,10 +389,10 @@ export function usePollOperations({
                 if (totalVotes > 0) return false;
             }
 
-            const prevPolls = polls;
-            const prevUsers = users;
-            const prevVotes = votes;
-            const pollVotes = votes.filter(v => v.pollId === pollId);
+            const prevPolls = currentPolls;
+            const prevUsers = currentUsers;
+            const prevVotes = currentVotes;
+            const pollVotes = currentVotes.filter(v => v.pollId === pollId);
 
             try {
                 const pubkey = new PublicKey(walletAddress);
@@ -467,14 +477,25 @@ export function usePollOperations({
                 return false;
             }
         },
-        [walletAddress, polls, votes, users, setPolls, setVotes, setUsers, tracker, usersRef]
+        [walletAddress, setPolls, setVotes, setUsers, tracker, usersRef, pollsRef, votesRef]
     );
 
     // ── Cast vote ──
     const castVote = useCallback(
         async (pollId: string, optionIndex: number, numCoins: number): Promise<boolean> => {
             if (!walletAddress) return false;
-            const poll = polls.find((p) => p.id === pollId);
+            // Optimistic lock: prevent concurrent votes on same poll (#4)
+            const lockKey = `${pollId}-${walletAddress}`;
+            if (votingLock.current.has(lockKey)) {
+                toast.error("Vote already in progress");
+                return false;
+            }
+            votingLock.current.add(lockKey);
+            try {
+            // Read fresh state from refs to avoid stale closure
+            const currentPolls = pollsRef.current;
+            const currentVotes = votesRef.current;
+            const poll = currentPolls.find((p) => p.id === pollId);
             if (!poll || poll.status !== PollStatus.Active) return false;
             if (Date.now() / 1000 > poll.endTime) return false;
             if (poll.creator === walletAddress) {
@@ -482,7 +503,7 @@ export function usePollOperations({
                 return false;
             }
 
-            const existing = votes.find(v => v.pollId === pollId && v.voter === walletAddress);
+            const existing = currentVotes.find(v => v.pollId === pollId && v.voter === walletAddress);
             const currentCoins = existing ? existing.votesPerOption.reduce((a, b) => a + b, 0) : 0;
             if (currentCoins + numCoins > MAX_COINS_PER_POLL) {
                 toast.error(`Max ${MAX_COINS_PER_POLL} coins per poll (you have ${currentCoins})`);
@@ -490,13 +511,14 @@ export function usePollOperations({
             }
 
             const cost = numCoins * poll.unitPriceCents;
-            if (userAccount && cost > userAccount.balance) {
+            const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
+            if (currentUser && cost > currentUser.balance) {
                 toast.error("Insufficient SOL balance");
                 return false;
             }
 
-            const prevPolls = polls;
-            const prevVotes = votes;
+            const prevPolls = currentPolls;
+            const prevVotes = currentVotes;
 
             try {
                 const pubkey = new PublicKey(walletAddress);
@@ -595,18 +617,22 @@ export function usePollOperations({
                 toast.error(friendlyErrorMessage(e, "Vote"), { id: "cast-vote" });
                 return false;
             }
+            } finally {
+                votingLock.current.delete(lockKey);
+            }
         },
-        [walletAddress, polls, votes, userAccount, setPolls, setVotes, setUsers, tracker, usersRef, addNotification]
+        [walletAddress, setPolls, setVotes, setUsers, tracker, usersRef, pollsRef, votesRef, addNotification]
     );
 
     // ── Settle poll ──
     const settlePoll = useCallback(
         async (pollId: string, winningOption?: number): Promise<boolean> => {
-            const poll = polls.find((p) => p.id === pollId);
+            const currentPolls = pollsRef.current;
+            const poll = currentPolls.find((p) => p.id === pollId);
             if (!poll || poll.status !== PollStatus.Active) return false;
             if (!walletAddress) return false;
 
-            const prevPolls = polls;
+            const prevPolls = currentPolls;
 
             try {
                 const pubkey = new PublicKey(walletAddress);
@@ -681,7 +707,7 @@ export function usePollOperations({
                     pollId,
                 });
 
-                const userVote = votes.find(v => v.pollId === pollId && v.voter === walletAddress);
+                const userVote = votesRef.current.find(v => v.pollId === pollId && v.voter === walletAddress);
                 if (userVote && finalWinningOption !== WINNING_OPTION_UNSET && (userVote.votesPerOption[finalWinningOption] || 0) > 0) {
                     addNotification({
                         wallet: walletAddress!,
@@ -700,24 +726,27 @@ export function usePollOperations({
                 return false;
             }
         },
-        [walletAddress, polls, votes, setPolls, setUsers, tracker, usersRef, addNotification]
+        [walletAddress, setPolls, setUsers, tracker, usersRef, pollsRef, votesRef, addNotification]
     );
 
     // ── Claim reward ──
     const claimReward = useCallback(
         async (pollId: string): Promise<number> => {
             if (!walletAddress) return 0;
-            const poll = polls.find((p) => p.id === pollId);
+            const currentPolls = pollsRef.current;
+            const currentVotes = votesRef.current;
+            const currentUsers = usersRef.current;
+            const poll = currentPolls.find((p) => p.id === pollId);
             if (!poll || poll.status !== 1 || poll.winningOption === 255) return 0;
 
-            const voteRecord = votes.find(v => v.pollId === pollId && v.voter === walletAddress);
+            const voteRecord = currentVotes.find(v => v.pollId === pollId && v.voter === walletAddress);
             if (!voteRecord || voteRecord.claimed) return 0;
 
             const userWinningVotes = voteRecord.votesPerOption[poll.winningOption] || 0;
             if (userWinningVotes === 0) return 0;
 
-            const prevVotes = votes;
-            const prevUsers = users;
+            const prevVotes = currentVotes;
+            const prevUsers = currentUsers;
 
             try {
                 const pubkey = new PublicKey(walletAddress);
@@ -794,7 +823,7 @@ export function usePollOperations({
                 return 0;
             }
         },
-        [walletAddress, polls, votes, users, setVotes, setUsers, tracker, addNotification]
+        [walletAddress, setVotes, setUsers, tracker, usersRef, pollsRef, votesRef, addNotification]
     );
 
     return {

@@ -15,8 +15,8 @@ const translations = {
   home: { en: "Home", ne: "गृहपृष्ठ" },
   feed: { en: "Feed", ne: "फिड" },
 
-  connectPhantom: { en: "Connect Phantom", ne: "Phantom जडान गर्नुहोस्" },
-  connectPhantomWallet: { en: "Connect Phantom Wallet", ne: "Phantom वालेट जडान गर्नुहोस्" },
+  connectPhantom: { en: "Connect Wallet", ne: "वालेट जडान गर्नुहोस्" },
+  connectPhantomWallet: { en: "Connect Wallet", ne: "वालेट जडान गर्नुहोस्" },
   disconnectWallet: { en: "Disconnect wallet", ne: "वालेट विच्छेद गर्नुहोस्" },
   airdropReceived: { en: "Airdrop received!", ne: "एयरड्रप प्राप्त भयो!" },
 
@@ -27,8 +27,8 @@ const translations = {
     ne: "भविष्यवाणी मतदानमा अप्शन-सिक्काहरू किन्नुहोस्। तपाईंको पक्ष जित्यो भने, तपाईंले हारेको पुल लिनुहुन्छ।",
   },
   heroSignup: {
-    en: "Sign up with Phantom and get <strong>devnet SOL</strong> to start trading!",
-    ne: "Phantom मा साइन अप गर्नुहोस् र ट्रेडिङ सुरु गर्न <strong>devnet SOL</strong> पाउनुहोस्!",
+    en: "Sign up with your wallet and get <strong>devnet SOL</strong> to start trading!",
+    ne: "वालेटमा साइन अप गर्नुहोस् र ट्रेडिङ सुरु गर्न <strong>devnet SOL</strong> पाउनुहोस्!",
   },
   liveOnDevnet: { en: "Live on Solana Devnet", ne: "Solana Devnet मा लाइभ" },
   nonCustodial: { en: "Non-custodial", ne: "गैर-कस्टोडियल" },
@@ -134,8 +134,8 @@ const translations = {
   uploadingImages: { en: "Uploading Images...", ne: "तस्बिरहरू अपलोड हुदैछ..." },
   quickStart: { en: "Quick start with a template:", ne: "टेम्प्लेटबाट छिटो सुरु:" },
   connectWalletToCreate: {
-    en: "Connect your Phantom wallet to create polls",
-    ne: "मतदान सिर्जना गर्न Phantom वालेट जडान गर्नुहोस्",
+    en: "Connect your wallet to create polls",
+    ne: "मतदान सिर्जना गर्न वालेट जडान गर्नुहोस्",
   },
 
   /* ── Create page validation ── */
@@ -176,6 +176,7 @@ const translations = {
   myActivity: { en: "My Activity", ne: "मेरो गतिविधि" },
   everyone: { en: "Everyone", ne: "सबैजना" },
   noActivityYet: { en: "No activity yet", ne: "अहिलेसम्म कुनै गतिविधि छैन" },
+  loadMore: { en: "Load More", ne: "थप लोड गर्नुहोस्" },
   justNow: { en: "Just now", ne: "भर्खरै" },
 
   /* ── Profile page ── */
@@ -245,8 +246,8 @@ const translations = {
   confirmSettle: { en: "Confirm Settle", ne: "सेटल पुष्टि गर्नुहोस्" },
   readyToSettle: { en: "Ready to Settle", ne: "सेटल गर्न तयार" },
   settleDesc: {
-    en: "Anyone can trigger settlement. Most votes wins.",
-    ne: "जोसुकैले सेटलमेन्ट ट्रिगर गर्न सक्छ। सबैभन्दा बढी मतले जित्छ।",
+    en: "As admin, you can trigger settlement. Most votes wins.",
+    ne: "एडमिनको रूपमा, तपाईं सेटलमेन्ट ट्रिगर गर्न सक्नुहुन्छ। सबैभन्दा बढी मतले जित्छ।",
   },
   settleConfirm: {
     en: "Are you sure? This action is irreversible.",
@@ -297,8 +298,8 @@ const translations = {
   /* ── WalletConnectModal ── */
   connectYourWallet: { en: "Connect Your Wallet", ne: "वालेट जडान गर्नुहोस्" },
   walletModalDesc: {
-    en: "Connect your Phantom wallet to start predicting and earn rewards.",
-    ne: "भविष्यवाणी सुरु गर्न र पुरस्कार कमाउन Phantom वालेट जडान गर्नुहोस्।",
+    en: "Connect your wallet to start predicting and earn rewards.",
+    ne: "भविष्यवाणी सुरु गर्न र पुरस्कार कमाउन वालेट जडान गर्नुहोस्।",
   },
   onChainSetup: { en: "On-Chain Account Setup", ne: "अन-चेन खाता सेटअप" },
   onChainSetupDesc: {

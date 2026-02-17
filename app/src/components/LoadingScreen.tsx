@@ -1,58 +1,62 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "./Providers";
 import { Zap } from "lucide-react";
 
+/**
+ * CSS-only loading splash (replaces framer-motion version).
+ * Fade-in classes live in globals.css; the exit fade uses an inline transition.
+ */
 export default function LoadingScreen() {
   const { isLoading } = useApp();
   const [show, setShow] = useState(true);
+  const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
     if (!isLoading) {
-      const t = setTimeout(() => setShow(false), 600);
+      setFadeOut(true);
+      const t = setTimeout(() => setShow(false), 500); // matches CSS transition
       return () => clearTimeout(t);
     }
   }, [isLoading]);
 
+  if (!show) return null;
+
   return (
-    <AnimatePresence>
-      {show && (
-        <motion.div
-          className="loading-screen"
-          initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.4, ease: "easeInOut" }}
+    <div
+      className="loading-screen"
+      style={{
+        opacity: fadeOut ? 0 : 1,
+        transition: "opacity 0.4s ease-in-out",
+      }}
+    >
+      <div className="loading-center">
+        {/* Logo icon */}
+        <div className="loading-logo">
+          <Zap size={24} className="text-brand-500" />
+        </div>
+
+        {/* Brand name – uses simple CSS fade-in */}
+        <h1
+          className="loading-brand"
+          style={{
+            animation: "sectionFadeUp 0.4s 0.15s ease-out both",
+          }}
         >
-          <div className="loading-center">
-            {/* Logo icon */}
-            <div className="loading-logo">
-              <Zap size={24} className="text-brand-500" />
-            </div>
+          Instinct<span className="loading-brand-accent">Fi</span>
+        </h1>
 
-            {/* Brand name */}
-            <motion.h1
-              className="loading-brand"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.4 }}
-            >
-              Instinct<span className="loading-brand-accent">Fi</span>
-            </motion.h1>
-
-            {/* Loading bar */}
-            <motion.div
-              className="loading-bar-track"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4, duration: 0.3 }}
-            >
-              <div className="loading-bar-fill" />
-            </motion.div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        {/* Loading bar */}
+        <div
+          className="loading-bar-track"
+          style={{
+            animation: "sectionFadeUp 0.3s 0.4s ease-out both",
+          }}
+        >
+          <div className="loading-bar-fill" />
+        </div>
+      </div>
+    </div>
   );
 }

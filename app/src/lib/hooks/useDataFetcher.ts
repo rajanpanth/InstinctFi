@@ -42,14 +42,21 @@ export function useDataFetcher(
     const fetchingRef = useRef(false);
     const initialFetchDone = useRef(false);
     const usersRef = useRef<UserAccount[]>([]);
+    const pollsRef = useRef<DemoPoll[]>([]);
+    const votesRef = useRef<DemoVote[]>([]);
     const optionImagesCache = useRef<Record<string, string[]>>({});
 
     const MUTATION_COOLDOWN_MS = 10_000;
 
-    // Keep up-to-date ref for users (for async closures)
-    // This is updated by the parent via the exposed ref
+    // Keep up-to-date refs for async closures
     const updateUsersRef = useCallback((users: UserAccount[]) => {
         usersRef.current = users;
+    }, []);
+    const updatePollsRef = useCallback((polls: DemoPoll[]) => {
+        pollsRef.current = polls;
+    }, []);
+    const updateVotesRef = useCallback((votes: DemoVote[]) => {
+        votesRef.current = votes;
     }, []);
 
     const fetchAll = useCallback(async () => {
@@ -174,19 +181,27 @@ export function useDataFetcher(
     // Initial fetch + periodic polling + Supabase realtime
     useEffect(() => {
         fetchAll();
+        // Poll every 15s as fallback for missed realtime events
         const interval = setInterval(fetchAll, 15_000);
 
         let channel: ReturnType<typeof supabase.channel> | null = null;
+        let realtimeDebounce: ReturnType<typeof setTimeout> | null = null;
         if (isSupabaseConfigured) {
+            // Debounce realtime events to avoid double-fetching with polling (#17)
+            const debouncedFetch = () => {
+                if (realtimeDebounce) clearTimeout(realtimeDebounce);
+                realtimeDebounce = setTimeout(fetchAll, 500);
+            };
             channel = supabase
                 .channel("polls-votes-realtime")
-                .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, () => fetchAll())
-                .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, () => fetchAll())
+                .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, debouncedFetch)
+                .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, debouncedFetch)
                 .subscribe();
         }
 
         return () => {
             clearInterval(interval);
+            if (realtimeDebounce) clearTimeout(realtimeDebounce);
             if (channel) supabase.removeChannel(channel);
         };
     }, [fetchAll]);
@@ -202,6 +217,10 @@ export function useDataFetcher(
         fetchAll,
         initialFetchDone,
         usersRef,
+        pollsRef,
+        votesRef,
         updateUsersRef,
+        updatePollsRef,
+        updateVotesRef,
     };
 }

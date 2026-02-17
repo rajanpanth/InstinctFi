@@ -53,7 +53,7 @@ class ErrorBoundaryInner extends Component<Props & { pathname: string }, State> 
               {!maxRetries ? (
                 <button
                   onClick={this.handleRetry}
-                  className="px-6 py-3 bg-brand-600 hover:bg-primary-700 rounded-xl font-semibold transition-colors"
+                  className="px-6 py-3 bg-brand-500 hover:bg-brand-600 rounded-xl font-semibold transition-colors"
                 >
                   Try Again {this.state.retryCount > 0 && `(${this.state.retryCount}/3)`}
                 </button>

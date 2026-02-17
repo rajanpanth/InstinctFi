@@ -278,7 +278,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-6 py-2.5 bg-brand-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-semibold transition-colors"
+            className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-semibold transition-colors"
           >
             {saving ? "Saving..." : "Save Changes"}
           </button>

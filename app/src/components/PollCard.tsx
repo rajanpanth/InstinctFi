@@ -3,7 +3,9 @@
 import { useState, memo } from "react";
 import { DemoPoll, useApp, formatDollars, formatDollarsShort } from "./Providers";
 import Link from "next/link";
+import Image from "next/image";
 import { sanitizeImageUrl } from "@/lib/uploadImage";
+import OptionAvatar from "./OptionAvatar";
 import EditPollModal from "./EditPollModal";
 import DeletePollModal from "./DeletePollModal";
 import { useCountdown } from "@/lib/useCountdown";
@@ -34,50 +36,6 @@ import {
 type Props = {
   poll: DemoPoll;
 };
-
-/* ── Option Avatar ── */
-function OptionAvatar({
-  src,
-  label,
-  index,
-  size = "sm",
-}: {
-  src?: string;
-  label: string;
-  index: number;
-  size?: "sm" | "lg";
-}) {
-  const sanitized = src ? sanitizeImageUrl(src) : "";
-  const colors = [
-    "bg-blue-500/20 text-blue-400",
-    "bg-red-500/20 text-red-400",
-    "bg-green-500/20 text-green-400",
-    "bg-purple-500/20 text-purple-400",
-    "bg-orange-500/20 text-orange-400",
-    "bg-pink-500/20 text-pink-400",
-  ];
-  const bg = colors[index % colors.length];
-  const dim = size === "lg" ? "w-10 h-10" : "w-8 h-8";
-  const textSize = size === "lg" ? "text-sm" : "text-xs";
-
-  if (sanitized) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={sanitized}
-        alt={label}
-        className={`${dim} rounded-full object-cover shrink-0 border border-border`}
-      />
-    );
-  }
-  return (
-    <div
-      className={`${dim} rounded-full ${bg} flex items-center justify-center ${textSize} font-bold shrink-0`}
-    >
-      {label.charAt(0).toUpperCase()}
-    </div>
-  );
-}
 
 const PollCard = memo(function PollCard({ poll }: Props) {
   const {
@@ -211,12 +169,12 @@ const PollCard = memo(function PollCard({ poll }: Props) {
           {/* Header row */}
           <div className="flex items-start gap-3 mb-3">
             {mainImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={mainImage}
-                alt=""
-                className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border"
-              />
+              mainImage.startsWith("data:") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={mainImage} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border" />
+              ) : (
+                <Image src={mainImage} alt="" width={48} height={48} className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border" />
+              )
             ) : (
               <div className="w-12 h-12 rounded-lg bg-surface-200 shrink-0 flex items-center justify-center border border-border">
                 <BarChart3Icon />
@@ -300,8 +258,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 <button
                   key={opt.index}
                   onClick={() => handleOptionClick(opt.index)}
-                  disabled={isEnded || isSettled}
-                  className={`relative w-full flex items-center gap-2.5 group/opt transition-all rounded-lg px-3 py-2 overflow-hidden ${isVoting
+                  disabled={isEnded || isSettled}                  aria-label={`Vote for ${opt.label}, ${opt.pct}%${isWinner ? ', winner' : ''}`}                  className={`relative w-full flex items-center gap-2.5 group/opt transition-all rounded-lg px-3 py-2 overflow-hidden ${isVoting
                       ? "ring-1 ring-brand-500/40 bg-brand-500/[0.05]"
                       : isEnded || isSettled
                         ? "cursor-default bg-surface-50"
@@ -518,7 +475,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                   <AlertCircle size={14} />
                   {t("readyToSettle")}
                 </p>
-                <p className="text-[11px] text-neutral-500 mb-2">{t("settleDesc")}</p>
+                <p className="text-[11px] text-neutral-500 mb-2">Admin settlement: highest-voted option wins by default.</p>
                 {showSettleConfirm ? (
                   <div className="space-y-2">
                     <p className="text-[11px] text-yellow-300">{t("settleConfirm")}</p>
@@ -613,12 +570,12 @@ const PollCard = memo(function PollCard({ poll }: Props) {
               <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {getAvatarUrl(poll.creator) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={getAvatarUrl(poll.creator)}
-                      alt=""
-                      className="w-5 h-5 rounded-full object-cover border border-border"
-                    />
+                    getAvatarUrl(poll.creator).startsWith("data:") ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={getAvatarUrl(poll.creator)} alt="" className="w-5 h-5 rounded-full object-cover border border-border" />
+                    ) : (
+                      <Image src={getAvatarUrl(poll.creator)} alt="" width={20} height={20} className="w-5 h-5 rounded-full object-cover border border-border" />
+                    )
                   ) : (
                     <div className="w-5 h-5 rounded-full bg-brand-500/20 flex items-center justify-center text-[8px] font-bold text-brand-400 shrink-0">
                       {getDisplayName(poll.creator).charAt(0).toUpperCase()}

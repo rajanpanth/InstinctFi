@@ -5,6 +5,7 @@ import { useApp, formatDollars, type DemoPoll, PollStatus } from "@/components/P
 import { isAdminWallet } from "@/lib/constants";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import toast from "react-hot-toast";
+import AdminEditModal from "./AdminEditModal";
 
 type TabFilter = "ended" | "active" | "settled" | "all";
 
@@ -30,6 +31,7 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [editingPoll, setEditingPoll] = useState<DemoPoll | null>(null);
   const [proofs, setProofs] = useState<ResolutionProofs>(loadProofs);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
   // Load proofs from Supabase on mount
   useEffect(() => {
@@ -44,7 +46,12 @@ export default function AdminPage() {
     })();
   }, []);
 
-  const now = Math.floor(Date.now() / 1000);
+  // Keep `now` fresh every 30s so filters don't go stale
+  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const filteredPolls = useMemo(() => {
     let list = [...polls];
@@ -406,10 +413,12 @@ export default function AdminPage() {
                       ✏️ Edit
                     </button>
                     <button
-                      onClick={async () => {
-                        if (confirm("Delete this poll? This cannot be undone.")) {
-                          await deletePoll(poll.id);
-                        }
+                      onClick={() => {
+                        setConfirmModal({
+                          title: "Delete Poll",
+                          message: "Delete this poll? This cannot be undone.",
+                          onConfirm: () => { deletePoll(poll.id); setConfirmModal(null); },
+                        });
                       }}
                       disabled={settlingId === poll.id}
                       className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-sm text-red-400 transition-colors ml-auto"
@@ -445,10 +454,12 @@ export default function AdminPage() {
                     ✏️ Edit
                   </button>
                   <button
-                    onClick={async () => {
-                      if (confirm("Delete this active poll? This cannot be undone.")) {
-                        await deletePoll(poll.id);
-                      }
+                    onClick={() => {
+                      setConfirmModal({
+                        title: "Delete Active Poll",
+                        message: "Delete this active poll? This cannot be undone.",
+                        onConfirm: () => { deletePoll(poll.id); setConfirmModal(null); },
+                      });
                     }}
                     className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-sm text-red-400 transition-colors"
                   >
@@ -475,10 +486,12 @@ export default function AdminPage() {
                       ✏️ Edit
                     </button>
                     <button
-                      onClick={async () => {
-                        if (confirm("Delete this settled poll? This cannot be undone.")) {
-                          await deletePoll(poll.id);
-                        }
+                      onClick={() => {
+                        setConfirmModal({
+                          title: "Delete Settled Poll",
+                          message: "Delete this settled poll? This cannot be undone.",
+                          onConfirm: () => { deletePoll(poll.id); setConfirmModal(null); },
+                        });
                       }}
                       className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-sm text-red-400 transition-colors"
                     >
@@ -538,150 +551,30 @@ export default function AdminPage() {
           }}
         />
       )}
-    </div>
-  );
-}
 
-/* ── Admin Edit Modal ── */
-function AdminEditModal({
-  poll,
-  onClose,
-  onSave,
-}: {
-  poll: DemoPoll;
-  onClose: () => void;
-  onSave: (updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "options" | "endTime">>) => void;
-}) {
-  const [title, setTitle] = useState(poll.title);
-  const [description, setDescription] = useState(poll.description);
-  const [category, setCategory] = useState(poll.category);
-  const [imageUrl, setImageUrl] = useState(poll.imageUrl);
-  const [options, setOptions] = useState([...poll.options]);
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date(poll.endTime * 1000);
-    return d.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
-  });
-
-  const handleSave = () => {
-    if (!title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
-    if (options.some(o => !o.trim())) {
-      toast.error("All options must have text");
-      return;
-    }
-    onSave({
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      imageUrl: imageUrl.trim(),
-      options: options.map(o => o.trim()),
-      endTime: Math.floor(new Date(endDate).getTime() / 1000),
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-      <div
-        className="bg-surface-50 border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">✏️ Edit Poll (Admin)</h2>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white text-xl">&times;</button>
-        </div>
-
-        {/* Title */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Title</label>
-          <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
-          />
-        </div>
-
-        {/* Description */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Description</label>
-          <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50 resize-none"
-          />
-        </div>
-
-        {/* Category */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Category</label>
-          <input
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
-          />
-        </div>
-
-        {/* Image URL */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Image URL</label>
-          <input
-            value={imageUrl}
-            onChange={e => setImageUrl(e.target.value)}
-            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
-            placeholder="https://..."
-          />
-        </div>
-
-        {/* Options */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Options</label>
-          <div className="space-y-2">
-            {options.map((opt, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-5">{i + 1}.</span>
-                <input
-                  value={opt}
-                  onChange={e => {
-                    const next = [...options];
-                    next[i] = e.target.value;
-                    setOptions(next);
-                  }}
-                  className="flex-1 px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
-                />
-              </div>
-            ))}
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setConfirmModal(null)}>
+          <div className="bg-surface-100 border border-border rounded-2xl p-6 mx-4 max-w-sm w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-neutral-100 mb-2">{confirmModal.title}</h3>
+            <p className="text-sm text-neutral-400 mb-5">{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-neutral-400 hover:bg-surface-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 rounded-lg text-sm font-semibold text-white transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
-
-        {/* End Time */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">End Time</label>
-          <input
-            type="datetime-local"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="w-full px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
-          />
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            onClick={handleSave}
-            className="flex-1 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 rounded-lg text-sm font-semibold text-white transition-all"
-          >
-            Save Changes
-          </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2.5 bg-surface-100 hover:bg-dark-600 border border-gray-600/50 rounded-lg text-sm text-gray-300 transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

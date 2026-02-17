@@ -1,10 +1,51 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+
+/**
+ * Shared global 1-second ticker.
+ * All countdown hooks subscribe to a single setInterval instead of
+ * each running their own (12 cards = 12 intervals → 1 shared interval). (#15)
+ */
+const subscribers = new Set<() => void>();
+let tickerId: ReturnType<typeof setInterval> | null = null;
+
+function startGlobalTicker() {
+  if (tickerId) return;
+  tickerId = setInterval(() => {
+    subscribers.forEach((fn) => fn());
+  }, 1000);
+
+  const handleVisibility = () => {
+    if (document.hidden) {
+      if (tickerId) { clearInterval(tickerId); tickerId = null; }
+    } else {
+      subscribers.forEach((fn) => fn());
+      if (!tickerId) {
+        tickerId = setInterval(() => {
+          subscribers.forEach((fn) => fn());
+        }, 1000);
+      }
+    }
+  };
+  document.addEventListener("visibilitychange", handleVisibility);
+}
+
+function subscribe(fn: () => void) {
+  subscribers.add(fn);
+  if (subscribers.size === 1) startGlobalTicker();
+  return () => {
+    subscribers.delete(fn);
+    if (subscribers.size === 0 && tickerId) {
+      clearInterval(tickerId);
+      tickerId = null;
+    }
+  };
+}
 
 /**
  * Countdown to a future Unix timestamp (seconds).
- * Pauses when the browser tab is hidden to save CPU.
+ * Uses shared global ticker to avoid per-card intervals.
  */
 export function useCountdown(endTimeUnixSeconds: number) {
   const [text, setText] = useState("");
@@ -21,7 +62,6 @@ export function useCountdown(endTimeUnixSeconds: number) {
       return;
     }
     setEnded(false);
-    // Estimate total duration (assume polls are max 7 days)
     const MAX_DURATION = 7 * 24 * 3600;
     const elapsed = MAX_DURATION - diff;
     setProgress(Math.max(0, Math.min(1, elapsed / MAX_DURATION)));
@@ -33,23 +73,9 @@ export function useCountdown(endTimeUnixSeconds: number) {
   }, [endTimeUnixSeconds]);
 
   useEffect(() => {
-    tick();
-    let id: ReturnType<typeof setInterval> | null = setInterval(tick, 1000);
-
-    const handleVisibility = () => {
-      if (document.hidden) {
-        if (id) { clearInterval(id); id = null; }
-      } else {
-        tick();
-        if (!id) id = setInterval(tick, 1000);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      if (id) clearInterval(id);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
+    tick(); // initial
+    const unsub = subscribe(tick);
+    return unsub;
   }, [tick]);
 
   return { text, ended, progress };
@@ -57,7 +83,7 @@ export function useCountdown(endTimeUnixSeconds: number) {
 
 /**
  * Countdown for daily (24h) claim cooldown.
- * Pauses when tab is hidden.
+ * Uses shared global ticker.
  */
 export function useDailyCountdown(lastClaimMs: number) {
   const [timeLeft, setTimeLeft] = useState("");
@@ -86,22 +112,8 @@ export function useDailyCountdown(lastClaimMs: number) {
 
   useEffect(() => {
     tick();
-    let id: ReturnType<typeof setInterval> | null = setInterval(tick, 1000);
-
-    const handleVisibility = () => {
-      if (document.hidden) {
-        if (id) { clearInterval(id); id = null; }
-      } else {
-        tick();
-        if (!id) id = setInterval(tick, 1000);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      if (id) clearInterval(id);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
+    const unsub = subscribe(tick);
+    return unsub;
   }, [tick]);
 
   return { timeLeft, canClaim, progress };

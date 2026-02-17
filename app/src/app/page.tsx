@@ -9,7 +9,7 @@ import SkeletonCard from "@/components/SkeletonCard";
 import { CATEGORY_META } from "@/lib/constants";
 import { useLanguage } from "@/lib/languageContext";
 import { tCat } from "@/lib/translations";
-import { ArrowRight, Zap, BarChart3, Users, Github, ExternalLink } from "lucide-react";
+import { ArrowRight, Zap, BarChart3, Users } from "lucide-react";
 
 const CATEGORY_SECTIONS = CATEGORY_META.filter((c) => c.label !== "Trending");
 
@@ -69,8 +69,12 @@ function HomeContent() {
   const [trendingWindow, setTrendingWindow] = useState<TrendingWindow>("all");
   const { t, lang } = useLanguage();
 
+  // Mounted guard — defers Date.now()-dependent calculations to client only
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const windowMs = TRENDING_WINDOWS.find((w) => w.key === trendingWindow)?.ms ?? Infinity;
-  const trending = useMemo(() => getTrendingPolls(polls, 6, windowMs), [polls, windowMs]);
+  const trending = useMemo(() => mounted ? getTrendingPolls(polls, 6, windowMs) : [], [polls, windowMs, mounted]);
 
   const filteredPolls = useMemo(() => {
     if (!catFilter || catFilter === "Trending") return null;
@@ -88,11 +92,8 @@ function HomeContent() {
     [polls]
   );
 
-  // Live stats — deferred to client to avoid hydration mismatch (server=0 vs client=N)
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const totalVotes = polls.reduce((sum, p) => sum + p.voteCounts.reduce((a, b) => a + b, 0), 0);
-  const totalVolume = polls.reduce((sum, p) => sum + p.totalPoolCents, 0);
+  const totalVotes = useMemo(() => mounted ? polls.reduce((sum, p) => sum + p.voteCounts.reduce((a, b) => a + b, 0), 0) : 0, [polls, mounted]);
+  const totalVolume = useMemo(() => mounted ? polls.reduce((sum, p) => sum + p.totalPoolCents, 0) : 0, [polls, mounted]);
 
   return (
     <div className="space-y-10">
@@ -194,7 +195,7 @@ function HomeContent() {
       )}
 
       {/* ── Category Filter Pills ── */}
-      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-2">
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-2" role="tablist" aria-label="Category filters">
         {CATEGORY_META.map((cat) => {
           const isTrending = cat.label === "Trending";
           const isActive = isTrending
@@ -205,6 +206,8 @@ function HomeContent() {
             <Link
               key={cat.label}
               href={href}
+              role="tab"
+              aria-selected={isActive}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${isActive
                   ? "bg-brand-500/10 text-brand-400 border border-brand-500/20"
                   : "text-neutral-500 hover:text-neutral-300 hover:bg-surface-200 border border-transparent"
@@ -349,43 +352,6 @@ function HomeContent() {
         </section>
       )}
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-border pt-8 pb-4 mt-12">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <span className="font-heading font-bold text-neutral-300">
-              Instinct<span className="text-brand-500">Fi</span>
-            </span>
-            <p className="text-neutral-600 text-xs mt-1">
-              Decentralized prediction polls on Solana
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-neutral-600 hover:text-neutral-400 transition-colors"
-            >
-              <Github size={16} />
-            </a>
-            <a
-              href="https://twitter.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-neutral-600 hover:text-neutral-400 transition-colors"
-            >
-              <ExternalLink size={16} />
-            </a>
-            <span className="text-[10px] text-neutral-600 px-2 py-0.5 bg-surface-100 border border-border rounded">
-              Solana Devnet
-            </span>
-          </div>
-        </div>
-        <p className="text-neutral-700 text-[10px] mt-4">
-          © {new Date().getFullYear()} InstinctFi. All rights reserved.
-        </p>
-      </footer>
     </div>
   );
 }

@@ -19,7 +19,6 @@ import {
   Activity,
   User,
   Settings,
-  Home,
   LogOut,
   Wallet,
   Zap,
@@ -37,6 +36,16 @@ export function Navbar() {
   } = useApp();
   const pathname = usePathname();
   const { t } = useLanguage();
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+
+  const handleDisconnect = () => {
+    setShowDisconnectConfirm(true);
+  };
+
+  const confirmDisconnect = () => {
+    setShowDisconnectConfirm(false);
+    disconnectWallet();
+  };
 
   const dailyAvailable =
     userAccount &&
@@ -44,14 +53,14 @@ export function Navbar() {
 
   const unclaimedRewards = useMemo(() => {
     if (!walletConnected || !votes.length || !polls.length) return 0;
+    // Build poll lookup map for O(1) access instead of O(n×m) (#18)
+    const pollMap = new Map(polls.map((p) => [p.id, p]));
     let count = 0;
     for (const v of votes) {
-      const poll = polls.find((p) => p.id === v.pollId);
+      const poll = pollMap.get(v.pollId);
       if (!poll) continue;
-      const isSettled = poll.status === PollStatus.Settled;
-      if (isSettled && !v.claimed && poll.winningOption !== WINNING_OPTION_UNSET) {
-        const userVotesOnWinner = v.votesPerOption[poll.winningOption] || 0;
-        if (userVotesOnWinner > 0) count++;
+      if (poll.status === PollStatus.Settled && !v.claimed && poll.winningOption !== WINNING_OPTION_UNSET) {
+        if ((v.votesPerOption[poll.winningOption] || 0) > 0) count++;
       }
     }
     return count;
@@ -138,7 +147,7 @@ export function Navbar() {
                   </div>
                   {/* Wallet address */}
                   <button
-                    onClick={disconnectWallet}
+                    onClick={handleDisconnect}
                     className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-100 hover:bg-surface-200 border border-border rounded-lg text-xs font-mono text-neutral-400 transition-colors group"
                     title="Click to disconnect"
                   >
@@ -148,7 +157,7 @@ export function Navbar() {
                   </button>
                   {/* Mobile disconnect */}
                   <button
-                    onClick={disconnectWallet}
+                    onClick={handleDisconnect}
                     className="sm:hidden w-8 h-8 flex items-center justify-center bg-surface-100 border border-border rounded-lg text-neutral-500 hover:text-neutral-300 transition-colors"
                     title="Disconnect wallet"
                     aria-label="Disconnect wallet"
@@ -173,68 +182,85 @@ export function Navbar() {
 
       {/* Mobile bottom nav */}
       <nav aria-label="Mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-50 mobile-bottom-nav">
-        <div className="mx-2 mb-2 rounded-2xl bg-surface-50/95 backdrop-blur-xl border border-border shadow-xl shadow-black/50">
-          <div className="flex justify-around items-center py-2 px-1">
+        <div className="mx-3 mb-3 rounded-2xl bg-surface-50/95 backdrop-blur-xl border border-border/60 shadow-2xl shadow-black/40">
+          <div className="flex items-center justify-around py-2 px-1">
             {[
-              { href: "/", label: t("home"), Icon: Home },
               { href: "/polls", label: t("polls"), Icon: LayoutGrid },
-              { href: "/create", label: t("create"), Icon: Plus, isSpecial: true },
-              { href: "/activity", label: t("feed"), Icon: Activity },
+              { href: "/leaderboard", label: t("leaderboard"), Icon: Trophy },
+              { href: "/create", label: t("create"), Icon: Plus, isCreate: true },
+              { href: "/activity", label: t("activity"), Icon: Activity },
               { href: "/profile", label: t("profile"), Icon: User, hasBadge: dailyAvailable || unclaimedRewards > 0 },
             ].map((item) => {
-              const active = item.href === "/" ? pathname === "/" : pathname === item.href;
-              const isSpecial = "isSpecial" in item && item.isSpecial;
-
-              if (isSpecial) {
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="relative flex flex-col items-center gap-0.5 -mt-4 transition-all active:scale-90"
-                  >
-                    <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-lg ${active
-                        ? "bg-brand-500 shadow-brand-500/30"
-                        : "bg-brand-600 shadow-brand-500/15"
-                        }`}
-                    >
-                      <item.Icon size={20} className="text-white" strokeWidth={2.5} />
-                    </div>
-                    <span className={`text-[9px] font-medium mt-0.5 ${active ? "text-brand-400" : "text-neutral-500"}`}>
-                      {item.label}
-                    </span>
-                  </Link>
-                );
-              }
+              const active = pathname === item.href || (item.href === "/polls" && pathname === "/");
+              const isCreate = "isCreate" in item && item.isCreate;
 
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`relative flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl min-w-[52px] transition-colors ${active ? "text-brand-400" : "text-neutral-600 active:scale-95"
-                    }`}
+                  className={`relative flex flex-col items-center gap-1 py-1.5 px-2 rounded-xl transition-all active:scale-95 ${
+                    active ? "text-brand-400" : "text-neutral-500"
+                  }`}
                 >
                   {"hasBadge" in item && item.hasBadge && (
-                    <span className="absolute top-0.5 right-1 flex h-2 w-2">
+                    <span className="absolute top-0.5 right-0.5 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-60" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
                     </span>
                   )}
-                  <item.Icon
-                    size={20}
-                    fill={active ? "currentColor" : "none"}
-                    strokeWidth={active ? 1.5 : 1.8}
-                  />
-                  {active ? (
-                    <span className="w-1 h-1 rounded-full bg-brand-400 mt-0.5" />
+                  {isCreate ? (
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                      active ? "bg-brand-500 text-white" : "bg-brand-600/80 text-white"
+                    }`}>
+                      <item.Icon size={20} strokeWidth={2.5} />
+                    </div>
                   ) : (
-                    <span className="text-[9px] font-medium mt-0.5">{item.label}</span>
+                    <item.Icon
+                      size={22}
+                      fill={active ? "currentColor" : "none"}
+                      strokeWidth={active ? 1.5 : 1.8}
+                    />
                   )}
+                  <span className={`text-[10px] font-medium leading-none ${active ? "text-brand-400" : "text-neutral-500"}`}>
+                    {item.label}
+                  </span>
                 </Link>
               );
             })}
           </div>
         </div>
       </nav>
+
+      {/* Disconnect confirmation modal */}
+      {showDisconnectConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDisconnectConfirm(false)}>
+          <div className="bg-surface-100 border border-border rounded-2xl p-6 mx-4 max-w-sm w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+                <LogOut size={18} className="text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-neutral-100">Disconnect Wallet?</h3>
+            </div>
+            <p className="text-sm text-neutral-400 mb-5">
+              You will be disconnected from InstinctFi. You can reconnect anytime.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDisconnectConfirm(false)}
+                className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-neutral-400 hover:bg-surface-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDisconnect}
+                className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 rounded-lg text-sm font-semibold text-white transition-colors"
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

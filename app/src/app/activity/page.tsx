@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useApp, type DemoPoll, type DemoVote, formatDollarsShort, PollStatus, WINNING_OPTION_UNSET } from "@/components/Providers";
 import Link from "next/link";
 import { useLanguage } from "@/lib/languageContext";
+import { shortAddr } from "@/lib/utils";
 
 type ActivityItem = {
   id: string;
@@ -95,9 +96,7 @@ const TYPE_META: Record<string, { label: string; icon: string; color: string }> 
   poll_ended: { label: "Ended", icon: "⏰", color: "text-yellow-400" },
 };
 
-function shortAddress(addr: string) {
-  return addr.slice(0, 4) + "…" + addr.slice(-4);
-}
+// Use shared shortAddr from utils (deduped from #38)
 
 function formatTimestamp(ts: number) {
   const d = new Date(ts);
@@ -115,8 +114,11 @@ export default function ActivityPage() {
   const { t } = useLanguage();
   const [filter, setFilter] = useState<FilterType>("all");
   const [showMyOnly, setShowMyOnly] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
+  useEffect(() => setMounted(true), []);
 
-  const activities = useMemo(() => buildActivities(polls, votes), [polls, votes]);
+  const activities = useMemo(() => mounted ? buildActivities(polls, votes) : [], [polls, votes, mounted]);
 
   const filtered = useMemo(() => {
     let items = activities;
@@ -125,9 +127,23 @@ export default function ActivityPage() {
     return items;
   }, [activities, filter, showMyOnly, walletAddress]);
 
+  // Reset visible count when filter changes
+  useEffect(() => setVisibleCount(20), [filter, showMyOnly]);
+
+  const visibleItems = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-10 h-10 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-dark-950 text-white">
-      <div className="max-w-3xl mx-auto px-4 py-8">
+    <div>
+      <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">{t("activityFeed")}</h1>
         <p className="text-gray-400 mb-6">{t("recentActivity")}</p>
 
@@ -137,6 +153,7 @@ export default function ActivityPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
+              aria-pressed={filter === f}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f
                   ? "bg-brand-500 text-white"
                   : "bg-surface-50 text-gray-400 hover:bg-surface-100"
@@ -171,7 +188,7 @@ export default function ActivityPage() {
             <div className="absolute left-5 top-0 bottom-0 w-px bg-surface-100" />
 
             <div className="space-y-1">
-              {filtered.map((item) => {
+              {visibleItems.map((item) => {
                 const meta = TYPE_META[item.type];
                 return (
                   <Link
@@ -199,7 +216,7 @@ export default function ActivityPage() {
                           {item.detail}
                         </p>
                         <p className="text-xs text-gray-600 mt-1">
-                          by {shortAddress(item.actor)}
+                          by {shortAddr(item.actor)}
                         </p>
                       </div>
                       <span className="text-xs text-gray-600 whitespace-nowrap pt-1">
@@ -210,6 +227,18 @@ export default function ActivityPage() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Load more */}
+        {hasMore && (
+          <div className="text-center mt-6">
+            <button
+              onClick={() => setVisibleCount((c) => c + 20)}
+              className="px-6 py-2 rounded-lg text-sm font-medium bg-surface-50 text-gray-400 hover:bg-surface-100 transition-colors"
+            >
+              {t("loadMore")} ({filtered.length - visibleCount} remaining)
+            </button>
           </div>
         )}
       </div>

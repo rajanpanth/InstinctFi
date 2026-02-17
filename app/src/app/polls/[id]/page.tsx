@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
 import PollImage from "@/components/PollImage";
+import Image from "next/image";
 import WalletConnectModal from "@/components/WalletConnectModal";
 import EditPollModal from "@/components/EditPollModal";
 import DeletePollModal from "@/components/DeletePollModal";
@@ -40,9 +41,9 @@ export default function PollDetailPage() {
   // Wait a short time before concluding the poll truly doesn't exist.
   const [graceExpired, setGraceExpired] = useState(false);
   useEffect(() => {
-    if (poll) return;           // Already found — no need for timer
+    if (poll) { setGraceExpired(true); return; }
     setGraceExpired(false);
-    const t = setTimeout(() => setGraceExpired(true), 2000);
+    const t = setTimeout(() => setGraceExpired(true), 500);
     return () => clearTimeout(t);
   }, [pollId, poll]);
 
@@ -112,12 +113,19 @@ export default function PollDetailPage() {
 
   const canManage = isCreator && totalVotes === 0 && !isEnded && !isSettled;
 
+  const [voting, setVoting] = useState(false);
+
   const handleVote = async () => {
     if (!walletConnected) {
       setShowWalletModal(true);
       return;
     }
-    await submitVote();
+    setVoting(true);
+    try {
+      await submitVote();
+    } finally {
+      setVoting(false);
+    }
   };
 
   const handleOptionClick = (index: number) => {
@@ -304,12 +312,12 @@ export default function PollDetailPage() {
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-3">
                     {optImage ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={optImage}
-                        alt={opt}
-                        className="w-8 h-8 rounded-full object-cover border border-border"
-                      />
+                      optImage.startsWith("data:") ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={optImage} alt={opt} className="w-8 h-8 rounded-full object-cover border border-border" />
+                      ) : (
+                        <Image src={optImage} alt={opt} width={32} height={32} className="w-8 h-8 rounded-full object-cover border border-border" />
+                      )
                     ) : (
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white border border-border ${
                         i === 0 ? "bg-blue-600" : i === 1 ? "bg-red-600" : "bg-purple-600"
@@ -369,15 +377,23 @@ export default function PollDetailPage() {
           )}
           <button
             onClick={handleVote}
+            disabled={voting || (walletConnected && selectedOption === null)}
             className={`w-full mt-4 py-3.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${
-              walletConnected && selectedOption !== null
+              voting
+                ? "bg-brand-500/70 cursor-wait"
+                : walletConnected && selectedOption !== null
                 ? "bg-brand-500 hover:bg-brand-600 shadow-lg shadow-brand-500/15"
                 : !walletConnected
                 ? "bg-brand-500 hover:bg-brand-600"
                 : "bg-gray-700 text-gray-500 cursor-not-allowed"
             }`}
           >
-            {!walletConnected
+            {voting ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Submitting...
+              </span>
+            ) : !walletConnected
               ? t("connectWalletToStart")
               : selectedOption !== null
               ? `${t("vote")} "${poll.options[selectedOption]}"`
@@ -391,7 +407,7 @@ export default function PollDetailPage() {
         <div className="bg-surface-100 border border-yellow-600/30 rounded-2xl p-5 sm:p-8 mb-6">
           <h2 className="font-semibold text-lg mb-2 text-brand-400">Poll Ended — Ready to Settle</h2>
           <p className="text-gray-400 text-sm mb-4">
-            Anyone can trigger settlement. The option with the most votes wins.
+            As admin, you can settle this poll. The option with the most votes wins.
           </p>
           <button
             onClick={handleSettle}

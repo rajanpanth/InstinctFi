@@ -1,7 +1,7 @@
 "use client";
 
 import { useApp, formatDollars, UserAccount } from "@/components/Providers";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { shortAddr } from "@/lib/utils";
 import { useLanguage } from "@/lib/languageContext";
 
@@ -20,6 +20,8 @@ export default function LeaderboardPage() {
   const { t } = useLanguage();
   const [period, setPeriod] = useState<Period>("allTime");
   const [sortBy, setSortBy] = useState<"winnings" | "pollsWon" | "votes" | "creatorEarnings">("winnings");
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const getWinnings = (u: UserAccount) => {
     if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyWinningsCents : 0;
@@ -45,6 +47,12 @@ export default function LeaderboardPage() {
     return u.pollsWon;
   };
 
+  const getCreatorEarnings = (u: UserAccount) => {
+    // Creator earnings use all-time since no period breakdown exists yet
+    // TODO: Add weekly/monthly creator earnings to UserAccount when available
+    return u.creatorEarningsCents;
+  };
+
   const sortFn = (a: UserAccount, b: UserAccount) => {
     switch (sortBy) {
       case "winnings":
@@ -54,7 +62,7 @@ export default function LeaderboardPage() {
       case "votes":
         return getVotes(b) - getVotes(a);
       case "creatorEarnings":
-        return b.creatorEarningsCents - a.creatorEarningsCents;
+        return getCreatorEarnings(b) - getCreatorEarnings(a);
       default:
         return 0;
     }
@@ -74,6 +82,14 @@ export default function LeaderboardPage() {
   };
 
   const netProfit = (u: UserAccount) => getWinnings(u) - getSpent(u);
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-10 h-10 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -181,7 +197,7 @@ export default function LeaderboardPage() {
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono">{getVotes(u)}</td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono">{getPollsWon(u)}</td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono text-brand-400">
-                        {formatDollars(u.creatorEarningsCents)}
+                        {formatDollars(getCreatorEarnings(u))}
                       </td>
                     </tr>
                   );
@@ -217,7 +233,7 @@ export default function LeaderboardPage() {
                     <span>Win {winRate(u)}%</span>
                     <span>{getVotes(u)} votes</span>
                     <span>{getPollsWon(u)} won</span>
-                    <span className="text-brand-400">{formatDollars(u.creatorEarningsCents)} earned</span>
+                    <span className="text-brand-400">{formatDollars(getCreatorEarnings(u))} earned</span>
                   </div>
                 </div>
               );

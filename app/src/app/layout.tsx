@@ -14,6 +14,7 @@ import { BookmarkProvider } from "@/lib/bookmarks";
 import { ReferralGate } from "@/lib/referrals";
 import { LanguageProvider } from "@/lib/languageContext";
 import { Toaster } from "react-hot-toast";
+import Footer from "@/components/Footer";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
 const spaceGrotesk = Space_Grotesk({
@@ -62,8 +63,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`dark ${inter.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('instinctfi_theme');document.documentElement.classList.add(t==='light'?'light':'dark')}catch(e){document.documentElement.classList.add('dark')}})()` }} />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#0a0a0a" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -95,7 +97,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <LanguageProvider>
           <WalletAdapterProvider>
             <UserProfileProvider>
@@ -115,6 +117,7 @@ export default function RootLayout({
                           </PageTransition>
                         </main>
                       </ErrorBoundary>
+                      <Footer />
                       <Toaster
                         position="bottom-right"
                         toastOptions={{

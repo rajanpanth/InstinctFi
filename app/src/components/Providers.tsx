@@ -52,28 +52,25 @@ export function Providers({ children }: { children: ReactNode }) {
   const { addNotification } = useNotifications();
 
   // ── App data state ──
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    if (PROGRAM_DEPLOYED || typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("instinctfi_users");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-  const [polls, setPolls] = useState<DemoPoll[]>(() => {
-    if (PROGRAM_DEPLOYED || typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("instinctfi_polls");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-  const [votes, setVotes] = useState<DemoVote[]>(() => {
-    if (PROGRAM_DEPLOYED || typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("instinctfi_votes");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  // IMPORTANT: initial state must be empty ([]) to match SSR output.
+  // localStorage is read in a useEffect below so client first-render = server render = [].
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [polls, setPolls] = useState<DemoPoll[]>([]);
+  const [votes, setVotes] = useState<DemoVote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Hydrate from localStorage on mount (client only, after first render)
+  useEffect(() => {
+    if (PROGRAM_DEPLOYED) return;
+    try {
+      const savedUsers = localStorage.getItem("instinctfi_users");
+      if (savedUsers) setUsers(JSON.parse(savedUsers));
+      const savedPolls = localStorage.getItem("instinctfi_polls");
+      if (savedPolls) setPolls(JSON.parse(savedPolls));
+      const savedVotes = localStorage.getItem("instinctfi_votes");
+      if (savedVotes) setVotes(JSON.parse(savedVotes));
+    } catch { /* corrupt cache — start fresh */ }
+  }, []);
 
   // Persist to localStorage in demo mode
   useEffect(() => {
@@ -107,11 +104,13 @@ export function Providers({ children }: { children: ReactNode }) {
     useWalletManager(users, setUsers);
 
   // ── Data fetching ──
-  const { initialFetchDone, usersRef, updateUsersRef } =
+  const { initialFetchDone, usersRef, pollsRef, votesRef, updateUsersRef, updatePollsRef, updateVotesRef } =
     useDataFetcher(walletAddress, walletConnected, setPolls, setVotes, setUsers, setIsLoading, tracker);
 
-  // Keep usersRef in sync
+  // Keep refs in sync with latest state
   useEffect(() => { updateUsersRef(users); }, [users, updateUsersRef]);
+  useEffect(() => { updatePollsRef(polls); }, [polls, updatePollsRef]);
+  useEffect(() => { updateVotesRef(votes); }, [votes, updateVotesRef]);
 
   // ── Derived state ──
   const userAccount = walletAddress
@@ -123,7 +122,7 @@ export function Providers({ children }: { children: ReactNode }) {
     usePollOperations({
       walletAddress, polls, votes, users, userAccount,
       setPolls, setVotes, setUsers,
-      tracker, usersRef, initialFetchDone,
+      tracker, usersRef, pollsRef, votesRef, initialFetchDone,
       addNotification,
     });
 

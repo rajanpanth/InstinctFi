@@ -60,7 +60,7 @@ export default function CreatePollPage() {
     return (
       <div className="text-center py-20">
         <p className="text-gray-400 text-lg mb-4">{t("connectWalletToCreate")}</p>
-        <button onClick={connectWallet} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-semibold transition-colors">
+        <button onClick={connectWallet} className="px-6 py-3 bg-brand-500 hover:bg-brand-600 rounded-xl font-semibold transition-colors">
           {t("connectPhantom")}
         </button>
       </div>
@@ -275,16 +275,16 @@ export default function CreatePollPage() {
     },
   ];
 
-  const applyTemplate = (t: typeof TEMPLATES[0]) => {
-    setTitle(t.title);
-    setCategory(t.category);
-    setOptions(t.options);
-    setDurationHours(t.duration);
-    setUnitPrice(t.unitPrice);
+  const applyTemplate = (tpl: typeof TEMPLATES[0]) => {
+    setTitle(tpl.title);
+    setCategory(tpl.category);
+    setOptions(tpl.options);
+    setDurationHours(tpl.duration);
+    setUnitPrice(tpl.unitPrice);
     // Reset option images
-    setOptionImageFiles(t.options.map(() => null));
-    setOptionImagePreviews(t.options.map(() => null));
-    setOptionImageErrors(t.options.map(() => null));
+    setOptionImageFiles(tpl.options.map(() => null));
+    setOptionImagePreviews(tpl.options.map(() => null));
+    setOptionImageErrors(tpl.options.map(() => null));
     toast.success(`Template applied — edit the fields!`);
   };
 
@@ -297,14 +297,14 @@ export default function CreatePollPage() {
       <div className="mb-6">
         <p className="text-xs text-gray-500 mb-2">{t("quickStart")}</p>
         <div className="flex flex-wrap gap-2">
-          {TEMPLATES.map((t) => (
+          {TEMPLATES.map((tpl) => (
             <button
-              key={t.name}
+              key={tpl.name}
               type="button"
-              onClick={() => applyTemplate(t)}
+              onClick={() => applyTemplate(tpl)}
               className="px-3 py-1.5 bg-surface-50 hover:bg-surface-100 border border-border rounded-lg text-xs text-gray-300 transition-colors hover:border-brand-500/25"
             >
-              {t.name}
+              {tpl.name}
             </button>
           ))}
         </div>

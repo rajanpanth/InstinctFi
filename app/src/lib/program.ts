@@ -21,6 +21,9 @@ export const PROGRAM_ID = new PublicKey(
 
 // Set to true once the program is actually deployed to devnet/mainnet.
 // When false, all operations run in demo mode (local state only, no on-chain txs).
+// WARNING (#35): While false, all on-chain instruction builders and Borsh
+// serialization below are dead code (~25KB). Consider tree-shaking or
+// lazy-loading this module when PROGRAM_DEPLOYED is false.
 export const PROGRAM_DEPLOYED = false;
 
 export const CLUSTER = "devnet" as "devnet" | "mainnet-beta" | "localnet";
@@ -116,6 +119,16 @@ export async function ixDiscriminator(name: string): Promise<Uint8Array> {
 export async function accountDiscriminator(name: string): Promise<Uint8Array> {
   return computeDiscriminator(`account:${name}`);
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DEAD CODE SECTION (#46) – everything below is only used when
+// PROGRAM_DEPLOYED === true.  While that flag is false the app runs entirely
+// on Supabase demo data and none of these Borsh helpers, instruction
+// builders, or on-chain fetchers are executed at runtime.  They are kept
+// here so the on-chain integration can be re-enabled by flipping the flag.
+// When bundle size is a concern, extract this section into a lazily-imported
+// module (e.g. `program.onchain.ts`) behind a dynamic import().
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ─── Borsh Serialization Helpers ───────────────────────────────────────────
 

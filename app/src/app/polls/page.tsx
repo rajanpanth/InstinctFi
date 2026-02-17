@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useApp, DemoPoll } from "@/components/Providers";
 import PollCard from "@/components/PollCard";
 import SkeletonCard from "@/components/SkeletonCard";
@@ -36,16 +37,49 @@ function sortPolls(polls: DemoPoll[], sort: SortOption): DemoPoll[] {
   });
 }
 
-export default function PollsPage() {
+export default function PollsPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-8">
+        {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+      </div>
+    }>
+      <PollsPage />
+    </Suspense>
+  );
+}
+
+function PollsPage() {
   const { polls, walletConnected, isLoading } = useApp();
   const { t, lang } = useLanguage();
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "settled">("all");
-  const [sortBy, setSortBy] = useState<SortOption>("most-voted");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Initialize from URL params
+  const [selectedCategory, setSelectedCategory] = useState(() => searchParams.get("cat") || "All");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "settled">(() => {
+    const s = searchParams.get("status");
+    return s === "active" || s === "settled" ? s : "all";
+  });
+  const [sortBy, setSortBy] = useState<SortOption>(() => {
+    const s = searchParams.get("sort");
+    return s === "latest" || s === "oldest" ? s : "most-voted";
+  });
+  const [search, setSearch] = useState(() => searchParams.get("q") || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [page, setPage] = useState(1);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Sync filters to URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedCategory !== "All") params.set("cat", selectedCategory);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (sortBy !== "most-voted") params.set("sort", sortBy);
+    if (debouncedSearch.trim()) params.set("q", debouncedSearch.trim());
+    const qs = params.toString();
+    router.replace(`/polls${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [selectedCategory, statusFilter, sortBy, debouncedSearch, router]);
 
   // Reset to page 1 when filters change
   const handleCategoryChange = (cat: string) => { setSelectedCategory(cat); setPage(1); };

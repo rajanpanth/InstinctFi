@@ -1,30 +1,22 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
 import { usePathname } from "next/navigation";
 import { type ReactNode } from "react";
 
-const pageVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-};
-
+/**
+ * Lightweight page-transition wrapper.
+ * Uses the CSS `sectionFadeUp` keyframe already defined in globals.css
+ * instead of the heavy framer-motion library (~30 KB gzip).
+ */
 export default function PageTransition({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={pathname}
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        transition={{ duration: 0.2, ease: "easeInOut" }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <div
+      key={pathname}
+      style={{ animation: "sectionFadeUp 0.2s ease-in-out both" }}
+    >
+      {children}
+    </div>
   );
 }

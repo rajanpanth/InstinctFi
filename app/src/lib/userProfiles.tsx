@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { shortAddr } from "@/lib/utils";
 
 export type UserProfile = {
   wallet: string;
@@ -27,11 +28,7 @@ export function useUserProfiles() {
   return ctx;
 }
 
-/** Short wallet address fallback */
-function shortAddr(addr: string): string {
-  if (addr.length <= 11) return addr;
-  return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
-}
+/** Short wallet address fallback — uses shared shortAddr from utils */
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
