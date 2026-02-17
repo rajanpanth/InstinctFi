@@ -41,7 +41,7 @@ export default function PollsPageWrapper() {
   return (
     <Suspense fallback={
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-8">
-        {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} delay={i * 0.07} />)}
       </div>
     }>
       <PollsPage />
@@ -201,7 +201,7 @@ function PollsPage() {
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonCard key={i} />
+            <SkeletonCard key={i} delay={i * 0.07} />
           ))}
         </div>
       ) : sorted.length === 0 ? (
