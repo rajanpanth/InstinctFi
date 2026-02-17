@@ -1,12 +1,29 @@
 /**
  * Sound effects using Web Audio API — no external files needed.
  * Each function synthesizes a short sound programmatically.
+ * Sounds can be muted via localStorage key "instinctfi_sound_muted".
  */
+
+const MUTE_KEY = "instinctfi_sound_muted";
+
+/** Check if the user has muted sounds */
+export function isSoundMuted(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(MUTE_KEY) === "true";
+}
+
+/** Toggle sound mute state. Returns the new muted value. */
+export function toggleSoundMute(): boolean {
+  const muted = !isSoundMuted();
+  localStorage.setItem(MUTE_KEY, String(muted));
+  return muted;
+}
 
 let audioCtx: AudioContext | null = null;
 
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
+  if (isSoundMuted()) return null;
   if (!audioCtx) {
     try {
       audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();

@@ -3,8 +3,13 @@ use anchor_lang::prelude::*;
 use crate::state::PollAccount;
 use crate::errors::PollError;
 
+/// Hardcoded vote_program ID to avoid circular dependency.
+mod vote_program_id {
+    anchor_lang::declare_id!("VotePrgm11111111111111111111111111111111111");
+}
+
 /// CPI-callable instruction: records a vote on a poll.
-/// Only the vote_program may call this via CPI.
+/// Only the vote_program may call this via CPI — enforced by caller_program constraint.
 pub fn handler(
     ctx: Context<RecordVote>,
     _poll_id: u64,
@@ -18,7 +23,7 @@ pub fn handler(
     // Guards
     require!(poll.is_active(), PollError::PollNotActive);
     require!((option_index as usize) < poll.options.len(), PollError::InvalidOption);
-    require!(num_coins > 0, PollError::InvalidUnitPrice); // reuse error
+    require!(num_coins > 0, PollError::ZeroCoins);
 
     // Update vote counts & pool
     poll.vote_counts[option_index as usize] = poll.vote_counts[option_index as usize]
@@ -50,4 +55,9 @@ pub struct RecordVote<'info> {
         bump = poll_account.bump,
     )]
     pub poll_account: Account<'info, PollAccount>,
+
+    /// CHECK: The calling program — must be the vote_program.
+    /// This prevents unauthorized programs or direct calls from manipulating vote counts.
+    #[account(address = vote_program_id::ID)]
+    pub caller_program: AccountInfo<'info>,
 }

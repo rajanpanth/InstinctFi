@@ -38,9 +38,13 @@ pub fn handler(ctx: Context<ClaimReward>, _poll_id: u64) -> Result<()> {
         .checked_div(total_winning_votes as u128)
         .ok_or(InstinctFiError::Overflow)? as u64;
 
-    // ── Ensure treasury has enough SOL ──
+    // ── Ensure treasury has enough SOL (preserve rent-exempt minimum) ──
+    let rent = Rent::get()?;
+    let rent_exempt_min = rent.minimum_balance(0); // treasury has no data, just SOL
+    let available = ctx.accounts.treasury.lamports()
+        .saturating_sub(rent_exempt_min);
     require!(
-        ctx.accounts.treasury.lamports() >= reward,
+        available >= reward,
         InstinctFiError::TreasuryInsufficient
     );
 

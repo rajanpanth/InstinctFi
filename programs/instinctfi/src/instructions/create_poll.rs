@@ -28,7 +28,7 @@ pub fn handler(
     require!(description.len() <= 256, InstinctFiError::DescriptionTooLong);
     require!(category.len() <= 32, InstinctFiError::CategoryTooLong);
     require!(image_url.len() <= 256, InstinctFiError::ImageUrlTooLong);
-    require!(options.len() >= 2 && options.len() <= 4, InstinctFiError::InvalidOptionCount);
+    require!(options.len() >= 2 && options.len() <= 6, InstinctFiError::InvalidOptionCount);
     for opt in &options {
         require!(opt.len() <= 32, InstinctFiError::OptionLabelTooLong);
     }

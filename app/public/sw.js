@@ -1,5 +1,9 @@
 // InstinctFi Service Worker — basic offline shell + cache strategy
-const CACHE_NAME = "instinctfi-v1";
+//
+// Bump CACHE_VERSION on every release to bust the old cache.
+// The activate event automatically purges old versioned caches.
+const CACHE_VERSION = 2;
+const CACHE_NAME = `instinctfi-v${CACHE_VERSION}`;
 const PRECACHE_URLS = ["/", "/polls", "/create", "/leaderboard", "/activity"];
 
 self.addEventListener("install", (event) => {

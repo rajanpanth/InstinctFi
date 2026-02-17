@@ -16,7 +16,7 @@ describe("InstinctFi E2E", () => {
   // ── Program IDs (must match declare_id! in each program) ──
   const POLL_PROGRAM_ID = new PublicKey("Po11CrtrPrgm1111111111111111111111111111111");
   const VOTE_PROGRAM_ID = new PublicKey("VotePrgm11111111111111111111111111111111111");
-  const SETTLEMENT_PROGRAM_ID = new PublicKey("Sett1ePrgm1111111111111111111111111111111111");
+  const SETTLEMENT_PROGRAM_ID = new PublicKey("Sett1ePrgm111111111111111111111111111111111");
   const USER_PROGRAM_ID = new PublicKey("UserPrgm11111111111111111111111111111111111");
 
   const creator = anchor.web3.Keypair.generate();

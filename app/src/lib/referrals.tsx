@@ -12,9 +12,16 @@ export type Referral = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** Generate a short referral code from a wallet address */
+/**
+ * Generate a collision-resistant referral code from a wallet address.
+ * Uses a simple hash (DJB2) → base36, producing an 8-char code.
+ */
 export function walletToCode(wallet: string): string {
-  return wallet.slice(0, 4) + wallet.slice(-4);
+  let hash = 5381;
+  for (let i = 0; i < wallet.length; i++) {
+    hash = ((hash << 5) + hash + wallet.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36).padStart(8, "0").slice(0, 8);
 }
 
 /** Get the base URL for referral links */

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode, useMemo } from "react";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export type Notification = {
   id: string;

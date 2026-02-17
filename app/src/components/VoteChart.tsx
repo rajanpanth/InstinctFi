@@ -17,7 +17,7 @@ export default function VoteChart({ poll }: Props) {
   const maxVotes = Math.max(...poll.voteCounts);
 
   return (
-    <div className="bg-surface-100 border border-border rounded-2xl p-6 sm:p-8 mb-6">
+    <div className="bg-surface-100 border border-border rounded-2xl p-6 sm:p-8 mb-6" role="figure" aria-label={`Vote distribution chart with ${totalVotes} total votes`}>
       <h2 className="font-semibold text-lg mb-1">{t("voteDistribution")}</h2>
       <p className="text-xs text-gray-500 mb-5">{totalVotes} {t("totalVotesLabel")}</p>
 
@@ -51,7 +51,7 @@ export default function VoteChart({ poll }: Props) {
                   </span>
                 </div>
               </div>
-              <div className="h-6 bg-surface-0 rounded-lg overflow-hidden relative">
+              <div className="h-6 bg-surface-0 rounded-lg overflow-hidden relative" role="meter" aria-label={`${opt}: ${votes} votes, ${pct.toFixed(1)}%`} aria-valuenow={votes} aria-valuemin={0} aria-valuemax={totalVotes}>
                 <div
                   className="h-full rounded-lg transition-all duration-700 ease-out relative"
                   style={{

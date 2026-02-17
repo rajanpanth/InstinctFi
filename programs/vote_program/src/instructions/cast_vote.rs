@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
 use poll_program::state::PollAccount;
+use user_program::state::UserAccount;
 use crate::state::VoteAccount;
 use crate::errors::VoteError;
 
@@ -31,6 +32,16 @@ pub fn handler(
         .checked_mul(poll.unit_price_cents)
         .ok_or(VoteError::Overflow)?;
 
+    // ── Debit user balance via CPI to user_program::debit_balance ──
+    let debit_cpi_program = ctx.accounts.user_program_info.to_account_info();
+    let debit_cpi_accounts = user_program::cpi::accounts::DebitBalance {
+        authority: ctx.accounts.voter.to_account_info(),
+        user_account: ctx.accounts.user_account.to_account_info(),
+        caller_program: ctx.accounts.vote_program_id.to_account_info(),
+    };
+    let debit_cpi_ctx = CpiContext::new(debit_cpi_program, debit_cpi_accounts);
+    user_program::cpi::debit_balance(debit_cpi_ctx, cost)?;
+
     // ── Determine if this is a new voter ──
     let vote_account = &mut ctx.accounts.vote_account;
     let is_new_voter = vote_account.voter == Pubkey::default();
@@ -40,6 +51,7 @@ pub fn handler(
     let cpi_accounts = poll_program::cpi::accounts::RecordVote {
         caller: ctx.accounts.voter.to_account_info(),
         poll_account: ctx.accounts.poll_account.to_account_info(),
+        caller_program: ctx.accounts.vote_program_id.to_account_info(),
     };
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     poll_program::cpi::record_vote(cpi_ctx, poll_id, option_index, num_coins, cost, is_new_voter)?;
@@ -101,10 +113,27 @@ pub struct CastVote<'info> {
     )]
     pub vote_account: Account<'info, VoteAccount>,
 
+    /// User account PDA (owned by user_program, mutated via CPI for balance deduction)
+    #[account(
+        mut,
+        seeds = [b"user", voter.key().as_ref()],
+        bump = user_account.bump,
+        seeds::program = user_program::ID,
+    )]
+    pub user_account: Account<'info, UserAccount>,
+
     /// The poll_program for CPI calls
     /// CHECK: Verified by address constraint
     #[account(address = poll_program::ID)]
     pub poll_program: AccountInfo<'info>,
+
+    /// CHECK: the user_program executable for CPI
+    #[account(address = user_program::ID)]
+    pub user_program_info: AccountInfo<'info>,
+
+    /// CHECK: this program's own ID — passed as caller_program for CPI verification
+    #[account(address = crate::ID)]
+    pub vote_program_id: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
 }

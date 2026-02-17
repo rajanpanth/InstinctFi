@@ -36,6 +36,7 @@ pub fn handler(
     let cpi_accounts = poll_program::cpi::accounts::SettlePollCpi {
         settler: ctx.accounts.settler.to_account_info(),
         poll_account: ctx.accounts.poll_account.to_account_info(),
+        caller_program: ctx.accounts.settlement_program_id.to_account_info(),
     };
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     poll_program::cpi::settle_poll_cpi(cpi_ctx, poll_id, winning_idx)?;
@@ -72,6 +73,10 @@ pub struct SettlePoll<'info> {
     /// CHECK: Verified by address constraint
     #[account(address = poll_program::ID)]
     pub poll_program: AccountInfo<'info>,
+
+    /// CHECK: this program's own ID — passed as caller_program for CPI verification
+    #[account(address = crate::ID)]
+    pub settlement_program_id: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
 }

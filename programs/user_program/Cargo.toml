@@ -13,6 +13,7 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cbs = []
+cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]

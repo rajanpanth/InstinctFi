@@ -22,4 +22,14 @@ pub mod vote_program {
     ) -> Result<()> {
         instructions::cast_vote::handler(ctx, poll_id, option_index, num_coins)
     }
+
+    /// Mark a vote record as claimed and record the reward amount.
+    /// Called via CPI from settlement_program only.
+    pub fn mark_claimed(
+        ctx: Context<MarkClaimed>,
+        poll_id: u64,
+        reward_amount: u64,
+    ) -> Result<()> {
+        instructions::mark_claimed::handler(ctx, poll_id, reward_amount)
+    }
 }

@@ -3,7 +3,6 @@
 import { useMemo, type ReactNode } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl } from "@solana/web3.js";
 
 // Import wallet adapter CSS
@@ -21,9 +20,9 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 export default function WalletAdapterProvider({ children }: { children: ReactNode }) {
   const endpoint = useMemo(() => clusterApiUrl("devnet"), []);
 
-  const wallets = useMemo(() => [
-    new PhantomWalletAdapter(),
-  ], []);
+  // Phantom registers as a Standard Wallet automatically — no manual adapter needed.
+  // Adding PhantomWalletAdapter here causes a "was registered as a Standard Wallet" warning.
+  const wallets = useMemo(() => [], []);
 
   return (
     <ConnectionProvider endpoint={endpoint}>

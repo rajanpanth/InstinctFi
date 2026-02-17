@@ -13,8 +13,10 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cbs = []
+cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.30.1"
-poll_program = { path = "../poll_program", features = ["no-entrypoint"] }
+anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
+poll_program = { path = "../poll_program", features = ["cpi"] }
+user_program = { path = "../user_program", features = ["cpi"] }

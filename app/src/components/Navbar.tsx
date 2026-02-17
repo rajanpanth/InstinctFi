@@ -67,7 +67,7 @@ export function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 inset-x-0 z-50 pt-[env(safe-area-inset-top)] bg-surface-0/80 backdrop-blur-md border-b border-border">
+      <nav aria-label="Main navigation" className="fixed top-0 inset-x-0 z-50 pt-[env(safe-area-inset-top)] bg-surface-0/80 backdrop-blur-md border-b border-border">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 md:h-[3.75rem]">
             {/* Logo */}
@@ -77,6 +77,7 @@ export function Navbar() {
                 alt="InstinctFi"
                 width={28}
                 height={28}
+                priority
                 className="rounded-lg transition-transform group-hover:scale-105"
               />
               <span className="text-lg font-heading font-bold text-neutral-100">
@@ -171,7 +172,7 @@ export function Navbar() {
       </nav>
 
       {/* Mobile bottom nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 mobile-bottom-nav">
+      <nav aria-label="Mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-50 mobile-bottom-nav">
         <div className="mx-2 mb-2 rounded-2xl bg-surface-50/95 backdrop-blur-xl border border-border shadow-xl shadow-black/50">
           <div className="flex justify-around items-center py-2 px-1">
             {[
@@ -233,7 +234,7 @@ export function Navbar() {
             })}
           </div>
         </div>
-      </div>
+      </nav>
     </>
   );
 }

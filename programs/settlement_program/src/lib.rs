@@ -5,7 +5,7 @@ pub mod instructions;
 
 use instructions::*;
 
-declare_id!("Sett1ePrgm1111111111111111111111111111111111");
+declare_id!("Sett1ePrgm111111111111111111111111111111111");
 
 #[program]
 pub mod settlement_program {

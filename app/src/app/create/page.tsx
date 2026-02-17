@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/languageContext";
 import { tCat } from "@/lib/translations";
 
-const MAX_OPTIONS = 4;
+const MAX_OPTIONS = 6;
 
 export default function CreatePollPage() {
   const { walletConnected, walletAddress, userAccount, createPoll, connectWallet } = useApp();

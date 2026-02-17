@@ -116,7 +116,13 @@ export default function PollComments({ pollId }: Props) {
 
     try {
       if (isSupabaseConfigured) {
-        await supabase.from("comments").insert(comment);
+        const { error } = await supabase.rpc("insert_comment_atomic", {
+          p_id: comment.id,
+          p_poll_id: comment.poll_id,
+          p_wallet: comment.wallet,
+          p_text: comment.text,
+        });
+        if (error) throw error;
       } else {
         // localStorage fallback
         const all = [...comments, comment];

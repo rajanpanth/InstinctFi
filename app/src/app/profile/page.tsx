@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useApp, formatDollars } from "@/components/Providers";
 import { useDailyCountdown } from "@/lib/useCountdown";
@@ -14,6 +14,9 @@ import toast from "react-hot-toast";
 import { useLanguage } from "@/lib/languageContext";
 
 export default function ProfilePage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const {
     walletConnected,
     walletAddress,
@@ -33,6 +36,16 @@ export default function ProfilePage() {
   const [profileAvatarPreview, setProfileAvatarPreview] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const { t } = useLanguage();
+
+  // Prevent hydration mismatch — profile content depends on wallet state,
+  // timers, and dynamic data that differ between server and client.
+  if (!mounted) {
+    return (
+      <div className="max-w-3xl mx-auto py-20 text-center">
+        <div className="w-10 h-10 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
+      </div>
+    );
+  }
 
   if (!walletConnected) {
     return (

@@ -24,4 +24,16 @@ pub mod user_program {
     pub fn claim_weekly_reward(ctx: Context<ClaimWeeklyReward>) -> Result<()> {
         instructions::claim_weekly_reward::handler(ctx)
     }
+
+    /// CPI-callable: debit `amount` cents from user's demo_balance.
+    /// Only vote_program may call this.
+    pub fn debit_balance(ctx: Context<DebitBalance>, amount: u64) -> Result<()> {
+        instructions::debit_balance::handler(ctx, amount)
+    }
+
+    /// CPI-callable: credit `amount` cents to user's demo_balance.
+    /// Only settlement_program may call this.
+    pub fn credit_balance(ctx: Context<CreditBalance>, amount: u64) -> Result<()> {
+        instructions::credit_balance::handler(ctx, amount)
+    }
 }

@@ -679,15 +679,18 @@ export async function fetchAllUsers(): Promise<OnChainUser[]> {
 // ─── Transaction Helper ────────────────────────────────────────────────────
 
 /**
- * Build, sign, and send a transaction using Phantom wallet.
+ * Build, sign, and send a transaction using the injected wallet provider.
+ * Currently uses Phantom's `window.solana` API.
+ * TODO: Migrate to @solana/wallet-adapter-react `useWallet().signTransaction`
+ * for multi-wallet support (Solflare, Backpack, etc.).
  * Returns the transaction signature.
  */
 export async function sendTransaction(
   instructions: TransactionInstruction[],
   payer: PublicKey
 ): Promise<string> {
-  const solana = (window as any).solana;
-  if (!solana?.isPhantom) throw new Error("Phantom wallet not found");
+  const solana = (window as any).solana ?? (window as any).phantom?.solana;
+  if (!solana) throw new Error("No Solana wallet found. Please install Phantom or another wallet.");
 
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhash("confirmed");

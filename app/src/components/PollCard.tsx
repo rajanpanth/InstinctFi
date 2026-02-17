@@ -432,6 +432,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                           setNumCoins(Math.max(1, parseInt(e.target.value) || 1))
                         }
                         min={1}
+                        aria-label="Number of coins to vote"
                         className="w-12 text-center text-lg font-semibold bg-transparent outline-none text-neutral-200"
                       />
                       <button
@@ -639,6 +640,9 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                         : "text-neutral-600 hover:text-neutral-400"
                       }`}
                     title={
+                      isBookmarked(poll.id) ? t("removeBookmark") : t("bookmark")
+                    }
+                    aria-label={
                       isBookmarked(poll.id) ? t("removeBookmark") : t("bookmark")
                     }
                   >

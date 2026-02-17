@@ -6,7 +6,6 @@ import {
     sendTransaction,
     formatSOL,
     getWalletBalance,
-    requestAirdrop,
     fetchUserAccount,
     buildInitializeUserIx,
     buildCreatePollIx,
@@ -20,7 +19,7 @@ import {
 } from "@/lib/program";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminWallet } from "@/lib/constants";
-import { friendlyErrorMessage } from "@/lib/errorRecovery";
+import { friendlyErrorMessage, withRetry } from "@/lib/errorRecovery";
 import {
     onChainUserToAccount,
     withFreshPeriods,
@@ -77,10 +76,7 @@ export function usePollOperations({
         if (!PROGRAM_DEPLOYED) {
             if (isSupabaseConfigured) {
                 try {
-                    await supabase.from("users").upsert({
-                        wallet: walletAddress,
-                        created_at: Date.now(),
-                    }, { onConflict: "wallet" });
+                    await supabase.rpc("signup_user", { p_wallet: walletAddress });
                 } catch (e) {
                     console.warn("Failed to sync user to Supabase:", e);
                 }
@@ -143,108 +139,46 @@ export function usePollOperations({
     }, [walletAddress]);
 
     // ── Claim daily reward ──
+    const DAILY_REWARD_LAMPORTS = LAMPORTS_PER_SOL; // 1 SOL worth of internal balance
     const claimDailyReward = useCallback(async (): Promise<boolean> => {
         if (!walletAddress) return false;
 
-        if (!PROGRAM_DEPLOYED) {
-            const user = users.find(u => u.wallet === walletAddress);
-            if (user) {
-                const hoursSinceLastClaim = (Date.now() - user.lastWeeklyRewardTs) / (1000 * 60 * 60);
-                if (hoursSinceLastClaim < 24) {
-                    const hoursLeft = Math.ceil(24 - hoursSinceLastClaim);
-                    toast.error(`Daily reward available in ${hoursLeft}h`, { id: "airdrop" });
-                    return false;
-                }
-            }
-            try {
-                toast.loading("Requesting devnet SOL airdrop…", { id: "airdrop" });
-                const pubkey = new PublicKey(walletAddress);
-                const balBefore = await getWalletBalance(pubkey);
-                const sig = await requestAirdrop(pubkey, 1);
-                console.log("Airdrop sig:", sig);
-
-                await new Promise(r => setTimeout(r, 2000));
-                let balAfter = await getWalletBalance(pubkey);
-                if (balAfter <= balBefore) {
-                    await new Promise(r => setTimeout(r, 3000));
-                    balAfter = await getWalletBalance(pubkey);
-                }
-
-                const receivedLamports = Math.max(balAfter - balBefore, 0);
-                const receivedSol = receivedLamports / LAMPORTS_PER_SOL;
-                const credited = receivedLamports > 0 ? receivedLamports : LAMPORTS_PER_SOL;
-                const now = Date.now();
-                setUsers(prev => prev.map(u =>
-                    u.wallet === walletAddress
-                        ? { ...u, balance: u.balance + credited, lastWeeklyRewardTs: now }
-                        : u
-                ));
-
-                if (isSupabaseConfigured) {
-                    await new Promise(r => setTimeout(r, 50));
-                    const updatedUser = usersRef.current.find(u => u.wallet === walletAddress);
-                    if (updatedUser) {
-                        try {
-                            await supabase.from("users").update({
-                                balance: updatedUser.balance,
-                                last_weekly_reward_ts: now,
-                            }).eq("wallet", walletAddress);
-                        } catch { }
-                    }
-                }
-
-                toast.success(
-                    receivedLamports > 0
-                        ? `Received ${receivedSol.toFixed(2)} SOL airdrop!`
-                        : "Airdrop sent! Balance credited.",
-                    { id: "airdrop" }
-                );
-                return true;
-            } catch (e: any) {
-                console.error("Airdrop failed:", e);
-                const msg = e?.message || "";
-                if (msg.includes("429") || msg.includes("Too Many") || msg.includes("rate")) {
-                    toast.error("Rate limited — wait a minute and try again", { id: "airdrop" });
-                } else {
-                    toast.error("Airdrop failed — devnet may be congested, try again later", { id: "airdrop" });
-                }
+        // ── 24-hour cooldown check ──
+        const user = users.find(u => u.wallet === walletAddress);
+        if (user) {
+            const hoursSinceLastClaim = (Date.now() - user.lastWeeklyRewardTs) / (1000 * 60 * 60);
+            if (hoursSinceLastClaim < 24) {
+                const hoursLeft = Math.ceil(24 - hoursSinceLastClaim);
+                toast.error(`Daily reward available in ${hoursLeft}h`, { id: "daily-reward" });
                 return false;
             }
         }
 
         try {
-            toast.loading("Requesting devnet SOL airdrop…", { id: "airdrop" });
-            const pubkey = new PublicKey(walletAddress);
-            const balBefore = await getWalletBalance(pubkey);
-            const sig = await requestAirdrop(pubkey, 1);
-            console.log("Airdrop sig:", sig);
+            const now = Date.now();
 
-            await new Promise(r => setTimeout(r, 2000));
-            let newBal = await getWalletBalance(pubkey);
-            if (newBal <= balBefore) {
-                await new Promise(r => setTimeout(r, 3000));
-                newBal = await getWalletBalance(pubkey);
+            // ── Credit internal balance (no devnet faucet needed) ──
+            setUsers(prev => prev.map(u =>
+                u.wallet === walletAddress
+                    ? { ...u, balance: u.balance + DAILY_REWARD_LAMPORTS, lastWeeklyRewardTs: now }
+                    : u
+            ));
+
+            // ── Sync to Supabase ──
+            if (isSupabaseConfigured) {
+                try {
+                    await supabase.rpc("claim_daily_reward", { p_wallet: walletAddress });
+                } catch { }
             }
 
-            const received = Math.max(newBal - balBefore, 0) / LAMPORTS_PER_SOL;
             toast.success(
-                received > 0
-                    ? `Received ${received.toFixed(2)} SOL airdrop!`
-                    : "Airdrop sent! Balance updated.",
-                { id: "airdrop" }
+                `Claimed ${formatSOL(DAILY_REWARD_LAMPORTS)} daily reward!`,
+                { id: "daily-reward" }
             );
-            setUsers(prev => prev.map(u =>
-                u.wallet === walletAddress ? { ...u, balance: newBal, lastWeeklyRewardTs: Date.now() } : u
-            ));
             return true;
         } catch (e: any) {
-            console.error("Airdrop failed:", e);
-            const msg = e?.message || "";
-            if (msg.includes("429") || msg.includes("Too Many") || msg.includes("rate")) {
-                toast.error("Rate limited — wait a minute and try again", { id: "airdrop" });
-            } else {
-                toast.error("Airdrop failed — devnet may be congested, try again later", { id: "airdrop" });
-            }
+            console.error("Daily reward failed:", e);
+            toast.error("Failed to claim daily reward — try again", { id: "daily-reward" });
             return false;
         }
     }, [walletAddress, users, setUsers, usersRef]);
@@ -292,7 +226,23 @@ export function usePollOperations({
 
                 if (isSupabaseConfigured) {
                     try {
-                        await supabase.from("polls").upsert(demoPollToRow(newPoll), { onConflict: "id" });
+                        const result = await supabase.rpc("create_poll_atomic", {
+                            p_wallet: walletAddress,
+                            p_id: newPoll.id,
+                            p_poll_id: pollId,
+                            p_title: newPoll.title,
+                            p_description: newPoll.description,
+                            p_category: newPoll.category,
+                            p_image_url: newPoll.imageUrl,
+                            p_option_images: newPoll.optionImages,
+                            p_options: newPoll.options,
+                            p_unit_price_cents: newPoll.unitPriceCents,
+                            p_end_time: newPoll.endTime,
+                            p_creator_investment_cents: newPoll.creatorInvestmentCents,
+                        });
+                        if (result.data && !result.data.success) {
+                            console.warn("create_poll_atomic error:", result.data.error);
+                        }
                     } catch (e) {
                         console.warn("Failed to save poll to Supabase:", e);
                     }
@@ -315,18 +265,9 @@ export function usePollOperations({
                     }));
                 }
 
-                if (isSupabaseConfigured) {
-                    await new Promise(r => setTimeout(r, 50));
-                    const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
-                    if (currentUser) {
-                        try {
-                            await supabase.from("users").update({
-                                balance: currentUser.balance,
-                                total_spent_cents: currentUser.totalSpentCents,
-                                polls_created: currentUser.pollsCreated,
-                            }).eq("wallet", walletAddress);
-                        } catch { }
-                    }
+                if (isSupabaseConfigured && !PROGRAM_DEPLOYED) {
+                    // Balance already updated by create_poll_atomic RPC
+                    // No need for separate user update
                 }
 
                 toast.success("Poll created!", { id: "create-poll" });
@@ -390,15 +331,20 @@ export function usePollOperations({
 
                 if (isSupabaseConfigured) {
                     try {
-                        await supabase.from("polls").update({
-                            title: updates.title ?? poll.title,
-                            description: updates.description ?? poll.description,
-                            category: updates.category ?? poll.category,
-                            image_url: updates.imageUrl ?? poll.imageUrl,
-                            option_images: updates.optionImages ?? poll.optionImages,
-                            options: updates.options ?? poll.options,
-                            end_time: updates.endTime ?? poll.endTime,
-                        }).eq("id", pollId);
+                        const result = await supabase.rpc("edit_poll_atomic", {
+                            p_wallet: walletAddress,
+                            p_poll_id: pollId,
+                            p_title: updates.title ?? poll.title,
+                            p_description: updates.description ?? poll.description,
+                            p_category: updates.category ?? poll.category,
+                            p_image_url: updates.imageUrl ?? poll.imageUrl,
+                            p_option_images: updates.optionImages ?? poll.optionImages,
+                            p_options: updates.options ?? poll.options,
+                            p_end_time: updates.endTime ?? poll.endTime,
+                        });
+                        if (result.data && !result.data.success) {
+                            console.warn("edit_poll_atomic error:", result.data.error);
+                        }
                     } catch (e) {
                         console.warn("Failed to sync edit to Supabase:", e);
                     }
@@ -452,17 +398,13 @@ export function usePollOperations({
 
                 let supabaseDeleteOk = true;
                 if (isSupabaseConfigured) {
-                    await supabase.from("votes").delete().eq("poll_id", pollId).select();
-                    const pollRes = await supabase.from("polls").delete().eq("id", pollId).select();
-                    if (pollRes.error) {
-                        const retry = await supabase.from("polls").delete().eq("id", pollId).select();
-                        if (retry.error) {
-                            const checkRes = await supabase.from("polls").select("id").eq("id", pollId).single();
-                            if (checkRes.data) supabaseDeleteOk = false;
-                        }
-                    } else if (!pollRes.data || pollRes.data.length === 0) {
-                        const checkRes = await supabase.from("polls").select("id").eq("id", pollId).single();
-                        if (checkRes.data) supabaseDeleteOk = false;
+                    const result = await supabase.rpc("delete_poll_atomic", {
+                        p_wallet: walletAddress,
+                        p_poll_id: pollId,
+                    });
+                    if (result.data && !result.data.success) {
+                        supabaseDeleteOk = false;
+                        console.warn("delete_poll_atomic error:", result.data.error);
                     }
 
                     if (!supabaseDeleteOk) {
@@ -506,22 +448,8 @@ export function usePollOperations({
                     };
                 }));
 
-                if (isSupabaseConfigured) {
-                    await new Promise(r => setTimeout(r, 50));
-                    try {
-                        for (const [wallet] of Object.entries(refunds)) {
-                            const user = usersRef.current.find(u => u.wallet === wallet);
-                            if (user) {
-                                await supabase.from("users").update({
-                                    balance: user.balance,
-                                    total_spent_cents: user.totalSpentCents,
-                                    ...(wallet === poll.creator ? { polls_created: user.pollsCreated } : {}),
-                                }).eq("wallet", wallet);
-                            }
-                        }
-                    } catch (e) {
-                        console.warn("Failed to sync refunds:", e);
-                    }
+                if (isSupabaseConfigured && !PROGRAM_DEPLOYED) {
+                    // Refunds already handled by delete_poll_atomic RPC
                 }
 
                 setTimeout(() => { tracker.deletedPollIds.current.delete(pollId); }, 300_000);
@@ -634,35 +562,17 @@ export function usePollOperations({
 
                 if (isSupabaseConfigured) {
                     try {
-                        const voteRow = existing
-                            ? {
-                                poll_id: pollId, voter: walletAddress,
-                                votes_per_option: existing.votesPerOption.map((c, i) => i === optionIndex ? c + numCoins : c),
-                                total_staked_cents: existing.totalStakedCents + cost, claimed: false,
-                            }
-                            : {
-                                poll_id: pollId, voter: walletAddress,
-                                votes_per_option: new Array(poll.options.length).fill(0).map((_, i) => i === optionIndex ? numCoins : 0),
-                                total_staked_cents: cost, claimed: false,
-                            };
-                        await Promise.all([
-                            supabase.from("votes").upsert(voteRow, { onConflict: "poll_id,voter" }),
-                            supabase.from("polls").update({
-                                vote_counts: updatedPoll.voteCounts,
-                                total_pool_cents: updatedPoll.totalPoolCents,
-                                total_voters: updatedPoll.totalVoters,
-                            }).eq("id", pollId),
-                        ]);
-
-                        await new Promise(r => setTimeout(r, 50));
-                        const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
-                        if (currentUser) {
-                            await supabase.from("users").update({
-                                balance: currentUser.balance,
-                                total_spent_cents: currentUser.totalSpentCents,
-                                total_votes_cast: currentUser.totalVotesCast,
-                                total_polls_voted: currentUser.totalPollsVoted,
-                            }).eq("wallet", walletAddress);
+                        const result = await withRetry(
+                            async () => supabase.rpc("cast_vote_atomic", {
+                                p_wallet: walletAddress,
+                                p_poll_id: pollId,
+                                p_option_index: optionIndex,
+                                p_num_coins: numCoins,
+                            }),
+                            { maxAttempts: 2, baseDelayMs: 500 }
+                        );
+                        if (result.data && !result.data.success) {
+                            console.warn("cast_vote_atomic error:", result.data.error);
                         }
                     } catch (e) {
                         console.warn("Failed to sync vote to Supabase:", e);
@@ -739,27 +649,22 @@ export function usePollOperations({
                         };
                     }));
 
-                    if (isSupabaseConfigured) {
-                        await new Promise(r => setTimeout(r, 50));
-                        const creatorUser = usersRef.current.find(u => u.wallet === poll.creator);
-                        if (creatorUser) {
-                            try {
-                                await supabase.from("users").update({
-                                    balance: creatorUser.balance,
-                                    creator_earnings_cents: creatorUser.creatorEarningsCents,
-                                    total_winnings_cents: creatorUser.totalWinningsCents,
-                                }).eq("wallet", poll.creator);
-                            } catch { }
-                        }
+                    if (isSupabaseConfigured && !PROGRAM_DEPLOYED) {
+                        // Creator reward already credited by settle_poll_atomic RPC
                     }
                 }
 
                 if (isSupabaseConfigured) {
                     try {
-                        await supabase.from("polls").update({
-                            status: PollStatus.Settled,
-                            winning_option: finalWinningOption,
-                        }).eq("id", pollId);
+                        const result = await withRetry(
+                            async () => supabase.rpc("settle_poll_atomic", {
+                                p_poll_id: pollId,
+                            }),
+                            { maxAttempts: 2, baseDelayMs: 500 }
+                        );
+                        if (result.data && !result.data.success) {
+                            console.warn("settle_poll_atomic error:", result.data.error);
+                        }
                     } catch (e) {
                         console.warn("Failed to sync settlement:", e);
                     }
@@ -835,9 +740,16 @@ export function usePollOperations({
 
                 if (isSupabaseConfigured) {
                     try {
-                        await supabase.from("votes").update({ claimed: true })
-                            .eq("poll_id", pollId)
-                            .eq("voter", walletAddress);
+                        const result = await withRetry(
+                            async () => supabase.rpc("claim_reward_atomic", {
+                                p_wallet: walletAddress,
+                                p_poll_id: pollId,
+                            }),
+                            { maxAttempts: 2, baseDelayMs: 500 }
+                        );
+                        if (result.data && !result.data.success) {
+                            console.warn("claim_reward_atomic error:", result.data.error);
+                        }
                     } catch (e) {
                         console.warn("Failed to sync claim:", e);
                     }

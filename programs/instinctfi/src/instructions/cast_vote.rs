@@ -49,6 +49,7 @@ pub fn handler(
     )?;
 
     // ── Update poll vote counts & pool ──
+    let poll_key = ctx.accounts.poll_account.key();
     let poll = &mut ctx.accounts.poll_account;
     poll.vote_counts[option_index as usize] = poll.vote_counts[option_index as usize]
         .checked_add(num_coins)
@@ -61,7 +62,7 @@ pub fn handler(
     let vote_account = &mut ctx.accounts.vote_account;
     if vote_account.voter == Pubkey::default() {
         // First vote by this user on this poll
-        vote_account.poll = ctx.accounts.poll_account.key();
+        vote_account.poll = poll_key;
         vote_account.voter = ctx.accounts.voter.key();
         vote_account.votes_per_option = vec![0u64; poll_options_len];
         vote_account.total_staked = 0;

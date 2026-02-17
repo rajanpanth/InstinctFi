@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
@@ -88,7 +88,9 @@ function HomeContent() {
     [polls]
   );
 
-  // Live stats
+  // Live stats — deferred to client to avoid hydration mismatch (server=0 vs client=N)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const totalVotes = polls.reduce((sum, p) => sum + p.voteCounts.reduce((a, b) => a + b, 0), 0);
   const totalVolume = polls.reduce((sum, p) => sum + p.totalPoolCents, 0);
 
@@ -129,15 +131,15 @@ function HomeContent() {
               <div className="flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2 text-neutral-500">
                   <BarChart3 size={14} className="text-brand-500" />
-                  <span><span className="text-neutral-200 font-semibold">{polls.length}</span> polls</span>
+                  <span><span className="text-neutral-200 font-semibold">{mounted ? polls.length : 0}</span> polls</span>
                 </div>
                 <div className="flex items-center gap-2 text-neutral-500">
                   <Users size={14} className="text-brand-500" />
-                  <span><span className="text-neutral-200 font-semibold">{totalVotes}</span> votes</span>
+                  <span><span className="text-neutral-200 font-semibold">{mounted ? totalVotes : 0}</span> votes</span>
                 </div>
                 <div className="flex items-center gap-2 text-neutral-500">
                   <Zap size={14} className="text-brand-500" />
-                  <span><span className="text-neutral-200 font-semibold">{formatDollars(totalVolume)}</span> volume</span>
+                  <span><span className="text-neutral-200 font-semibold">{mounted ? formatDollars(totalVolume) : formatDollars(0)}</span> volume</span>
                 </div>
               </div>
             </div>

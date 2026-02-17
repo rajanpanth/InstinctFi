@@ -36,6 +36,8 @@ pub enum PollError {
     Overflow,
     #[msg("Insufficient funds")]
     InsufficientFunds,
+    #[msg("Must buy at least 1 coin")]
+    ZeroCoins,
     #[msg("Only the poll creator can perform this action")]
     UnauthorizedNotCreator,
     #[msg("Poll already has votes and cannot be modified")]

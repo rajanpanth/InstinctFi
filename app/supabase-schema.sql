@@ -102,12 +102,9 @@ create policy "Users read" on users for select using (true);
 create policy "Polls read" on polls for select using (true);
 create policy "Votes read" on votes for select using (true);
 
--- Writes are allowed because our RPCs run as SECURITY DEFINER
--- and the client still needs to upsert polls/votes from the app.
--- In production, restrict these to the service_role only.
-create policy "Users write" on users for all using (true) with check (true);
-create policy "Polls write" on polls for all using (true) with check (true);
-create policy "Votes write" on votes for all using (true) with check (true);
+-- No direct writes for anon role — ALL mutations go through SECURITY DEFINER RPCs.
+-- This prevents any client from modifying balances, votes, or polls directly.
+-- The RPCs below handle all write operations with proper validation.
 
 -- 5. Enable Realtime on all tables
 alter table users replica identity full;
@@ -356,7 +353,7 @@ begin
     v_total_votes := v_total_votes + v_poll.vote_counts[i];
     if v_poll.vote_counts[i] > v_max_votes then
       v_max_votes := v_poll.vote_counts[i];
-      v_winning_idx := i;   -- 1-based (fine for Postgres arrays)
+      v_winning_idx := i - 1;   -- 0-based to match frontend convention
     end if;
   end loop;
 
@@ -424,12 +421,13 @@ begin
     return json_build_object('success', false, 'error', 'already_claimed');
   end if;
 
-  v_user_winning_votes := v_vote.votes_per_option[v_poll.winning_option];
+  -- winning_option is 0-based from frontend, convert to 1-based for Postgres arrays
+  v_user_winning_votes := v_vote.votes_per_option[v_poll.winning_option + 1];
   if v_user_winning_votes is null or v_user_winning_votes = 0 then
     return json_build_object('success', false, 'error', 'did_not_win');
   end if;
 
-  v_total_winning_votes := v_poll.vote_counts[v_poll.winning_option];
+  v_total_winning_votes := v_poll.vote_counts[v_poll.winning_option + 1];
   v_reward := (v_user_winning_votes * v_poll.total_pool_cents) / v_total_winning_votes;
 
   update users
@@ -458,7 +456,7 @@ create table if not exists comments (
   id uuid primary key default gen_random_uuid(),
   poll_id text not null references polls(id) on delete cascade,
   wallet text not null,
-  content text not null check (char_length(content) between 1 and 500),
+  text text not null check (char_length(text) between 1 and 500),
   created_at timestamptz not null default now()
 );
 
@@ -471,8 +469,7 @@ alter table comments enable row level security;
 create policy "Anyone can read comments"
   on comments for select using (true);
 
-create policy "Authenticated users can insert comments"
-  on comments for insert with check (true);
+-- Comments are inserted via RPC — no direct inserts from anon role
 
 -- Enable realtime for comments
 alter publication supabase_realtime add table comments;
@@ -493,8 +490,7 @@ alter table referrals enable row level security;
 create policy "Anyone can read referrals"
   on referrals for select using (true);
 
-create policy "Anyone can insert referrals"
-  on referrals for insert with check (true);
+-- Referrals are inserted via RPC — no direct inserts from anon role
 
 -- ============================================================
 -- Resolution proofs table
@@ -510,5 +506,264 @@ alter table resolution_proofs enable row level security;
 create policy "Anyone can read resolution proofs"
   on resolution_proofs for select using (true);
 
-create policy "Anyone can insert resolution proofs"
-  on resolution_proofs for insert with check (true);
+-- Resolution proofs are inserted via RPC — no direct inserts from anon role
+
+-- ============================================================
+-- 10. Atomic create_poll — validates and inserts poll + deducts creator balance
+-- ============================================================
+create or replace function create_poll_atomic(
+  p_wallet text,
+  p_id text,
+  p_poll_id bigint,
+  p_title text,
+  p_description text,
+  p_category text,
+  p_image_url text,
+  p_option_images text[],
+  p_options text[],
+  p_unit_price_cents bigint,
+  p_end_time bigint,
+  p_creator_investment_cents bigint
+)
+returns json as $$
+declare
+  v_user record;
+  v_platform_fee bigint;
+  v_creator_reward bigint;
+  v_pool_seed bigint;
+  v_now bigint;
+begin
+  v_now := (extract(epoch from now()))::bigint;
+
+  select * into v_user from users where wallet = p_wallet for update;
+  if not found then
+    return json_build_object('success', false, 'error', 'user_not_found');
+  end if;
+
+  if v_user.balance < p_creator_investment_cents then
+    return json_build_object('success', false, 'error', 'insufficient_balance', 'balance', v_user.balance);
+  end if;
+
+  -- Fee math
+  v_platform_fee := greatest(p_creator_investment_cents / 100, 1);
+  v_creator_reward := greatest(p_creator_investment_cents / 100, 1);
+  v_pool_seed := p_creator_investment_cents - v_platform_fee - v_creator_reward;
+
+  -- Deduct balance
+  update users
+    set balance = balance - p_creator_investment_cents,
+        polls_created = polls_created + 1,
+        total_spent_cents = total_spent_cents + p_creator_investment_cents
+    where wallet = p_wallet;
+
+  -- Insert poll
+  insert into polls (
+    id, poll_id, creator, title, description, category, image_url, option_images,
+    options, vote_counts, unit_price_cents, end_time, total_pool_cents,
+    creator_investment_cents, platform_fee_cents, creator_reward_cents,
+    status, winning_option, total_voters, created_at
+  ) values (
+    p_id, p_poll_id, p_wallet, p_title, p_description, p_category, p_image_url, p_option_images,
+    p_options, array_fill(0::bigint, array[array_length(p_options, 1)]),
+    p_unit_price_cents, p_end_time, v_pool_seed,
+    p_creator_investment_cents, v_platform_fee, v_creator_reward,
+    0, 255, 0, v_now
+  );
+
+  select balance into v_user from users where wallet = p_wallet;
+
+  return json_build_object(
+    'success', true,
+    'new_balance', v_user.balance,
+    'platform_fee', v_platform_fee,
+    'creator_reward', v_creator_reward,
+    'pool_seed', v_pool_seed
+  );
+end;
+$$ language plpgsql security definer;
+
+-- ============================================================
+-- 11. Atomic edit_poll — validates ownership & state before editing
+-- ============================================================
+create or replace function edit_poll_atomic(
+  p_wallet text,
+  p_poll_id text,
+  p_title text,
+  p_description text,
+  p_category text,
+  p_image_url text,
+  p_option_images text[],
+  p_options text[],
+  p_end_time bigint
+)
+returns json as $$
+declare
+  v_poll record;
+  v_total_votes bigint := 0;
+  i int;
+begin
+  select * into v_poll from polls where id = p_poll_id for update;
+  if not found then
+    return json_build_object('success', false, 'error', 'poll_not_found');
+  end if;
+
+  if v_poll.creator != p_wallet then
+    return json_build_object('success', false, 'error', 'not_creator');
+  end if;
+
+  if v_poll.status != 0 then
+    return json_build_object('success', false, 'error', 'poll_not_active');
+  end if;
+
+  -- Check no votes have been cast
+  for i in 1..coalesce(array_length(v_poll.vote_counts, 1), 0) loop
+    v_total_votes := v_total_votes + v_poll.vote_counts[i];
+  end loop;
+
+  if v_total_votes > 0 then
+    return json_build_object('success', false, 'error', 'poll_has_votes');
+  end if;
+
+  update polls
+    set title = p_title,
+        description = p_description,
+        category = p_category,
+        image_url = p_image_url,
+        option_images = p_option_images,
+        options = p_options,
+        end_time = p_end_time
+    where id = p_poll_id;
+
+  return json_build_object('success', true);
+end;
+$$ language plpgsql security definer;
+
+-- ============================================================
+-- 12. Atomic delete_poll — validates ownership, refunds balances, deletes poll+votes
+-- ============================================================
+create or replace function delete_poll_atomic(p_wallet text, p_poll_id text)
+returns json as $$
+declare
+  v_poll record;
+  v_total_votes bigint := 0;
+  v_vote record;
+  v_refund_total bigint := 0;
+  i int;
+begin
+  select * into v_poll from polls where id = p_poll_id for update;
+  if not found then
+    return json_build_object('success', false, 'error', 'poll_not_found');
+  end if;
+
+  if v_poll.creator != p_wallet then
+    return json_build_object('success', false, 'error', 'not_creator');
+  end if;
+
+  if v_poll.status != 0 then
+    return json_build_object('success', false, 'error', 'poll_not_active');
+  end if;
+
+  for i in 1..coalesce(array_length(v_poll.vote_counts, 1), 0) loop
+    v_total_votes := v_total_votes + v_poll.vote_counts[i];
+  end loop;
+
+  if v_total_votes > 0 then
+    return json_build_object('success', false, 'error', 'poll_has_votes');
+  end if;
+
+  -- Refund creator investment
+  update users
+    set balance = balance + v_poll.creator_investment_cents,
+        total_spent_cents = greatest(0, total_spent_cents - v_poll.creator_investment_cents),
+        polls_created = greatest(0, polls_created - 1)
+    where wallet = p_wallet;
+
+  -- Delete votes (cascade would handle this, but be explicit)
+  delete from votes where poll_id = p_poll_id;
+
+  -- Delete poll
+  delete from polls where id = p_poll_id;
+
+  return json_build_object('success', true, 'refund', v_poll.creator_investment_cents);
+end;
+$$ language plpgsql security definer;
+
+-- ============================================================
+-- 13. Atomic insert_comment — rate-limited, sanitized comment insert
+-- ============================================================
+create or replace function insert_comment_atomic(
+  p_wallet text,
+  p_poll_id text,
+  p_text text
+)
+returns json as $$
+declare
+  v_poll record;
+  v_last_comment timestamptz;
+  v_comment_id uuid;
+begin
+  -- Validate poll exists
+  select * into v_poll from polls where id = p_poll_id;
+  if not found then
+    return json_build_object('success', false, 'error', 'poll_not_found');
+  end if;
+
+  -- Validate text length
+  if char_length(p_text) < 1 or char_length(p_text) > 500 then
+    return json_build_object('success', false, 'error', 'invalid_comment_length');
+  end if;
+
+  -- Server-side rate limiting: 1 comment per 30 seconds per user per poll
+  select max(created_at) into v_last_comment
+    from comments
+    where wallet = p_wallet and poll_id = p_poll_id;
+
+  if v_last_comment is not null and (now() - v_last_comment) < interval '30 seconds' then
+    return json_build_object('success', false, 'error', 'rate_limited');
+  end if;
+
+  insert into comments (poll_id, wallet, text)
+    values (p_poll_id, p_wallet, p_text)
+    returning id into v_comment_id;
+
+  return json_build_object('success', true, 'id', v_comment_id);
+end;
+$$ language plpgsql security definer;
+
+-- ============================================================
+-- 14. Atomic insert_referral
+-- ============================================================
+create or replace function insert_referral_atomic(
+  p_referrer text,
+  p_referee text
+)
+returns json as $$
+begin
+  if p_referrer = p_referee then
+    return json_build_object('success', false, 'error', 'self_referral');
+  end if;
+
+  insert into referrals (referrer, referee, created_at)
+    values (p_referrer, p_referee, (extract(epoch from now()) * 1000)::bigint)
+    on conflict (referee) do nothing;
+
+  return json_build_object('success', true);
+end;
+$$ language plpgsql security definer;
+
+-- ============================================================
+-- 15. Atomic upsert_resolution_proof
+-- ============================================================
+create or replace function upsert_resolution_proof_atomic(
+  p_poll_id text,
+  p_source_url text
+)
+returns json as $$
+begin
+  insert into resolution_proofs (poll_id, source_url)
+    values (p_poll_id, p_source_url)
+    on conflict (poll_id) do update set source_url = excluded.source_url;
+
+  return json_build_object('success', true);
+end;
+$$ language plpgsql security definer;
