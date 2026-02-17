@@ -77,7 +77,7 @@ export function Navbar() {
   return (
     <>
       <nav aria-label="Main navigation" className="fixed top-0 inset-x-0 z-50 pt-[env(safe-area-inset-top)] bg-surface-0/80 backdrop-blur-md border-b border-border">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 md:h-[3.75rem]">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2 shrink-0 group">

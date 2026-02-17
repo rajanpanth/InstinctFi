@@ -7,6 +7,7 @@ import { Navbar } from "@/components/Navbar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PageTransition from "@/components/PageTransition";
 import LoadingScreen from "@/components/LoadingScreen";
+import AuroraBackground from "@/components/AuroraBackground";
 import WalletAdapterProvider from "@/components/WalletAdapterProvider";
 import { UserProfileProvider } from "@/lib/userProfiles";
 import { NotificationProvider } from "@/lib/notifications";
@@ -105,13 +106,14 @@ export default function RootLayout({
                 <BookmarkProvider>
                   <ReferralGate>
                     <Providers>
+                      <AuroraBackground />
                       <LoadingScreen />
                       <Suspense fallback={null}>
                         <Navbar />
                       </Suspense>
                       <div className="navbar-spacer" aria-hidden="true" />
                       <ErrorBoundary>
-                        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-8 mobile-content-pad md:!pb-8">
+                        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-8 mobile-content-pad md:!pb-8">
                           <PageTransition>
                             {children}
                           </PageTransition>

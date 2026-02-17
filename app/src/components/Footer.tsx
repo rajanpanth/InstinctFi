@@ -11,7 +11,7 @@ export default function Footer() {
 
   return (
     <footer className="border-t border-border pt-8 pb-4 mt-12">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <span className="font-heading font-bold text-neutral-300">

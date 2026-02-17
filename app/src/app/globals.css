@@ -17,8 +17,8 @@
   --text-muted: #737373;
   --input-bg: #161616;
   --input-border: #2a2a2a;
-  --brand: #14b8a6;
-  --brand-dim: rgba(20, 184, 166, 0.15);
+  --brand: #00d4aa;
+  --brand-dim: rgba(0, 212, 170, 0.15);
 }
 
 /* Light mode overrides */
@@ -34,20 +34,26 @@ html:not(.dark) {
   --text-muted: #737373;
   --input-bg: #f5f5f5;
   --input-border: #e5e5e5;
-  --brand: #0d9488;
-  --brand-dim: rgba(13, 148, 136, 0.1);
+  --brand: #00ab8a;
+  --brand-dim: rgba(0, 171, 138, 0.1);
 }
 
 html:not(.dark) body {
   color-scheme: light;
 }
 
+html {
+  background: var(--background);
+}
+
 body {
   color: rgb(var(--foreground-rgb));
-  background: var(--background);
+  background: transparent;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Prevent horizontal overflow ── */
@@ -182,7 +188,7 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
 }
 
 .wallet-adapter-button:hover {
-  background-color: #0d9488 !important;
+  background-color: #00ab8a !important;
 }
 
 .wallet-adapter-modal-wrapper {
@@ -237,7 +243,7 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   width: 300px;
   height: 300px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(20, 184, 166, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.08) 0%, transparent 70%);
   animation: ambientPulse 3s ease-in-out infinite;
   pointer-events: none;
 }
@@ -263,8 +269,8 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   align-items: center;
   justify-content: center;
   border-radius: 16px;
-  background: rgba(20, 184, 166, 0.08);
-  border: 1px solid rgba(20, 184, 166, 0.15);
+  background: rgba(0, 212, 170, 0.08);
+  border: 1px solid rgba(0, 212, 170, 0.15);
   position: relative;
   animation: sectionFadeUp 0.5s ease-out both;
 }
@@ -273,7 +279,7 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   position: absolute;
   inset: -8px;
   border-radius: 22px;
-  background: radial-gradient(circle, rgba(20, 184, 166, 0.18), transparent 70%);
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.18), transparent 70%);
   animation: glowRing 2s ease-in-out infinite;
   pointer-events: none;
 }
@@ -342,9 +348,9 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
 .loading-bar-fill-stepped {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand), #2dd4bf);
+  background: linear-gradient(90deg, var(--brand), #4df5e1);
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 8px rgba(20, 184, 166, 0.4);
+  box-shadow: 0 0 8px rgba(0, 212, 170, 0.4);
 }
 
 @keyframes barSlide {
@@ -399,16 +405,98 @@ html:not(.dark) .loading-bar-track {
 }
 
 html:not(.dark) .loading-ambient {
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(0, 171, 138, 0.06) 0%, transparent 70%);
 }
 
 html:not(.dark) .loading-logo-glow {
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.12), transparent 70%);
+  background: radial-gradient(circle, rgba(0, 171, 138, 0.12), transparent 70%);
 }
 
 /* ── Page transitions ── */
 main {
   animation: sectionFadeUp 0.3s ease-out;
+}
+
+/* ── Aurora mesh-gradient background ── */
+.aurora-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+}
+
+.aurora-blob-1 {
+  width: 600px;
+  height: 600px;
+  top: -15%;
+  left: -10%;
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.07) 0%, transparent 70%);
+  animation: auroraFloat1 20s ease-in-out infinite;
+}
+
+.aurora-blob-2 {
+  width: 500px;
+  height: 500px;
+  top: 40%;
+  right: -8%;
+  background: radial-gradient(circle, rgba(0, 180, 200, 0.06) 0%, transparent 70%);
+  animation: auroraFloat2 25s ease-in-out infinite;
+}
+
+.aurora-blob-3 {
+  width: 450px;
+  height: 450px;
+  bottom: -10%;
+  left: 30%;
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.05) 0%, transparent 70%);
+  animation: auroraFloat3 22s ease-in-out infinite;
+}
+
+@keyframes auroraFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(80px, 60px) scale(1.1); }
+  50%      { transform: translate(40px, 120px) scale(0.95); }
+  75%      { transform: translate(-30px, 50px) scale(1.05); }
+}
+
+@keyframes auroraFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(-70px, -50px) scale(1.08); }
+  50%      { transform: translate(-40px, 80px) scale(0.92); }
+  75%      { transform: translate(50px, 30px) scale(1.04); }
+}
+
+@keyframes auroraFloat3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(60px, -70px) scale(1.06); }
+  50%      { transform: translate(-50px, -30px) scale(1.12); }
+  75%      { transform: translate(20px, 50px) scale(0.96); }
+}
+
+/* Light mode: softer aurora */
+html:not(.dark) .aurora-blob-1 {
+  background: radial-gradient(circle, rgba(0, 171, 138, 0.05) 0%, transparent 70%);
+}
+html:not(.dark) .aurora-blob-2 {
+  background: radial-gradient(circle, rgba(0, 150, 170, 0.04) 0%, transparent 70%);
+}
+html:not(.dark) .aurora-blob-3 {
+  background: radial-gradient(circle, rgba(0, 171, 138, 0.035) 0%, transparent 70%);
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob {
+    animation: none !important;
+  }
 }
 
 /* ── Light mode card/surface overrides ── */
