@@ -60,6 +60,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title: `${data.title} | InstinctFi`,
       description,
+      keywords: [
+        data.title,
+        data.category || "General",
+        ...(data.options || []),
+        "prediction market",
+        "Solana",
+        "InstinctFi",
+      ],
+      alternates: {
+        canonical: `${baseUrl}/polls/${id}`,
+      },
       openGraph: {
         title: data.title,
         description,

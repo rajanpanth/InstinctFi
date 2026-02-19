@@ -13,6 +13,7 @@ import NotificationBell from "./NotificationBell";
 import { useLanguage } from "@/lib/languageContext";
 import toast from "react-hot-toast";
 import {
+  Home,
   LayoutGrid,
   Plus,
   Trophy,
@@ -185,22 +186,21 @@ export function Navbar() {
         <div className="mx-3 mb-3 rounded-2xl bg-surface-50/95 backdrop-blur-xl border border-border/60 shadow-2xl shadow-black/40">
           <div className="flex items-center justify-around py-2 px-1">
             {[
+              { href: "/", label: t("home") || "Home", Icon: Home },
               { href: "/polls", label: t("polls"), Icon: LayoutGrid },
-              { href: "/leaderboard", label: t("leaderboard"), Icon: Trophy },
               { href: "/create", label: t("create"), Icon: Plus, isCreate: true },
               { href: "/activity", label: t("activity"), Icon: Activity },
               { href: "/profile", label: t("profile"), Icon: User, hasBadge: dailyAvailable || unclaimedRewards > 0 },
             ].map((item) => {
-              const active = pathname === item.href || (item.href === "/polls" && pathname === "/");
+              const active = pathname === item.href;
               const isCreate = "isCreate" in item && item.isCreate;
 
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`relative flex flex-col items-center gap-1 py-1.5 px-2 rounded-xl transition-all active:scale-95 ${
-                    active ? "text-brand-400" : "text-neutral-500"
-                  }`}
+                  className={`relative flex flex-col items-center gap-1 py-1.5 px-2 rounded-xl transition-all active:scale-95 ${active ? "text-brand-400" : "text-neutral-500"
+                    }`}
                 >
                   {"hasBadge" in item && item.hasBadge && (
                     <span className="absolute top-0.5 right-0.5 flex h-2 w-2">
@@ -209,9 +209,8 @@ export function Navbar() {
                     </span>
                   )}
                   {isCreate ? (
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-                      active ? "bg-brand-500 text-white" : "bg-brand-600/80 text-white"
-                    }`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${active ? "bg-brand-500 text-white" : "bg-brand-600/80 text-white"
+                      }`}>
                       <item.Icon size={20} strokeWidth={2.5} />
                     </div>
                   ) : (

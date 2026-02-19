@@ -258,7 +258,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 <button
                   key={opt.index}
                   onClick={() => handleOptionClick(opt.index)}
-                  disabled={isEnded || isSettled} aria-label={`Vote for ${opt.label}, ${opt.pct}%${isWinner ? ', winner' : ''}`} className={`relative w-full flex items-center gap-2.5 group/opt transition-all rounded-lg px-3 py-2 overflow-hidden ${isVoting
+                  disabled={isEnded || isSettled} aria-label={`Vote for ${opt.label}, ${opt.pct}%${isWinner ? ', winner' : ''}`} className={`option-row-hover relative w-full flex items-center gap-2.5 group/opt transition-all rounded-lg px-3 py-2 overflow-hidden ${isVoting
                     ? "ring-1 ring-brand-500/40 bg-brand-500/[0.05]"
                     : isEnded || isSettled
                       ? "cursor-default bg-surface-50"
@@ -266,7 +266,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                     }`}
                 >
                   <div
-                    className={`absolute inset-y-0 left-0 ${barColor} transition-all duration-500 ease-out rounded-lg`}
+                    className={`absolute inset-y-0 left-0 ${barColor} bar-animate transition-all duration-500 ease-out rounded-lg`}
                     style={{ width: `${Math.max(opt.pct, 2)}%` }}
                   />
                   <div className="relative flex items-center gap-2.5 w-full z-[1]">
@@ -325,7 +325,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                       setExpanded(true);
                     }
                   }}
-                  className="text-[11px] px-3 py-1 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-semibold transition-colors active:scale-[0.96]"
+                  className="vote-btn-pulse text-[11px] px-3 py-1 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-semibold transition-colors active:scale-[0.96]"
                 >
                   {t("vote")}
                 </button>

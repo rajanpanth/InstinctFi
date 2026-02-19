@@ -95,11 +95,46 @@ button, a {
 
 /* ── Card hover ── */
 .card-hover {
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .card-hover:hover {
   border-color: var(--card-border-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px rgba(0, 212, 170, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.3);
+}
+
+html:not(.dark) .card-hover:hover {
+  box-shadow: 0 8px 24px -8px rgba(0, 171, 138, 0.1), 0 2px 8px -2px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Option row hover effect ── */
+.option-row-hover {
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.option-row-hover:hover:not(:disabled) {
+  transform: translateX(2px);
+}
+
+/* ── Bar entry animation ── */
+.bar-animate {
+  animation: barGrow 0.6s ease-out both;
+}
+
+@keyframes barGrow {
+  from { transform: scaleX(0); transform-origin: left; }
+  to { transform: scaleX(1); transform-origin: left; }
+}
+
+/* ── Vote button pulse ── */
+.vote-btn-pulse {
+  animation: votePulse 2s ease-in-out infinite;
+}
+
+@keyframes votePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(0, 212, 170, 0); }
 }
 
 /* ── Gradient text (teal-to-white) ── */
