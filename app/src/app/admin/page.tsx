@@ -214,8 +214,8 @@ export default function AdminPage() {
               key={t}
               onClick={() => setTab(t)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${tab === t
-                  ? t === "ended" ? "bg-red-600/20 text-red-400" : "bg-brand-600/20 text-brand-400"
-                  : "text-gray-400 hover:text-white"
+                ? t === "ended" ? "bg-red-600/20 text-red-400" : "bg-brand-600/20 text-brand-400"
+                : "text-gray-400 hover:text-white"
                 }`}
             >
               {t === "ended" ? `Ended (${endedUnsettled})` : t}
@@ -252,10 +252,10 @@ export default function AdminPage() {
             <div
               key={poll.id}
               className={`bg-surface-50 border rounded-xl p-4 transition-colors ${needsSettlement
-                  ? "border-red-500/40 bg-red-500/5"
-                  : isSettled
-                    ? "border-green-500/30"
-                    : "border-border"
+                ? "border-red-500/40 bg-red-500/5"
+                : isSettled
+                  ? "border-green-500/30"
+                  : "border-border"
                 }`}
             >
               {/* Poll header */}
@@ -264,10 +264,10 @@ export default function AdminPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold text-white truncate">{poll.title}</h3>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${needsSettlement
-                        ? "bg-red-500/20 text-red-400"
-                        : isSettled
-                          ? "bg-green-500/20 text-green-400"
-                          : "bg-blue-500/20 text-blue-400"
+                      ? "bg-red-500/20 text-red-400"
+                      : isSettled
+                        ? "bg-green-500/20 text-green-400"
+                        : "bg-blue-500/20 text-blue-400"
                       }`}>
                       {needsSettlement ? "⏰ NEEDS SETTLEMENT" : isSettled ? "✓ SETTLED" : "● ACTIVE"}
                     </span>
@@ -311,12 +311,12 @@ export default function AdminPage() {
                         disabled={isSettled || !needsSettlement}
                         onClick={() => setSelectedWinners(prev => ({ ...prev, [poll.id]: i }))}
                         className={`w-full text-left relative overflow-hidden rounded-lg px-3 py-2 border transition-all ${isWinner
-                            ? "border-green-500/60 bg-green-500/10"
-                            : isSelected
-                              ? "border-brand-500/60 bg-brand-500/10 ring-1 ring-brand-500/30"
-                              : needsSettlement
-                                ? "border-gray-600/50 hover:border-gray-500/70 cursor-pointer"
-                                : "border-border/30"
+                          ? "border-green-500/60 bg-green-500/10"
+                          : isSelected
+                            ? "border-brand-500/60 bg-brand-500/10 ring-1 ring-brand-500/30"
+                            : needsSettlement
+                              ? "border-gray-600/50 hover:border-gray-500/70 cursor-pointer"
+                              : "border-border/30"
                           }`}
                       >
                         {/* Progress bar background */}
@@ -380,8 +380,8 @@ export default function AdminPage() {
                       onClick={() => handleSettle(poll.id)}
                       disabled={settlingId === poll.id || selectedWinners[poll.id] === undefined}
                       className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${selectedWinners[poll.id] !== undefined
-                          ? "bg-brand-500 hover:bg-brand-600 text-white"
-                          : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
+                        ? "bg-brand-500 hover:bg-brand-600 text-white"
+                        : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
                         }`}
                     >
                       {settlingId === poll.id ? (
@@ -543,11 +543,9 @@ export default function AdminPage() {
           onSave={async (updates) => {
             const ok = await editPoll(editingPoll.id, updates);
             if (ok) {
-              toast.success("Poll updated!");
               setEditingPoll(null);
-            } else {
-              toast.error("Failed to update poll");
             }
+            return ok;
           }}
         />
       )}

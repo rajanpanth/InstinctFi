@@ -146,7 +146,7 @@ export function usePollOperations({
     }, [walletAddress, setUsers, usersRef, initialFetchDone]);
 
     // ── Claim daily reward ──
-    const DAILY_REWARD_LAMPORTS = LAMPORTS_PER_SOL; // 1 SOL worth of internal balance
+    const DAILY_REWARD_LAMPORTS = 2 * LAMPORTS_PER_SOL; // 2 SOL worth of internal balance
     const claimDailyReward = useCallback(async (): Promise<boolean> => {
         if (!walletAddress) return false;
 
@@ -337,23 +337,29 @@ export function usePollOperations({
                 }
 
                 if (isSupabaseConfigured) {
-                    try {
-                        const result = await supabase.rpc("edit_poll_atomic", {
-                            p_wallet: walletAddress,
-                            p_poll_id: pollId,
-                            p_title: updates.title ?? poll.title,
-                            p_description: updates.description ?? poll.description,
-                            p_category: updates.category ?? poll.category,
-                            p_image_url: updates.imageUrl ?? poll.imageUrl,
-                            p_option_images: updates.optionImages ?? poll.optionImages,
-                            p_options: updates.options ?? poll.options,
-                            p_end_time: updates.endTime ?? poll.endTime,
-                        });
-                        if (result.data && !result.data.success) {
-                            console.warn("edit_poll_atomic error:", result.data.error);
-                        }
-                    } catch (e) {
-                        console.warn("Failed to sync edit to Supabase:", e);
+                    const result = await supabase.rpc("edit_poll_atomic", {
+                        p_wallet: walletAddress,
+                        p_poll_id: pollId,
+                        p_title: updates.title ?? poll.title,
+                        p_description: updates.description ?? poll.description,
+                        p_category: updates.category ?? poll.category,
+                        p_image_url: updates.imageUrl ?? poll.imageUrl,
+                        p_option_images: updates.optionImages ?? poll.optionImages,
+                        p_options: updates.options ?? poll.options,
+                        p_end_time: updates.endTime ?? poll.endTime,
+                    });
+                    if (result.data && !result.data.success) {
+                        console.error("edit_poll_atomic error:", result.data.error);
+                        // Rollback optimistic update
+                        setPolls(prev => prev.map(p => p.id === pollId ? poll : p));
+                        toast.error(`Edit failed: ${result.data.error}`, { id: "edit-poll" });
+                        return false;
+                    }
+                    if (result.error) {
+                        console.error("edit_poll_atomic RPC error:", result.error);
+                        setPolls(prev => prev.map(p => p.id === pollId ? poll : p));
+                        toast.error("Edit failed: database error", { id: "edit-poll" });
+                        return false;
                     }
                 }
 
@@ -492,131 +498,131 @@ export function usePollOperations({
             }
             votingLock.current.add(lockKey);
             try {
-            // Read fresh state from refs to avoid stale closure
-            const currentPolls = pollsRef.current;
-            const currentVotes = votesRef.current;
-            const poll = currentPolls.find((p) => p.id === pollId);
-            if (!poll || poll.status !== PollStatus.Active) return false;
-            if (Date.now() / 1000 > poll.endTime) return false;
-            if (poll.creator === walletAddress) {
-                toast.error("You cannot vote on your own poll");
-                return false;
-            }
-
-            const existing = currentVotes.find(v => v.pollId === pollId && v.voter === walletAddress);
-            const currentCoins = existing ? existing.votesPerOption.reduce((a, b) => a + b, 0) : 0;
-            if (currentCoins + numCoins > MAX_COINS_PER_POLL) {
-                toast.error(`Max ${MAX_COINS_PER_POLL} coins per poll (you have ${currentCoins})`);
-                return false;
-            }
-
-            const cost = numCoins * poll.unitPriceCents;
-            const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
-            if (currentUser && cost > currentUser.balance) {
-                toast.error("Insufficient SOL balance");
-                return false;
-            }
-
-            const prevPolls = currentPolls;
-            const prevVotes = currentVotes;
-
-            try {
-                const pubkey = new PublicKey(walletAddress);
-                const pollCreator = new PublicKey(poll.creator);
-                toast.loading("Casting vote...", { id: "cast-vote" });
-
-                if (PROGRAM_DEPLOYED) {
-                    const ix = await buildCastVoteIx(pubkey, pollCreator, poll.pollId, optionIndex, numCoins);
-                    await sendTransaction([ix], pubkey);
+                // Read fresh state from refs to avoid stale closure
+                const currentPolls = pollsRef.current;
+                const currentVotes = votesRef.current;
+                const poll = currentPolls.find((p) => p.id === pollId);
+                if (!poll || poll.status !== PollStatus.Active) return false;
+                if (Date.now() / 1000 > poll.endTime) return false;
+                if (poll.creator === walletAddress) {
+                    toast.error("You cannot vote on your own poll");
+                    return false;
                 }
 
-                const updatedPoll = {
-                    ...poll,
-                    voteCounts: poll.voteCounts.map((c, i) => i === optionIndex ? c + numCoins : c),
-                    totalPoolCents: poll.totalPoolCents + cost,
-                    totalVoters: poll.totalVoters + (existing ? 0 : 1),
-                };
-                setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
-                markMutation();
-
-                if (existing) {
-                    const updatedVote: DemoVote = {
-                        ...existing,
-                        votesPerOption: existing.votesPerOption.map((c, i) => i === optionIndex ? c + numCoins : c),
-                        totalStakedCents: existing.totalStakedCents + cost,
-                    };
-                    setVotes(prev => prev.map(v =>
-                        v.pollId === pollId && v.voter === walletAddress ? updatedVote : v
-                    ));
-                } else {
-                    const votesPerOption = new Array(poll.options.length).fill(0);
-                    votesPerOption[optionIndex] = numCoins;
-                    setVotes(prev => [...prev, {
-                        pollId, voter: walletAddress, votesPerOption,
-                        totalStakedCents: cost, claimed: false,
-                    }]);
+                const existing = currentVotes.find(v => v.pollId === pollId && v.voter === walletAddress);
+                const currentCoins = existing ? existing.votesPerOption.reduce((a, b) => a + b, 0) : 0;
+                if (currentCoins + numCoins > MAX_COINS_PER_POLL) {
+                    toast.error(`Max ${MAX_COINS_PER_POLL} coins per poll (you have ${currentCoins})`);
+                    return false;
                 }
 
-                {
-                    let newBal: number | undefined;
+                const cost = numCoins * poll.unitPriceCents;
+                const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
+                if (currentUser && cost > currentUser.balance) {
+                    toast.error("Insufficient SOL balance");
+                    return false;
+                }
+
+                const prevPolls = currentPolls;
+                const prevVotes = currentVotes;
+
+                try {
+                    const pubkey = new PublicKey(walletAddress);
+                    const pollCreator = new PublicKey(poll.creator);
+                    toast.loading("Casting vote...", { id: "cast-vote" });
+
                     if (PROGRAM_DEPLOYED) {
-                        try { newBal = await getWalletBalance(pubkey); } catch { }
+                        const ix = await buildCastVoteIx(pubkey, pollCreator, poll.pollId, optionIndex, numCoins);
+                        await sendTransaction([ix], pubkey);
                     }
-                    setUsers(prev => prev.map(u => {
-                        if (u.wallet !== walletAddress) return u;
-                        const fresh = withFreshPeriods(u);
-                        const bal = newBal ?? Math.max(0, fresh.balance - cost);
-                        return {
-                            ...fresh,
-                            balance: bal,
-                            totalVotesCast: fresh.totalVotesCast + numCoins,
-                            weeklyVotesCast: fresh.weeklyVotesCast + numCoins,
-                            monthlyVotesCast: fresh.monthlyVotesCast + numCoins,
-                            totalSpentCents: fresh.totalSpentCents + cost,
-                            weeklySpentCents: fresh.weeklySpentCents + cost,
-                            monthlySpentCents: fresh.monthlySpentCents + cost,
-                            totalPollsVoted: fresh.totalPollsVoted + (existing ? 0 : 1),
-                            weeklyPollsVoted: fresh.weeklyPollsVoted + (existing ? 0 : 1),
-                            monthlyPollsVoted: fresh.monthlyPollsVoted + (existing ? 0 : 1),
+
+                    const updatedPoll = {
+                        ...poll,
+                        voteCounts: poll.voteCounts.map((c, i) => i === optionIndex ? c + numCoins : c),
+                        totalPoolCents: poll.totalPoolCents + cost,
+                        totalVoters: poll.totalVoters + (existing ? 0 : 1),
+                    };
+                    setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
+                    markMutation();
+
+                    if (existing) {
+                        const updatedVote: DemoVote = {
+                            ...existing,
+                            votesPerOption: existing.votesPerOption.map((c, i) => i === optionIndex ? c + numCoins : c),
+                            totalStakedCents: existing.totalStakedCents + cost,
                         };
-                    }));
-                }
-
-                if (isSupabaseConfigured) {
-                    try {
-                        const result = await withRetry(
-                            async () => supabase.rpc("cast_vote_atomic", {
-                                p_wallet: walletAddress,
-                                p_poll_id: pollId,
-                                p_option_index: optionIndex,
-                                p_num_coins: numCoins,
-                            }),
-                            { maxAttempts: 2, baseDelayMs: 500 }
-                        );
-                        if (result.data && !result.data.success) {
-                            console.warn("cast_vote_atomic error:", result.data.error);
-                        }
-                    } catch (e) {
-                        console.warn("Failed to sync vote to Supabase:", e);
+                        setVotes(prev => prev.map(v =>
+                            v.pollId === pollId && v.voter === walletAddress ? updatedVote : v
+                        ));
+                    } else {
+                        const votesPerOption = new Array(poll.options.length).fill(0);
+                        votesPerOption[optionIndex] = numCoins;
+                        setVotes(prev => [...prev, {
+                            pollId, voter: walletAddress, votesPerOption,
+                            totalStakedCents: cost, claimed: false,
+                        }]);
                     }
-                }
 
-                toast.success(`Voted ${numCoins} coin(s) — ${formatSOL(cost)} SOL sent!`, { id: "cast-vote" });
-                addNotification({
-                    wallet: walletAddress,
-                    type: "poll_voted",
-                    title: "Vote Cast",
-                    message: `You voted ${numCoins} coin(s) on "${poll.options[optionIndex]}" in "${poll.title}"`,
-                    pollId,
-                });
-                return true;
-            } catch (e: any) {
-                setPolls(prevPolls);
-                setVotes(prevVotes);
-                console.error("Cast vote failed:", e);
-                toast.error(friendlyErrorMessage(e, "Vote"), { id: "cast-vote" });
-                return false;
-            }
+                    {
+                        let newBal: number | undefined;
+                        if (PROGRAM_DEPLOYED) {
+                            try { newBal = await getWalletBalance(pubkey); } catch { }
+                        }
+                        setUsers(prev => prev.map(u => {
+                            if (u.wallet !== walletAddress) return u;
+                            const fresh = withFreshPeriods(u);
+                            const bal = newBal ?? Math.max(0, fresh.balance - cost);
+                            return {
+                                ...fresh,
+                                balance: bal,
+                                totalVotesCast: fresh.totalVotesCast + numCoins,
+                                weeklyVotesCast: fresh.weeklyVotesCast + numCoins,
+                                monthlyVotesCast: fresh.monthlyVotesCast + numCoins,
+                                totalSpentCents: fresh.totalSpentCents + cost,
+                                weeklySpentCents: fresh.weeklySpentCents + cost,
+                                monthlySpentCents: fresh.monthlySpentCents + cost,
+                                totalPollsVoted: fresh.totalPollsVoted + (existing ? 0 : 1),
+                                weeklyPollsVoted: fresh.weeklyPollsVoted + (existing ? 0 : 1),
+                                monthlyPollsVoted: fresh.monthlyPollsVoted + (existing ? 0 : 1),
+                            };
+                        }));
+                    }
+
+                    if (isSupabaseConfigured) {
+                        try {
+                            const result = await withRetry(
+                                async () => supabase.rpc("cast_vote_atomic", {
+                                    p_wallet: walletAddress,
+                                    p_poll_id: pollId,
+                                    p_option_index: optionIndex,
+                                    p_num_coins: numCoins,
+                                }),
+                                { maxAttempts: 2, baseDelayMs: 500 }
+                            );
+                            if (result.data && !result.data.success) {
+                                console.warn("cast_vote_atomic error:", result.data.error);
+                            }
+                        } catch (e) {
+                            console.warn("Failed to sync vote to Supabase:", e);
+                        }
+                    }
+
+                    toast.success(`Voted ${numCoins} coin(s) — ${formatSOL(cost)} SOL sent!`, { id: "cast-vote" });
+                    addNotification({
+                        wallet: walletAddress,
+                        type: "poll_voted",
+                        title: "Vote Cast",
+                        message: `You voted ${numCoins} coin(s) on "${poll.options[optionIndex]}" in "${poll.title}"`,
+                        pollId,
+                    });
+                    return true;
+                } catch (e: any) {
+                    setPolls(prevPolls);
+                    setVotes(prevVotes);
+                    console.error("Cast vote failed:", e);
+                    toast.error(friendlyErrorMessage(e, "Vote"), { id: "cast-vote" });
+                    return false;
+                }
             } finally {
                 votingLock.current.delete(lockKey);
             }

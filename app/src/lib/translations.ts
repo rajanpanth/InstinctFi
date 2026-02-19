@@ -197,7 +197,7 @@ const translations = {
   save: { en: "Save", ne: "सेभ" },
   saving: { en: "Saving...", ne: "सेभ हुदैछ..." },
   copy: { en: "Copy", ne: "कपि" },
-  claimOneSol: { en: "Claim 1 SOL", ne: "१ SOL दाबी गर्नुहोस्" },
+  claimOneSol: { en: "Claim 2 SOL", ne: "२ SOL दाबी गर्नुहोस्" },
   claimed: { en: "Claimed!", ne: "दाबी गरियो!" },
   uploadAvatar: { en: "Upload avatar", ne: "अवतार अपलोड गर्नुहोस्" },
   displayName: { en: "Display Name", ne: "प्रदर्शन नाम" },

@@ -600,28 +600,37 @@ returns json as $$
 declare
   v_poll record;
   v_total_votes bigint := 0;
+  v_is_admin boolean;
   i int;
 begin
+  -- Admin wallets list (must match ADMIN_WALLETS in constants.ts)
+  v_is_admin := p_wallet = ANY(ARRAY[
+    '62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS'
+  ]);
+
   select * into v_poll from polls where id = p_poll_id for update;
   if not found then
     return json_build_object('success', false, 'error', 'poll_not_found');
   end if;
 
-  if v_poll.creator != p_wallet then
-    return json_build_object('success', false, 'error', 'not_creator');
-  end if;
+  -- Non-admin restrictions
+  if not v_is_admin then
+    if v_poll.creator != p_wallet then
+      return json_build_object('success', false, 'error', 'not_creator');
+    end if;
 
-  if v_poll.status != 0 then
-    return json_build_object('success', false, 'error', 'poll_not_active');
-  end if;
+    if v_poll.status != 0 then
+      return json_build_object('success', false, 'error', 'poll_not_active');
+    end if;
 
-  -- Check no votes have been cast
-  for i in 1..coalesce(array_length(v_poll.vote_counts, 1), 0) loop
-    v_total_votes := v_total_votes + v_poll.vote_counts[i];
-  end loop;
+    -- Check no votes have been cast
+    for i in 1..coalesce(array_length(v_poll.vote_counts, 1), 0) loop
+      v_total_votes := v_total_votes + v_poll.vote_counts[i];
+    end loop;
 
-  if v_total_votes > 0 then
-    return json_build_object('success', false, 'error', 'poll_has_votes');
+    if v_total_votes > 0 then
+      return json_build_object('success', false, 'error', 'poll_has_votes');
+    end if;
   end if;
 
   update polls

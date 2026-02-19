@@ -160,8 +160,8 @@ const PollCard = memo(function PollCard({ poll }: Props) {
 
       <div
         className={`bg-surface-100 border rounded-xl overflow-hidden card-hover ${expanded
-            ? "border-brand-500/30"
-            : "border-border hover:border-border-hover"
+          ? "border-brand-500/30"
+          : "border-border hover:border-border-hover"
           }`}
       >
         {/* ═══════ COLLAPSED VIEW ═══════ */}
@@ -200,10 +200,10 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 })()}
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded font-medium border ${isSettled
-                      ? "bg-green-500/10 text-green-400 border-green-500/20"
-                      : isEnded
-                        ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                        : "bg-brand-500/10 text-brand-400 border-brand-500/20"
+                    ? "bg-green-500/10 text-green-400 border-green-500/20"
+                    : isEnded
+                      ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                      : "bg-brand-500/10 text-brand-400 border-brand-500/20"
                     }`}
                 >
                   {isSettled
@@ -258,11 +258,11 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 <button
                   key={opt.index}
                   onClick={() => handleOptionClick(opt.index)}
-                  disabled={isEnded || isSettled}                  aria-label={`Vote for ${opt.label}, ${opt.pct}%${isWinner ? ', winner' : ''}`}                  className={`relative w-full flex items-center gap-2.5 group/opt transition-all rounded-lg px-3 py-2 overflow-hidden ${isVoting
-                      ? "ring-1 ring-brand-500/40 bg-brand-500/[0.05]"
-                      : isEnded || isSettled
-                        ? "cursor-default bg-surface-50"
-                        : "hover:bg-surface-200/50 cursor-pointer bg-surface-50"
+                  disabled={isEnded || isSettled} aria-label={`Vote for ${opt.label}, ${opt.pct}%${isWinner ? ', winner' : ''}`} className={`relative w-full flex items-center gap-2.5 group/opt transition-all rounded-lg px-3 py-2 overflow-hidden ${isVoting
+                    ? "ring-1 ring-brand-500/40 bg-brand-500/[0.05]"
+                    : isEnded || isSettled
+                      ? "cursor-default bg-surface-50"
+                      : "hover:bg-surface-200/50 cursor-pointer bg-surface-50"
                     }`}
                 >
                   <div
@@ -289,8 +289,8 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                     )}
                     <span
                       className={`shrink-0 min-w-[40px] text-center px-2.5 py-1 rounded text-xs font-semibold border transition-all ${isWinner
-                          ? "bg-green-500/15 text-green-400 border-green-500/25"
-                          : `${bc.bg} ${bc.text} ${bc.border} ${bc.bgHover} ${bc.borderHover}`
+                        ? "bg-green-500/15 text-green-400 border-green-500/25"
+                        : `${bc.bg} ${bc.text} ${bc.border} ${bc.bgHover} ${bc.borderHover}`
                         }`}
                     >
                       {opt.pct}%
@@ -336,282 +336,284 @@ const PollCard = memo(function PollCard({ poll }: Props) {
 
         {/* ═══════ EXPANDED VIEW ═══════ */}
         <div
-          className={`overflow-hidden transition-all duration-200 ease-in-out ${expanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
+          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
             }`}
         >
-          <div className="px-4 pb-4 border-t border-border">
-            {poll.description && (
-              <p className="text-sm text-neutral-400 mt-3 mb-3 leading-relaxed">
-                {poll.description}
-              </p>
-            )}
+          <div className="overflow-hidden">
+            <div className="px-4 pb-4 border-t border-border">
+              {poll.description && (
+                <p className="text-sm text-neutral-400 mt-3 mb-3 leading-relaxed">
+                  {poll.description}
+                </p>
+              )}
 
-            {/* ── INLINE VOTE PANEL ── */}
-            {votingOption !== null && !isEnded && !isSettled && !isCreator && (
-              <div className="bg-surface-200 border border-border rounded-lg p-4 mt-3 animate-scaleIn">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <OptionAvatar
-                    src={poll.optionImages?.[votingOption]}
-                    label={poll.options[votingOption]}
-                    index={votingOption}
-                    size="lg"
-                  />
-                  <div>
-                    <p className="text-[11px] text-neutral-500">{t("buyingCoinsOn")}</p>
-                    <p className="text-sm font-semibold text-neutral-200">
-                      {poll.options[votingOption]}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-surface-0 border border-border rounded-lg p-3 mb-3">
-                  <div className="flex items-center justify-between">
+              {/* ── INLINE VOTE PANEL ── */}
+              {votingOption !== null && !isEnded && !isSettled && !isCreator && (
+                <div className="bg-surface-200 border border-border rounded-lg p-4 mt-3 animate-scaleIn">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <OptionAvatar
+                      src={poll.optionImages?.[votingOption]}
+                      label={poll.options[votingOption]}
+                      index={votingOption}
+                      size="lg"
+                    />
                     <div>
-                      <p className="text-[11px] text-neutral-500">{t("coins")}</p>
-                      {userAccount && (
-                        <p className="text-[10px] text-brand-500/70 mt-0.5">
-                          {t("bal")} {formatDollars(userAccount.balance)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setNumCoins(Math.max(1, numCoins - 1))}
-                        aria-label="Decrease coin count"
-                        className="w-7 h-7 rounded-lg bg-surface-200 hover:bg-surface-300 text-neutral-400 flex items-center justify-center transition-colors"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <input
-                        type="number"
-                        value={numCoins}
-                        onChange={(e) =>
-                          setNumCoins(Math.max(1, parseInt(e.target.value) || 1))
-                        }
-                        min={1}
-                        aria-label="Number of coins to vote"
-                        className="w-12 text-center text-lg font-semibold bg-transparent outline-none text-neutral-200"
-                      />
-                      <button
-                        onClick={() => setNumCoins(numCoins + 1)}
-                        aria-label="Increase coin count"
-                        className="w-7 h-7 rounded-lg bg-surface-200 hover:bg-surface-300 text-neutral-400 flex items-center justify-center transition-colors"
-                      >
-                        <Plus size={14} />
-                      </button>
+                      <p className="text-[11px] text-neutral-500">{t("buyingCoinsOn")}</p>
+                      <p className="text-sm font-semibold text-neutral-200">
+                        {poll.options[votingOption]}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
-                    <span className="text-[11px] text-neutral-500">{t("totalCost")}</span>
-                    <span className="text-sm font-semibold text-neutral-200">
-                      {formatDollars(cost)}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={clearSelection}
-                    className="flex-1 py-2.5 text-sm border border-border text-neutral-400 rounded-lg hover:bg-surface-300 transition-colors font-medium"
-                  >
-                    {t("cancel")}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const ok = await submitVote();
-                      if (ok) {
-                        playSuccess();
-                        hapticFeedback("medium");
-                      } else {
-                        playError();
-                      }
-                    }}
-                    disabled={voteLoading}
-                    className={`flex-1 py-2.5 text-sm rounded-lg font-semibold transition-all ${voteSuccess
+                  <div className="bg-surface-0 border border-border rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] text-neutral-500">{t("coins")}</p>
+                        {userAccount && (
+                          <p className="text-[10px] text-brand-500/70 mt-0.5">
+                            {t("bal")} {formatDollars(userAccount.balance)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setNumCoins(Math.max(1, numCoins - 1))}
+                          aria-label="Decrease coin count"
+                          className="w-7 h-7 rounded-lg bg-surface-200 hover:bg-surface-300 text-neutral-400 flex items-center justify-center transition-colors"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <input
+                          type="number"
+                          value={numCoins}
+                          onChange={(e) =>
+                            setNumCoins(Math.max(1, parseInt(e.target.value) || 1))
+                          }
+                          min={1}
+                          aria-label="Number of coins to vote"
+                          className="w-12 text-center text-lg font-semibold bg-transparent outline-none text-neutral-200"
+                        />
+                        <button
+                          onClick={() => setNumCoins(numCoins + 1)}
+                          aria-label="Increase coin count"
+                          className="w-7 h-7 rounded-lg bg-surface-200 hover:bg-surface-300 text-neutral-400 flex items-center justify-center transition-colors"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                      <span className="text-[11px] text-neutral-500">{t("totalCost")}</span>
+                      <span className="text-sm font-semibold text-neutral-200">
+                        {formatDollars(cost)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={clearSelection}
+                      className="flex-1 py-2.5 text-sm border border-border text-neutral-400 rounded-lg hover:bg-surface-300 transition-colors font-medium"
+                    >
+                      {t("cancel")}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const ok = await submitVote();
+                        if (ok) {
+                          playSuccess();
+                          hapticFeedback("medium");
+                        } else {
+                          playError();
+                        }
+                      }}
+                      disabled={voteLoading}
+                      className={`flex-1 py-2.5 text-sm rounded-lg font-semibold transition-all ${voteSuccess
                         ? "bg-green-600 text-white"
                         : voteLoading
                           ? "bg-brand-600/60 text-white/60 cursor-wait"
                           : "bg-brand-500 hover:bg-brand-600 text-white"
-                      }`}
-                  >
-                    {voteSuccess
-                      ? t("success")
-                      : voteLoading
-                        ? t("processing")
-                        : `${t("buyCoins")} ${numCoins} ${numCoins > 1 ? t("coins") : t("coin")}`}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Your positions ── */}
-            {vote && vote.totalStakedCents > 0 && (
-              <div className="bg-surface-50 border border-border rounded-lg p-3 mt-3">
-                <p className="text-[11px] text-neutral-500 mb-1.5">{t("yourPositions")}</p>
-                <div className="space-y-1">
-                  {vote.votesPerOption.map(
-                    (v, i) =>
-                      v > 0 && (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between text-sm"
-                        >
-                          <span className="text-neutral-300">{poll.options[i]}</span>
-                          <span className="text-brand-400 font-medium text-xs">
-                            {v} coin{v > 1 ? "s" : ""} (
-                            {formatDollars(v * poll.unitPriceCents)})
-                          </span>
-                        </div>
-                      )
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ── Settlement section ── */}
-            {isEnded && !isSettled && isAdminWallet(walletAddress) && (
-              <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-3 mt-3">
-                <p className="text-sm font-medium text-yellow-400 mb-1 flex items-center gap-1.5">
-                  <AlertCircle size={14} />
-                  {t("readyToSettle")}
-                </p>
-                <p className="text-[11px] text-neutral-500 mb-2">Admin settlement: highest-voted option wins by default.</p>
-                {showSettleConfirm ? (
-                  <div className="space-y-2">
-                    <p className="text-[11px] text-yellow-300">{t("settleConfirm")}</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowSettleConfirm(false)}
-                        className="flex-1 py-2 text-sm border border-border text-neutral-400 rounded-lg hover:bg-surface-200 transition-colors"
-                      >
-                        {t("cancel")}
-                      </button>
-                      <button
-                        onClick={handleSettle}
-                        className="flex-1 py-2 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg text-sm font-semibold transition-colors"
-                      >
-                        {t("confirmSettle")}
-                      </button>
-                    </div>
+                        }`}
+                    >
+                      {voteSuccess
+                        ? t("success")
+                        : voteLoading
+                          ? t("processing")
+                          : `${t("buyCoins")} ${numCoins} ${numCoins > 1 ? t("coins") : t("coin")}`}
+                    </button>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setShowSettleConfirm(true)}
-                    className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg text-sm font-semibold transition-colors"
-                  >
-                    {t("settlePoll")}
-                  </button>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* ── Claim reward ── */}
-            {canClaim && (
-              <div className="bg-green-500/5 border border-green-500/15 rounded-lg p-3 mt-3">
-                <p className="text-sm font-medium text-green-400 mb-1 flex items-center gap-1.5">
-                  <CheckCircle size={14} />
-                  {t("youWon")}
-                </p>
-                <p className="text-[11px] text-neutral-500 mb-2">
-                  {t("reward")}{" "}
-                  <span className="text-green-400 font-semibold">
-                    {formatDollars(potentialReward)}
-                  </span>
-                </p>
-                <button
-                  onClick={handleClaim}
-                  className="w-full py-2.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition-colors"
-                >
-                  {t("claimReward")}
-                </button>
-              </div>
-            )}
-
-            {vote?.claimed && (
-              <div className="text-center text-[11px] text-neutral-500 mt-3 flex items-center justify-center gap-1">
-                <CheckCircle size={12} />
-                {t("rewardClaimed")}
-              </div>
-            )}
-
-            {/* ── Creator: Manage ── */}
-            {isCreator && !isSettled && (
-              <div className="mt-3 pt-3 border-t border-border">
-                {canManage ? (
-                  <div>
-                    <p className="text-[11px] text-neutral-500 mb-2">{t("manageEditable")}</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowEditModal(true)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs border border-border text-neutral-400 rounded-lg hover:bg-surface-200 transition-colors font-medium"
-                      >
-                        <Edit3 size={12} />
-                        {t("edit")}
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteModal(true)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs border border-red-500/20 text-red-400 rounded-lg hover:bg-red-500/5 transition-colors font-medium"
-                      >
-                        <Trash2 size={12} />
-                        {t("delete")}
-                      </button>
-                    </div>
+              {/* ── Your positions ── */}
+              {vote && vote.totalStakedCents > 0 && (
+                <div className="bg-surface-50 border border-border rounded-lg p-3 mt-3">
+                  <p className="text-[11px] text-neutral-500 mb-1.5">{t("yourPositions")}</p>
+                  <div className="space-y-1">
+                    {vote.votesPerOption.map(
+                      (v, i) =>
+                        v > 0 && (
+                          <div
+                            key={i}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="text-neutral-300">{poll.options[i]}</span>
+                            <span className="text-brand-400 font-medium text-xs">
+                              {v} coin{v > 1 ? "s" : ""} (
+                              {formatDollars(v * poll.unitPriceCents)})
+                            </span>
+                          </div>
+                        )
+                    )}
                   </div>
-                ) : (
-                  <p className="text-[11px] text-neutral-500 text-center">
-                    {totalVotes > 0 ? t("cannotEditHasVotes") : t("youCreated")}
+                </div>
+              )}
+
+              {/* ── Settlement section ── */}
+              {isEnded && !isSettled && isAdminWallet(walletAddress) && (
+                <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-3 mt-3">
+                  <p className="text-sm font-medium text-yellow-400 mb-1 flex items-center gap-1.5">
+                    <AlertCircle size={14} />
+                    {t("readyToSettle")}
                   </p>
-                )}
-              </div>
-            )}
-
-            {/* Creator badge */}
-            {!isCreator && (
-              <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {getAvatarUrl(poll.creator) ? (
-                    getAvatarUrl(poll.creator).startsWith("data:") ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={getAvatarUrl(poll.creator)} alt="" className="w-5 h-5 rounded-full object-cover border border-border" />
-                    ) : (
-                      <Image src={getAvatarUrl(poll.creator)} alt="" width={20} height={20} className="w-5 h-5 rounded-full object-cover border border-border" />
-                    )
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-brand-500/20 flex items-center justify-center text-[8px] font-bold text-brand-400 shrink-0">
-                      {getDisplayName(poll.creator).charAt(0).toUpperCase()}
+                  <p className="text-[11px] text-neutral-500 mb-2">Admin settlement: highest-voted option wins by default.</p>
+                  {showSettleConfirm ? (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-yellow-300">{t("settleConfirm")}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowSettleConfirm(false)}
+                          className="flex-1 py-2 text-sm border border-border text-neutral-400 rounded-lg hover:bg-surface-200 transition-colors"
+                        >
+                          {t("cancel")}
+                        </button>
+                        <button
+                          onClick={handleSettle}
+                          className="flex-1 py-2 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg text-sm font-semibold transition-colors"
+                        >
+                          {t("confirmSettle")}
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowSettleConfirm(true)}
+                      className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg text-sm font-semibold transition-colors"
+                    >
+                      {t("settlePoll")}
+                    </button>
                   )}
-                  <span className="text-[10px] text-neutral-500 truncate">
-                    by {getDisplayName(poll.creator)}
-                  </span>
                 </div>
-                <div className="flex items-center gap-1">
+              )}
+
+              {/* ── Claim reward ── */}
+              {canClaim && (
+                <div className="bg-green-500/5 border border-green-500/15 rounded-lg p-3 mt-3">
+                  <p className="text-sm font-medium text-green-400 mb-1 flex items-center gap-1.5">
+                    <CheckCircle size={14} />
+                    {t("youWon")}
+                  </p>
+                  <p className="text-[11px] text-neutral-500 mb-2">
+                    {t("reward")}{" "}
+                    <span className="text-green-400 font-semibold">
+                      {formatDollars(potentialReward)}
+                    </span>
+                  </p>
                   <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      toggleBookmark(poll.id);
-                    }}
-                    className={`p-1 rounded transition-colors ${isBookmarked(poll.id)
+                    onClick={handleClaim}
+                    className="w-full py-2.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition-colors"
+                  >
+                    {t("claimReward")}
+                  </button>
+                </div>
+              )}
+
+              {vote?.claimed && (
+                <div className="text-center text-[11px] text-neutral-500 mt-3 flex items-center justify-center gap-1">
+                  <CheckCircle size={12} />
+                  {t("rewardClaimed")}
+                </div>
+              )}
+
+              {/* ── Creator: Manage ── */}
+              {isCreator && !isSettled && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  {canManage ? (
+                    <div>
+                      <p className="text-[11px] text-neutral-500 mb-2">{t("manageEditable")}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowEditModal(true)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs border border-border text-neutral-400 rounded-lg hover:bg-surface-200 transition-colors font-medium"
+                        >
+                          <Edit3 size={12} />
+                          {t("edit")}
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteModal(true)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs border border-red-500/20 text-red-400 rounded-lg hover:bg-red-500/5 transition-colors font-medium"
+                        >
+                          <Trash2 size={12} />
+                          {t("delete")}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-neutral-500 text-center">
+                      {totalVotes > 0 ? t("cannotEditHasVotes") : t("youCreated")}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Creator badge */}
+              {!isCreator && (
+                <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {getAvatarUrl(poll.creator) ? (
+                      getAvatarUrl(poll.creator).startsWith("data:") ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={getAvatarUrl(poll.creator)} alt="" className="w-5 h-5 rounded-full object-cover border border-border" />
+                      ) : (
+                        <Image src={getAvatarUrl(poll.creator)} alt="" width={20} height={20} className="w-5 h-5 rounded-full object-cover border border-border" />
+                      )
+                    ) : (
+                      <div className="w-5 h-5 rounded-full bg-brand-500/20 flex items-center justify-center text-[8px] font-bold text-brand-400 shrink-0">
+                        {getDisplayName(poll.creator).charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-[10px] text-neutral-500 truncate">
+                      by {getDisplayName(poll.creator)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleBookmark(poll.id);
+                      }}
+                      className={`p-1 rounded transition-colors ${isBookmarked(poll.id)
                         ? "text-yellow-400 hover:text-yellow-300"
                         : "text-neutral-600 hover:text-neutral-400"
-                      }`}
-                    title={
-                      isBookmarked(poll.id) ? t("removeBookmark") : t("bookmark")
-                    }
-                    aria-label={
-                      isBookmarked(poll.id) ? t("removeBookmark") : t("bookmark")
-                    }
-                  >
-                    <Bookmark
-                      size={13}
-                      fill={isBookmarked(poll.id) ? "currentColor" : "none"}
-                    />
-                  </button>
-                  <ShareButton pollId={poll.id} pollTitle={poll.title} />
+                        }`}
+                      title={
+                        isBookmarked(poll.id) ? t("removeBookmark") : t("bookmark")
+                      }
+                      aria-label={
+                        isBookmarked(poll.id) ? t("removeBookmark") : t("bookmark")
+                      }
+                    >
+                      <Bookmark
+                        size={13}
+                        fill={isBookmarked(poll.id) ? "currentColor" : "none"}
+                      />
+                    </button>
+                    <ShareButton pollId={poll.id} pollTitle={poll.title} />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

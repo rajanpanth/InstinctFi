@@ -15,7 +15,7 @@ export default function AdminEditModal({
 }: {
   poll: DemoPoll;
   onClose: () => void;
-  onSave: (updates: EditUpdates) => void;
+  onSave: (updates: EditUpdates) => Promise<boolean>;
 }) {
   const [title, setTitle] = useState(poll.title);
   const [description, setDescription] = useState(poll.description);
@@ -26,8 +26,9 @@ export default function AdminEditModal({
     const d = new Date(poll.endTime * 1000);
     return d.toISOString().slice(0, 16);
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       toast.error("Title is required");
       return;
@@ -36,14 +37,25 @@ export default function AdminEditModal({
       toast.error("All options must have text");
       return;
     }
-    onSave({
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      imageUrl: imageUrl.trim(),
-      options: options.map((o) => o.trim()),
-      endTime: Math.floor(new Date(endDate).getTime() / 1000),
-    });
+    setSaving(true);
+    try {
+      const ok = await onSave({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        imageUrl: imageUrl.trim(),
+        options: options.map((o) => o.trim()),
+        endTime: Math.floor(new Date(endDate).getTime() / 1000),
+      });
+      if (!ok) {
+        toast.error("Failed to save changes");
+      }
+    } catch (e) {
+      console.error("Admin edit save error:", e);
+      toast.error("Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -140,13 +152,25 @@ export default function AdminEditModal({
         <div className="flex items-center gap-3 pt-2">
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 rounded-lg text-sm font-semibold text-white transition-all"
+            disabled={saving}
+            className="flex-1 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 rounded-lg text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Save Changes
+            {saving ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Saving...
+              </span>
+            ) : (
+              "Save Changes"
+            )}
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2.5 bg-surface-100 hover:bg-dark-600 border border-gray-600/50 rounded-lg text-sm text-gray-300 transition-colors"
+            disabled={saving}
+            className="px-4 py-2.5 bg-surface-100 hover:bg-dark-600 border border-gray-600/50 rounded-lg text-sm text-gray-300 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
