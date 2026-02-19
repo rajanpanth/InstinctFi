@@ -106,9 +106,8 @@ function HomeContent() {
               <p className="text-brand-500 text-xs font-semibold tracking-widest uppercase mb-4">
                 Prediction Markets on Solana
               </p>
-              <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold text-neutral-100 leading-[1.1] mb-5 tracking-tight">
-                Trust Your{" "}
-                <span className="gradient-text">Instinct.</span>
+              <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-5 tracking-tight gradient-text">
+                Trust Your Instinct.
               </h1>
               <p className="text-neutral-400 text-base sm:text-lg leading-relaxed mb-8 max-w-lg">
                 {t("heroDesc")}
