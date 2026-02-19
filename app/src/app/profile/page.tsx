@@ -52,9 +52,10 @@ export default function ProfilePage() {
     return (
       <div className="text-center py-20">
         <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-surface-100 border border-border flex items-center justify-center">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-500"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-500"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
         </div>
-        <p className="text-gray-400 text-lg mb-5 font-medium">{t("connectWalletToView")}</p>
+        <p className="text-gray-400 text-lg mb-2 font-medium">{t("connectWalletToView")}</p>
+        <p className="text-gray-600 text-sm mb-5">View your stats, vote history, earnings & referral rewards</p>
         <button onClick={connectWallet} className="px-7 py-3 bg-brand-500 hover:bg-brand-600 rounded-2xl font-semibold transition-all active:scale-[0.97] shadow-lg shadow-brand-500/15">
           {t("connectPhantom")}
         </button>
@@ -72,7 +73,7 @@ export default function ProfilePage() {
   return (
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 tracking-tight flex items-center gap-2.5">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-400"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-400"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
         {t("profile")}
       </h1>
 
@@ -331,9 +332,8 @@ export default function ProfilePage() {
                       {p.options.length} options · {p.voteCounts.reduce((a: number, b: number) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolCents)}
                     </div>
                   </div>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                    p.status === 1 ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
-                  }`}>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === 1 ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
+                    }`}>
                     {p.status === 1 ? t("settled") : t("active")}
                   </span>
                 </Link>
@@ -357,12 +357,11 @@ export default function ProfilePage() {
                     {p.options.length} options · {p.voteCounts.reduce((a, b) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolCents)}
                   </div>
                 </div>
-                <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                  p.status === 1 ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
-                }`}>
-{p.status === 1 ? t("settled") : t("active")}
-                  </span>
-                </Link>
+                <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === 1 ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
+                  }`}>
+                  {p.status === 1 ? t("settled") : t("active")}
+                </span>
+              </Link>
             ))}
           </div>
         )}
@@ -489,17 +488,15 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
   };
 
   return (
-    <div className={`mb-6 rounded-xl border overflow-hidden transition-all ${
-      canClaim
+    <div className={`mb-6 rounded-xl border overflow-hidden transition-all ${canClaim
         ? "bg-gradient-to-r from-green-600/10 to-emerald-600/10 border-green-500/30"
         : "bg-surface-50 border-border"
-    }`}>
+      }`}>
       <div className="p-3 sm:p-4">
         <div className="flex items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2.5">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg shrink-0 ${
-              canClaim ? "bg-green-600/20 animate-pulse" : "bg-surface-100"
-            }`}>
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg shrink-0 ${canClaim ? "bg-green-600/20 animate-pulse" : "bg-surface-100"
+              }`}>
               💰
             </div>
             <div>
@@ -510,13 +507,12 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
           <button
             onClick={handleClaim}
             disabled={!canClaim}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-              claimed
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${claimed
                 ? "bg-green-600 text-white scale-95"
                 : canClaim
-                ? "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20 hover:scale-105"
-                : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
-            }`}
+                  ? "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20 hover:scale-105"
+                  : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
+              }`}
           >
             {claimed ? `✓ ${t("claimed")}` : canClaim ? t("claimOneSol") : timeLeft}
           </button>
@@ -525,9 +521,8 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
         {/* Progress bar */}
         <div className="h-1.5 bg-surface-100 rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-1000 ${
-              canClaim ? "bg-green-500" : "bg-brand-600/60"
-            }`}
+            className={`h-full rounded-full transition-all duration-1000 ${canClaim ? "bg-green-500" : "bg-brand-600/60"
+              }`}
             style={{ width: `${progress}%` }}
           />
         </div>

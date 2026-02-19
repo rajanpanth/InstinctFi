@@ -27,7 +27,7 @@ function buildActivities(polls: DemoPoll[], votes: DemoVote[]): ActivityItem[] {
     items.push({
       id: `created-${poll.id}`,
       type: "poll_created",
-      timestamp: poll.createdAt,
+      timestamp: poll.createdAt * 1000,
       pollId: poll.id,
       pollTitle: poll.title,
       category: poll.category,
@@ -37,6 +37,8 @@ function buildActivities(polls: DemoPoll[], votes: DemoVote[]): ActivityItem[] {
 
     // Poll settled
     if (poll.status === PollStatus.Settled && poll.winningOption !== WINNING_OPTION_UNSET) {
+      const winnerName = poll.options[poll.winningOption] ?? "Unknown";
+      const winnerVotes = poll.voteCounts[poll.winningOption] ?? 0;
       items.push({
         id: `settled-${poll.id}`,
         type: "poll_settled",
@@ -45,7 +47,7 @@ function buildActivities(polls: DemoPoll[], votes: DemoVote[]): ActivityItem[] {
         pollTitle: poll.title,
         category: poll.category,
         actor: poll.creator,
-        detail: `Poll settled — "${poll.options[poll.winningOption]}" won with ${poll.voteCounts[poll.winningOption]} votes`,
+        detail: `Poll settled — "${winnerName}" won with ${winnerVotes} votes`,
       });
     }
 
@@ -76,7 +78,7 @@ function buildActivities(polls: DemoPoll[], votes: DemoVote[]): ActivityItem[] {
     items.push({
       id: `vote-${vote.pollId}-${vote.voter}`,
       type: "vote_cast",
-      timestamp: poll.createdAt + 1, // approximate: shortly after creation
+      timestamp: poll.createdAt * 1000 + 1, // approximate: shortly after creation (ms)
       pollId: vote.pollId,
       pollTitle: poll.title,
       category: poll.category,
@@ -155,8 +157,8 @@ export default function ActivityPage() {
               onClick={() => setFilter(f)}
               aria-pressed={filter === f}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f
-                  ? "bg-brand-500 text-white"
-                  : "bg-surface-50 text-gray-400 hover:bg-surface-100"
+                ? "bg-brand-500 text-white"
+                : "bg-surface-50 text-gray-400 hover:bg-surface-100"
                 }`}
             >
               {f === "all" ? "All" : TYPE_META[f].label}
@@ -167,8 +169,8 @@ export default function ActivityPage() {
             <button
               onClick={() => setShowMyOnly((v) => !v)}
               className={`ml-auto px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showMyOnly
-                  ? "bg-brand-500 text-white"
-                  : "bg-surface-50 text-gray-400 hover:bg-surface-100"
+                ? "bg-brand-500 text-white"
+                : "bg-surface-50 text-gray-400 hover:bg-surface-100"
                 }`}
             >
               {showMyOnly ? t("myActivity") : t("everyone")}
@@ -197,7 +199,7 @@ export default function ActivityPage() {
                     className="block relative pl-12 pr-4 py-3 rounded-xl hover:bg-surface-50/60 transition-colors group"
                   >
                     {/* Timeline dot */}
-                    <div className="absolute left-3.5 top-5 w-3 h-3 rounded-full bg-surface-100 border-2 border-dark-600 group-hover:border-brand-500 transition-colors" />
+                    <div className="absolute left-3.5 top-5 w-3 h-3 rounded-full bg-surface-100 border-2 border-dark-600 group-hover:border-brand-500 transition-colors" aria-hidden="true" />
 
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">

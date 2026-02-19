@@ -30,12 +30,7 @@ export {
   type AppContextType,
 } from "@/lib/types";
 
-import {
-  type DemoPoll,
-  type DemoVote,
-  type UserAccount,
-  type AppContextType,
-} from "@/lib/types";
+import type { DemoPoll, DemoVote, UserAccount, AppContextType } from "@/lib/types";
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -86,7 +81,6 @@ export function Providers({ children }: { children: ReactNode }) {
     try { localStorage.setItem("instinctfi_users", JSON.stringify(users)); } catch { }
   }, [users]);
 
-  // ── Mutation tracking (shared between fetcher and operations) ──
   // ── Mutation tracking (shared between fetcher and operations) ──
   // We use independent refs, then memoize the container object so 'tracker' is stable.
   const mutationGeneration = useRef(0);

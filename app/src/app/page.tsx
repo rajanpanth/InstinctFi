@@ -209,8 +209,8 @@ function HomeContent() {
               role="tab"
               aria-selected={isActive}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${isActive
-                  ? "bg-brand-500/10 text-brand-400 border border-brand-500/20"
-                  : "text-neutral-500 hover:text-neutral-300 hover:bg-surface-200 border border-transparent"
+                ? "bg-brand-500/10 text-brand-400 border border-brand-500/20"
+                : "text-neutral-500 hover:text-neutral-300 hover:bg-surface-200 border border-transparent"
                 }`}
             >
               <span className="text-xs">{cat.icon}</span>
@@ -238,7 +238,12 @@ function HomeContent() {
           {filteredPolls.length === 0 ? (
             <div className="text-center py-16 text-neutral-500">
               <p className="text-sm mb-1">No polls in {tCat(catFilter!, lang)}</p>
-              <p className="text-xs text-neutral-600">Be the first to create one!</p>
+              <p className="text-xs text-neutral-600 mb-4">Be the first to create one!</p>
+              {walletConnected && (
+                <Link href="/create" className="inline-flex items-center gap-1.5 text-brand-400 hover:text-brand-300 font-medium text-sm transition-colors">
+                  Create a Poll <span className="text-lg">+</span>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -273,8 +278,8 @@ function HomeContent() {
                         key={w.key}
                         onClick={() => setTrendingWindow(w.key)}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${trendingWindow === w.key
-                            ? "bg-brand-500/15 text-brand-400"
-                            : "text-neutral-500 hover:text-neutral-300"
+                          ? "bg-brand-500/15 text-brand-400"
+                          : "text-neutral-500 hover:text-neutral-300"
                           }`}
                       >
                         {w.label}

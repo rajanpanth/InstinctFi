@@ -58,6 +58,30 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Composes all context providers into a single wrapper.
+ * Order matters: outermost → innermost.
+ */
+function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <LanguageProvider>
+      <WalletAdapterProvider>
+        <UserProfileProvider>
+          <NotificationProvider>
+            <BookmarkProvider>
+              <ReferralGate>
+                <Providers>
+                  {children}
+                </Providers>
+              </ReferralGate>
+            </BookmarkProvider>
+          </NotificationProvider>
+        </UserProfileProvider>
+      </WalletAdapterProvider>
+    </LanguageProvider>
+  );
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -99,45 +123,33 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className} suppressHydrationWarning>
-        <LanguageProvider>
-          <WalletAdapterProvider>
-            <UserProfileProvider>
-              <NotificationProvider>
-                <BookmarkProvider>
-                  <ReferralGate>
-                    <Providers>
-                      <AuroraBackground />
-                      <LoadingScreen />
-                      <Suspense fallback={null}>
-                        <Navbar />
-                      </Suspense>
-                      <div className="navbar-spacer" aria-hidden="true" />
-                      <ErrorBoundary>
-                        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-8 mobile-content-pad md:!pb-8">
-                          <PageTransition>
-                            {children}
-                          </PageTransition>
-                        </main>
-                      </ErrorBoundary>
-                      <Footer />
-                      <Toaster
-                        position="bottom-right"
-                        toastOptions={{
-                          style: {
-                            background: "#161616",
-                            color: "#e5e5e5",
-                            border: "1px solid #222",
-                            fontSize: "14px",
-                          },
-                        }}
-                      />
-                    </Providers>
-                  </ReferralGate>
-                </BookmarkProvider>
-              </NotificationProvider>
-            </UserProfileProvider>
-          </WalletAdapterProvider>
-        </LanguageProvider>
+        <AppProviders>
+          <AuroraBackground />
+          <LoadingScreen />
+          <Suspense fallback={null}>
+            <Navbar />
+          </Suspense>
+          <div className="navbar-spacer" aria-hidden="true" />
+          <ErrorBoundary>
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-8 mobile-content-pad md:!pb-8">
+              <PageTransition>
+                {children}
+              </PageTransition>
+            </main>
+          </ErrorBoundary>
+          <Footer />
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: "#161616",
+                color: "#e5e5e5",
+                border: "1px solid #222",
+                fontSize: "14px",
+              },
+            }}
+          />
+        </AppProviders>
       </body>
     </html>
   );

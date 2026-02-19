@@ -83,9 +83,10 @@ export function solToLamports(sol: number): number {
 export function formatSOL(lamports: number): string {
   const sol = lamports / LAMPORTS_PER_SOL;
   if (sol >= 1000) return `${(sol / 1000).toFixed(1)}k SOL`;
-  if (sol >= 1) return `${sol.toFixed(4)} SOL`;
-  if (sol >= 0.001) return `${sol.toFixed(6)} SOL`;
-  return `${sol.toFixed(9)} SOL`;
+  if (sol >= 1) return `${parseFloat(sol.toFixed(4))} SOL`;
+  if (sol >= 0.001) return `${parseFloat(sol.toFixed(4))} SOL`;
+  if (sol > 0) return `${parseFloat(sol.toFixed(6))} SOL`;
+  return `0 SOL`;
 }
 
 export function formatSOLShort(lamports: number): string {
@@ -187,7 +188,7 @@ class BorshWriter {
 
 class BorshReader {
   private offset = 0;
-  constructor(private data: Buffer) {}
+  constructor(private data: Buffer) { }
 
   get remaining(): number {
     return this.data.length - this.offset;
