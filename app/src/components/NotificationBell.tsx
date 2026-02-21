@@ -42,7 +42,11 @@ export default function NotificationBell() {
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          const willOpen = !open;
+          setOpen(willOpen);
+          if (willOpen && unreadCount > 0) markAllRead();
+        }}
         className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-surface-100 border border-border hover:bg-dark-600 transition-colors"
         aria-label="Notifications"
       >
@@ -93,9 +97,8 @@ export default function NotificationBell() {
                 <div
                   key={n.id}
                   onClick={() => markAsRead(n.id)}
-                  className={`flex gap-3 px-4 py-3 hover:bg-surface-100 transition-colors cursor-pointer border-b border-border/30 ${
-                    !n.read ? "bg-brand-600/5" : ""
-                  }`}
+                  className={`flex gap-3 px-4 py-3 hover:bg-surface-100 transition-colors cursor-pointer border-b border-border/30 ${!n.read ? "bg-brand-600/5" : ""
+                    }`}
                 >
                   <span className="text-lg shrink-0">{notifIcon(n.type)}</span>
                   <div className="flex-1 min-w-0">

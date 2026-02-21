@@ -2,8 +2,10 @@
 
 import { useApp, formatDollars, UserAccount } from "@/components/Providers";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { shortAddr } from "@/lib/utils";
 import { useLanguage } from "@/lib/languageContext";
+import { useUserProfiles } from "@/lib/userProfiles";
 
 type Period = "weekly" | "monthly" | "allTime";
 
@@ -18,6 +20,7 @@ function isPeriodFresh(resetTs: number, periodMs: number): boolean {
 export default function LeaderboardPage() {
   const { allUsers, walletAddress } = useApp();
   const { t } = useLanguage();
+  const { getDisplayName, getAvatarUrl } = useUserProfiles();
   const [period, setPeriod] = useState<Period>("allTime");
   const [sortBy, setSortBy] = useState<"winnings" | "pollsWon" | "votes" | "creatorEarnings">("winnings");
   const [mounted, setMounted] = useState(false);
@@ -111,8 +114,8 @@ export default function LeaderboardPage() {
             key={key}
             onClick={() => setPeriod(key)}
             className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${period === key
-                ? "bg-brand-500 text-dark-900"
-                : "bg-surface-100 text-gray-400 hover:text-white"
+              ? "bg-brand-500 text-dark-900"
+              : "bg-surface-100 text-gray-400 hover:text-white"
               }`}
           >
             {label}
@@ -132,8 +135,8 @@ export default function LeaderboardPage() {
             key={key}
             onClick={() => setSortBy(key)}
             className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${sortBy === key
-                ? "bg-brand-600 text-white"
-                : "bg-surface-100 text-gray-400 hover:text-white"
+              ? "bg-brand-600 text-white"
+              : "bg-surface-100 text-gray-400 hover:text-white"
               }`}
           >
             {label}
@@ -184,9 +187,28 @@ export default function LeaderboardPage() {
                           {i + 1}
                         </span>
                       </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 font-mono text-sm">
-                        {shortAddr(u.wallet)}
-                        {isMe && <span className="ml-2 text-xs text-brand-400">(you)</span>}
+                      <td className="px-4 sm:px-6 py-3 sm:py-4">
+                        <div className="flex items-center gap-3">
+                          {getAvatarUrl(u.wallet) ? (
+                            getAvatarUrl(u.wallet).startsWith("data:") ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={getAvatarUrl(u.wallet)} alt="" className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
+                            ) : (
+                              <Image src={getAvatarUrl(u.wallet)} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
+                            )
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500/60 to-brand-700/60 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                              {getDisplayName(u.wallet).charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-sm">
+                              {getDisplayName(u.wallet)}
+                              {isMe && <span className="ml-2 text-xs text-brand-400">(you)</span>}
+                            </div>
+                            <div className="font-mono text-[11px] text-gray-500">{shortAddr(u.wallet)}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right font-mono">
                         <span className={profit >= 0 ? "text-green-400" : "text-red-400"}>
@@ -219,10 +241,25 @@ export default function LeaderboardPage() {
                         }`}>
                         #{i + 1}
                       </span>
-                      <span className="font-mono text-xs text-gray-300">
-                        {shortAddr(u.wallet)}
-                        {isMe && <span className="ml-1 text-brand-400">(you)</span>}
-                      </span>
+                      {getAvatarUrl(u.wallet) ? (
+                        getAvatarUrl(u.wallet).startsWith("data:") ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={getAvatarUrl(u.wallet)} alt="" className="w-7 h-7 rounded-full object-cover border border-border shrink-0" />
+                        ) : (
+                          <Image src={getAvatarUrl(u.wallet)} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover border border-border shrink-0" />
+                        )
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500/60 to-brand-700/60 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                          {getDisplayName(u.wallet).charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-xs text-gray-300">
+                          {getDisplayName(u.wallet)}
+                          {isMe && <span className="ml-1 text-brand-400">(you)</span>}
+                        </span>
+                        <div className="font-mono text-[10px] text-gray-600">{shortAddr(u.wallet)}</div>
+                      </div>
                     </div>
                     <span className={`font-mono text-sm font-bold ${profit >= 0 ? "text-green-400" : "text-red-400"}`}>
                       {profit >= 0 ? "+" : ""}{formatDollars(profit)}

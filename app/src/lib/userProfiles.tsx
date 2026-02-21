@@ -40,7 +40,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       try {
         const saved = localStorage.getItem("instinctfi_profiles");
         if (saved) setProfiles(JSON.parse(saved));
-      } catch {}
+      } catch { }
       return;
     }
 
@@ -69,7 +69,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   // Persist to localStorage as fallback
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      try { localStorage.setItem("instinctfi_profiles", JSON.stringify(profiles)); } catch {}
+      try { localStorage.setItem("instinctfi_profiles", JSON.stringify(profiles)); } catch { }
     }
   }, [profiles]);
 
@@ -90,7 +90,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
           },
         }));
       }
-    } catch {}
+    } catch { }
   }, [profiles]);
 
   const getProfile = useCallback((wallet: string): UserProfile | null => {
@@ -118,12 +118,17 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
     if (isSupabaseConfigured) {
       try {
-        await supabase.from("user_profiles").upsert({
-          wallet,
-          display_name: displayName,
-          avatar_url: avatarUrl,
-          created_at: profile.createdAt,
-        }, { onConflict: "wallet" });
+        const { data, error } = await supabase.rpc("upsert_user_profile_atomic", {
+          p_wallet: wallet,
+          p_display_name: displayName,
+          p_avatar_url: avatarUrl,
+        });
+        if (error) throw error;
+        const result = typeof data === "string" ? JSON.parse(data) : data;
+        if (!result?.success) {
+          console.warn("Profile upsert failed:", result);
+          return false;
+        }
       } catch (e) {
         console.warn("Failed to save profile:", e);
         return false;

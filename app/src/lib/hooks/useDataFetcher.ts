@@ -16,6 +16,7 @@ import {
     onChainUserToAccount,
     rowToDemoPoll,
     rowToDemoVote,
+    rowToUserAccount,
 } from "@/lib/dataConverters";
 import { type DemoPoll, type DemoVote, type UserAccount } from "@/lib/types";
 
@@ -127,9 +128,10 @@ export function useDataFetcher(
                 // Demo mode
                 if (isSupabaseConfigured) {
                     try {
-                        const [pollsRes, votesRes] = await Promise.all([
+                        const [pollsRes, votesRes, usersRes] = await Promise.all([
                             supabase.from("polls").select("*").order("created_at", { ascending: false }),
                             supabase.from("votes").select("*"),
+                            supabase.from("users").select("*"),
                         ]);
                         if (pollsRes.data) {
                             const fetched = pollsRes.data.map(rowToDemoPoll);
@@ -143,6 +145,10 @@ export function useDataFetcher(
                         }
                         if (votesRes.data && gen === tracker.mutationGeneration.current) {
                             setVotes(votesRes.data.map(rowToDemoVote));
+                        }
+                        if (usersRes.data && gen === tracker.mutationGeneration.current) {
+                            const supaUsers: UserAccount[] = usersRes.data.map(rowToUserAccount);
+                            setUsers(supaUsers);
                         }
                     } catch (e) {
                         console.warn("Failed to load from Supabase:", e);

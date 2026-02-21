@@ -776,3 +776,49 @@ begin
   return json_build_object('success', true);
 end;
 $$ language plpgsql security definer;
+
+-- ============================================================
+-- 16. User Profiles table (display names + avatars)
+-- ============================================================
+create table if not exists user_profiles (
+  wallet text primary key,
+  display_name text not null default '',
+  avatar_url text not null default '',
+  created_at bigint not null default 0
+);
+
+-- RLS
+alter table user_profiles enable row level security;
+
+create policy "Anyone can read user_profiles"
+  on user_profiles for select using (true);
+
+-- No direct writes — use RPC below
+
+-- Realtime
+alter table user_profiles replica identity full;
+alter publication supabase_realtime add table user_profiles;
+
+-- ============================================================
+-- 17. Atomic upsert_user_profile
+-- ============================================================
+create or replace function upsert_user_profile_atomic(
+  p_wallet text,
+  p_display_name text,
+  p_avatar_url text
+)
+returns json as $$
+declare
+  v_now bigint;
+begin
+  v_now := (extract(epoch from now()) * 1000)::bigint;
+
+  insert into user_profiles (wallet, display_name, avatar_url, created_at)
+    values (p_wallet, p_display_name, p_avatar_url, v_now)
+    on conflict (wallet) do update
+      set display_name = excluded.display_name,
+          avatar_url   = excluded.avatar_url;
+
+  return json_build_object('success', true);
+end;
+$$ language plpgsql security definer;

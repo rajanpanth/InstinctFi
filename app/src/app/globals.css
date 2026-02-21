@@ -702,3 +702,233 @@ html:not(.dark) .bg-surface-100 {
 html:not(.dark) .border-border {
   border-color: var(--card-border);
 }
+
+/* ── Comprehensive light mode enhancements ── */
+
+/* Body & page background */
+html:not(.dark) {
+  color-scheme: light;
+}
+
+/* Surface colors */
+html:not(.dark) .bg-surface-0 {
+  background-color: #ffffff;
+}
+
+html:not(.dark) .bg-surface-0\/80 {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+html:not(.dark) .bg-surface-50 {
+  background-color: #f8fafe;
+}
+
+html:not(.dark) .bg-surface-50\/95 {
+  background-color: rgba(248, 250, 254, 0.95);
+}
+
+html:not(.dark) .bg-surface-100\/95 {
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+html:not(.dark) .bg-surface-200 {
+  background-color: #f0f2f5;
+}
+
+html:not(.dark) .bg-surface-300 {
+  background-color: #e5e7eb;
+}
+
+html:not(.dark) .bg-surface-400 {
+  background-color: #d1d5db;
+}
+
+/* Hover surface */
+html:not(.dark) .hover\:bg-surface-100:hover {
+  background-color: #f5f5f5;
+}
+
+html:not(.dark) .hover\:bg-surface-200:hover {
+  background-color: #ededf0;
+}
+
+/* Border */
+html:not(.dark) .border-border\/60 {
+  border-color: rgba(229, 231, 235, 0.6);
+}
+
+html:not(.dark) .border-border\/40 {
+  border-color: rgba(229, 231, 235, 0.4);
+}
+
+html:not(.dark) .border-border\/30 {
+  border-color: rgba(229, 231, 235, 0.3);
+}
+
+/* Text */
+html:not(.dark) .text-neutral-100 {
+  color: #171717;
+}
+
+html:not(.dark) .text-neutral-200 {
+  color: #262626;
+}
+
+html:not(.dark) .text-neutral-300 {
+  color: #404040;
+}
+
+html:not(.dark) .text-neutral-400 {
+  color: #525252;
+}
+
+html:not(.dark) .text-neutral-500 {
+  color: #6b7280;
+}
+
+html:not(.dark) .text-neutral-600 {
+  color: #9ca3af;
+}
+
+html:not(.dark) .text-gray-400 {
+  color: #6b7280;
+}
+
+html:not(.dark) .text-gray-500 {
+  color: #9ca3af;
+}
+
+html:not(.dark) .text-gray-600 {
+  color: #d1d5db;
+}
+
+html:not(.dark) .text-white {
+  color: #111827;
+}
+
+/* Hover text */
+html:not(.dark) .hover\:text-neutral-200:hover {
+  color: #262626;
+}
+
+html:not(.dark) .hover\:text-neutral-300:hover {
+  color: #404040;
+}
+
+html:not(.dark) .hover\:text-white:hover {
+  color: #000;
+}
+
+html:not(.dark) .hover\:text-gray-400:hover {
+  color: #4b5563;
+}
+
+/* Navbar */
+html:not(.dark) nav[aria-label="Main navigation"] {
+  background-color: rgba(255, 255, 255, 0.85);
+  border-bottom-color: #e5e7eb;
+}
+
+/* Mobile bottom nav */
+html:not(.dark) .mobile-bottom-nav .bg-surface-50\/95 {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(229, 231, 235, 0.7);
+  box-shadow: 0 -4px 24px -4px rgba(0, 0, 0, 0.08), 0 -2px 8px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* Cards */
+html:not(.dark) .card-hover:hover {
+  box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.08), 0 4px 12px -4px rgba(0, 0, 0, 0.05);
+}
+
+/* Inputs */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--text-primary);
+}
+
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: #9ca3af;
+}
+
+/* Brand pill backgrounds */
+html:not(.dark) .bg-brand-500\/10 {
+  background-color: rgba(0, 171, 138, 0.08);
+}
+
+html:not(.dark) .bg-brand-600\/80 {
+  background-color: rgba(0, 171, 138, 0.85);
+}
+
+html:not(.dark) .bg-red-500\/10 {
+  background-color: rgba(239, 68, 68, 0.08);
+}
+
+html:not(.dark) .hover\:bg-red-500\/10:hover {
+  background-color: rgba(239, 68, 68, 0.08);
+}
+
+/* Modals and overlays */
+html:not(.dark) .bg-black\/50 {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+html:not(.dark) .bg-black\/60 {
+  background-color: rgba(0, 0, 0, 0.35);
+}
+
+/* Shadow adjustments */
+html:not(.dark) .shadow-2xl {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+}
+
+html:not(.dark) .shadow-black\/40 {
+  --tw-shadow-color: rgba(0, 0, 0, 0.06);
+}
+
+/* Notification bell dropdown */
+html:not(.dark) .bg-surface-50 {
+  background-color: #ffffff;
+}
+
+/* Scrollbar - light */
+html:not(.dark) * {
+  scrollbar-color: #d4d4d4 transparent;
+}
+
+/* Wallet adapter light */
+html:not(.dark) .wallet-adapter-modal-wrapper {
+  background-color: #fff !important;
+}
+
+/* Focus ring light */
+html:not(.dark) *:focus-visible {
+  outline-color: #00ab8a;
+}
+
+/* Aurora light — slightly more visible for visual interest */
+html:not(.dark) .aurora-blob-1 {
+  background: radial-gradient(circle, rgba(0, 171, 138, 0.06) 0%, transparent 70%);
+}
+
+html:not(.dark) .aurora-blob-2 {
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.05) 0%, transparent 70%);
+}
+
+html:not(.dark) .aurora-blob-3 {
+  background: radial-gradient(circle, rgba(0, 171, 138, 0.04) 0%, transparent 70%);
+}
+
+/* More menu in light mode */
+html:not(.dark) .bg-surface-100\/95 {
+  background-color: rgba(255, 255, 255, 0.97);
+}
+
+/* Dark mode toggle icon color */
+html:not(.dark) .hover\:bg-dark-600:hover {
+  background-color: #f0f0f0;
+}

@@ -12,6 +12,7 @@ import LanguageToggle from "./LanguageToggle";
 import NotificationBell from "./NotificationBell";
 import { useLanguage } from "@/lib/languageContext";
 import toast from "react-hot-toast";
+import { useNotifications } from "@/lib/notifications";
 import {
   Home,
   LayoutGrid,
@@ -23,6 +24,7 @@ import {
   LogOut,
   Wallet,
   Zap,
+  MoreHorizontal,
 } from "lucide-react";
 
 export function Navbar() {
@@ -38,6 +40,8 @@ export function Navbar() {
   const pathname = usePathname();
   const { t } = useLanguage();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const { markAllRead } = useNotifications();
 
   const handleDisconnect = () => {
     setShowDisconnectConfirm(true);
@@ -72,7 +76,7 @@ export function Navbar() {
     { href: "/create", label: t("create"), Icon: Plus },
     { href: "/leaderboard", label: t("leaderboard"), Icon: Trophy },
     { href: "/activity", label: t("activity"), Icon: Activity },
-    { href: "/profile", label: t("profile"), Icon: User, badge: unclaimedRewards },
+    { href: "/profile", label: t("profile"), Icon: User },
   ];
 
   return (
@@ -103,6 +107,7 @@ export function Navbar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={item.href === "/profile" ? () => markAllRead() : undefined}
                     className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${active
                       ? "bg-brand-500/10 text-brand-400"
                       : "text-neutral-500 hover:text-neutral-200 hover:bg-surface-200"
@@ -110,11 +115,6 @@ export function Navbar() {
                   >
                     <item.Icon size={14} strokeWidth={active ? 2.2 : 1.8} />
                     {item.label}
-                    {item.badge !== undefined && item.badge > 0 && (
-                      <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 text-[9px] font-bold text-white px-1">
-                        {item.badge}
-                      </span>
-                    )}
                   </Link>
                 );
               })}
@@ -156,15 +156,7 @@ export function Navbar() {
                     {shortAddr(walletAddress!)}
                     <LogOut size={11} className="text-neutral-600 group-hover:text-red-400 transition-colors" />
                   </button>
-                  {/* Mobile disconnect */}
-                  <button
-                    onClick={handleDisconnect}
-                    className="sm:hidden w-8 h-8 flex items-center justify-center bg-surface-100 border border-border rounded-lg text-neutral-500 hover:text-neutral-300 transition-colors"
-                    title="Disconnect wallet"
-                    aria-label="Disconnect wallet"
-                  >
-                    <LogOut size={14} />
-                  </button>
+
                 </div>
               ) : (
                 <button
@@ -189,8 +181,7 @@ export function Navbar() {
               { href: "/", label: t("home") || "Home", Icon: Home },
               { href: "/polls", label: t("polls"), Icon: LayoutGrid },
               { href: "/create", label: t("create"), Icon: Plus, isCreate: true },
-              { href: "/activity", label: t("activity"), Icon: Activity },
-              { href: "/profile", label: t("profile"), Icon: User, hasBadge: dailyAvailable || unclaimedRewards > 0 },
+              { href: "/leaderboard", label: "Rankings", Icon: Trophy },
             ].map((item) => {
               const active = pathname === item.href;
               const isCreate = "isCreate" in item && item.isCreate;
@@ -202,12 +193,6 @@ export function Navbar() {
                   className={`relative flex flex-col items-center gap-1 py-1.5 px-2 rounded-xl transition-all active:scale-95 ${active ? "text-brand-400" : "text-neutral-500"
                     }`}
                 >
-                  {"hasBadge" in item && item.hasBadge && (
-                    <span className="absolute top-0.5 right-0.5 flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-60" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
-                    </span>
-                  )}
                   {isCreate ? (
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${active ? "bg-brand-500 text-white" : "bg-brand-600/80 text-white"
                       }`}>
@@ -226,9 +211,75 @@ export function Navbar() {
                 </Link>
               );
             })}
+            {/* More button */}
+            <button
+              onClick={() => setShowMoreMenu(prev => !prev)}
+              className={`relative flex flex-col items-center gap-1 py-1.5 px-2 rounded-xl transition-all active:scale-95 ${showMoreMenu ? "text-brand-400" : "text-neutral-500"}`}
+            >
+              <MoreHorizontal size={22} strokeWidth={showMoreMenu ? 1.5 : 1.8} />
+              <span className={`text-[10px] font-medium leading-none ${showMoreMenu ? "text-brand-400" : "text-neutral-500"}`}>More</span>
+            </button>
           </div>
         </div>
       </nav>
+
+      {/* More menu overlay (mobile) */}
+      {showMoreMenu && (
+        <div className="md:hidden fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="absolute bottom-[5.5rem] left-3 right-3 bg-surface-100/95 backdrop-blur-xl border border-border/60 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="py-2">
+              <Link
+                href="/activity"
+                onClick={() => setShowMoreMenu(false)}
+                className={`flex items-center gap-3 px-5 py-3 transition-colors ${pathname === "/activity" ? "text-brand-400 bg-brand-500/10" : "text-neutral-300 hover:bg-surface-200"}`}
+              >
+                <Activity size={18} strokeWidth={1.8} />
+                <span className="text-sm font-medium">{t("activity")}</span>
+              </Link>
+              <Link
+                href="/profile"
+                onClick={() => { setShowMoreMenu(false); markAllRead(); }}
+                className={`relative flex items-center gap-3 px-5 py-3 transition-colors ${pathname === "/profile" ? "text-brand-400 bg-brand-500/10" : "text-neutral-300 hover:bg-surface-200"}`}
+              >
+                <User size={18} strokeWidth={1.8} />
+                <span className="text-sm font-medium">{t("profile")}</span>
+                {(dailyAvailable || unclaimedRewards > 0) && (
+                  <span className="flex h-2 w-2 ml-auto">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-60" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
+                  </span>
+                )}
+              </Link>
+              {isAdminWallet(walletAddress) && (
+                <Link
+                  href="/admin"
+                  onClick={() => setShowMoreMenu(false)}
+                  className={`flex items-center gap-3 px-5 py-3 transition-colors ${pathname === "/admin" ? "text-red-400 bg-red-500/10" : "text-neutral-300 hover:bg-surface-200"}`}
+                >
+                  <Settings size={18} strokeWidth={1.8} />
+                  <span className="text-sm font-medium">Admin</span>
+                </Link>
+              )}
+              {walletConnected && (
+                <>
+                  <div className="mx-4 my-1 border-t border-border/40" />
+                  <button
+                    onClick={() => { setShowMoreMenu(false); handleDisconnect(); }}
+                    className="flex items-center gap-3 px-5 py-3 w-full text-left text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <LogOut size={18} strokeWidth={1.8} />
+                    <span className="text-sm font-medium">Logout</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Disconnect confirmation modal */}
       {showDisconnectConfirm && (
