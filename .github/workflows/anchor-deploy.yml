@@ -1,0 +1,103 @@
+name: Anchor Build & Deploy to Devnet
+
+on:
+  workflow_dispatch:  # Manual trigger from GitHub UI
+
+env:
+  SOLANA_VERSION: "1.18.23"
+  ANCHOR_VERSION: "0.30.1"
+  NODE_VERSION: "20"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.79.0"   # Last stable before edition2024 conflicts
+
+      - name: Cache Rust / Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor CLI
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor anchor-cli --tag v${{ env.ANCHOR_VERSION }} --locked --force
+
+      - name: Configure Solana for Devnet
+        run: solana config set --url devnet
+
+      - name: Set up deployment wallet from secret
+        run: |
+          echo "${{ secrets.ANCHOR_WALLET_KEYPAIR }}" > /tmp/deployer-keypair.json
+          solana config set --keypair /tmp/deployer-keypair.json
+          solana address
+          solana balance
+
+      - name: Airdrop SOL if balance is low
+        run: |
+          BALANCE=$(solana balance | awk '{print $1}')
+          if (( $(echo "$BALANCE < 1" | bc -l) )); then
+            solana airdrop 2 || true
+            sleep 5
+          fi
+
+      - name: Downgrade Cargo.lock to version 3
+        run: |
+          sed -i 's/^version = 4$/version = 3/' Cargo.lock
+
+      - name: Build instinctfi program
+        run: anchor build -p instinctfi
+
+      - name: Get Program ID from keypair
+        id: program-id
+        run: |
+          PROGRAM_ID=$(solana-keygen pubkey target/deploy/instinctfi-keypair.json)
+          echo "PROGRAM_ID=$PROGRAM_ID" >> $GITHUB_OUTPUT
+          echo "🚀 Program ID: $PROGRAM_ID"
+
+      - name: Update declare_id in Rust source
+        run: |
+          sed -i "s/declare_id!(\"Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS\")/declare_id!(\"${{ steps.program-id.outputs.PROGRAM_ID }}\")/" programs/instinctfi/src/lib.rs
+
+      - name: Update Anchor.toml with real Program ID
+        run: |
+          sed -i "s/instinctfi = \"Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS\"/instinctfi = \"${{ steps.program-id.outputs.PROGRAM_ID }}\"/g" Anchor.toml
+
+      - name: Rebuild with updated Program ID
+        run: anchor build -p instinctfi
+
+      - name: Deploy to Devnet
+        run: anchor deploy -p instinctfi --provider.cluster devnet
+
+      - name: Verify deployment
+        run: solana program show ${{ steps.program-id.outputs.PROGRAM_ID }} --url devnet
+
+      - name: Print final Program ID for frontend update
+        run: |
+          echo "============================================"
+          echo "✅ DEPLOYED PROGRAM ID: ${{ steps.program-id.outputs.PROGRAM_ID }}"
+          echo "Update program.ts PROGRAM_ID with this value"
+          echo "============================================"
+
+      - name: Commit updated Anchor.toml and lib.rs
+        run: |
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+          git add Anchor.toml programs/instinctfi/src/lib.rs
+          git commit -m "chore: update instinctfi program ID after devnet deploy [skip ci]" || echo "Nothing to commit"
+          git push
