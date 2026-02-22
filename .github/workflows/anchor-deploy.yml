@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust (latest stable for lockfile generation)
+      - name: Install Rust (latest stable)
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo
@@ -24,38 +24,53 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}-v2
 
       - name: Install Solana CLI
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Install Anchor CLI
+      - name: Install Anchor CLI (with latest Rust)
         run: |
           cargo install --git https://github.com/coral-xyz/anchor anchor-cli --tag v${{ env.ANCHOR_VERSION }} --force
 
-      - name: Generate Cargo.lock and downgrade edition2024 crates
+      - name: Generate Cargo.lock with compatible crate versions
         run: |
-          # Generate fresh lockfile with latest Rust (which supports edition2024)
+          # Generate fresh lockfile with latest Rust (supports edition2024 parsing)
           rm -f Cargo.lock
           cargo generate-lockfile
           
-          # Downgrade crates that use edition2024 features
-          # Solana's cargo-build-sbf bundles Cargo 1.75 which can't parse edition2024
+          # Downgrade crates that use edition2024 (Solana platform-tools can't handle them)
           cargo update -p blake3 --precise 1.5.5
           cargo update -p constant_time_eq --precise 0.3.1
           
-          # Downgrade lockfile format from v4 to v3 (Cargo 1.75 can't read v4)
-          sed -i 's/^version = 4$/version = 3/' Cargo.lock
+          # Force lockfile to version 3 (Solana's Cargo 1.75 can't read v4)
+          python3 -c "
+          with open('Cargo.lock', 'r') as f:
+              content = f.read()
+          content = content.replace('version = 4', 'version = 3', 1)
+          with open('Cargo.lock', 'w') as f:
+              f.write(content)
+          "
           
-          # Verify the fixes
-          echo "=== Cargo.lock version ==="
+          # Verify
+          echo "=== Lockfile header ==="
           head -3 Cargo.lock
-          echo "=== blake3 version ==="
+          echo "=== blake3 ==="
           grep -A1 'name = "blake3"' Cargo.lock | head -2
-          echo "=== constant_time_eq version ==="
+          echo "=== constant_time_eq ==="
           grep -A1 'name = "constant_time_eq"' Cargo.lock | head -2
+
+      - name: Switch to Rust 1.79 for build
+        run: |
+          # Use Rust 1.79 so system cargo won't upgrade lockfile back to v4
+          rustup install 1.79.0
+          rustup default 1.79.0
+          echo "System Rust: $(rustc --version)"
+          echo "System Cargo: $(cargo --version)"
+          echo "Lockfile version before build:"
+          head -3 Cargo.lock
 
       - name: Configure Solana for Devnet
         run: solana config set --url devnet
@@ -82,7 +97,10 @@ jobs:
           fi
 
       - name: Build instinctfi program
-        run: anchor build -p instinctfi
+        run: |
+          echo "=== Lockfile version at build time ==="
+          head -3 Cargo.lock
+          anchor build -p instinctfi
 
       - name: Get Program ID from keypair
         id: program-id
