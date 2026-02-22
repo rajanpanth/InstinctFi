@@ -19,6 +19,12 @@ jobs:
         with:
           toolchain: "1.79.0"
 
+      - name: Also install latest Rust for lockfile generation
+        run: |
+          rustup install stable
+          echo "Rust 1.79: $(rustc --version)"
+          echo "Rust stable: $(rustup run stable rustc --version)"
+
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -26,7 +32,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-1.79-${{ hashFiles('**/Cargo.toml') }}-v3
+          key: ${{ runner.os }}-cargo-1.79-${{ hashFiles('**/Cargo.toml') }}-v4
 
       - name: Install Solana CLI v2.1.5
         run: |
@@ -37,12 +43,32 @@ jobs:
         run: |
           cargo install --git https://github.com/coral-xyz/anchor anchor-cli --tag v${{ env.ANCHOR_VERSION }} --locked --force
 
-      - name: Generate fresh Cargo.lock
+      - name: Generate Cargo.lock with compatible crate versions
         run: |
+          # Use latest Rust (supports edition2024) to generate lockfile
           rm -f Cargo.lock
-          cargo generate-lockfile
-          echo "=== Lockfile header ==="
+          rustup run stable cargo generate-lockfile
+          
+          # Downgrade edition2024 crates (neither Rust 1.79 NOR platform-tools can handle them)
+          rustup run stable cargo update -p blake3 --precise 1.5.5
+          rustup run stable cargo update -p constant_time_eq --precise 0.3.1
+          
+          # Downgrade lockfile from v4 to v3 (Rust 1.79 Cargo can't read v4)
+          python3 -c "
+          with open('Cargo.lock', 'r') as f:
+              content = f.read()
+          content = content.replace('version = 4', 'version = 3', 1)
+          with open('Cargo.lock', 'w') as f:
+              f.write(content)
+          "
+          
+          # Verify everything
+          echo "=== Lockfile version ==="
           head -3 Cargo.lock
+          echo "=== blake3 ==="
+          grep -A1 'name = "blake3"' Cargo.lock | head -2
+          echo "=== constant_time_eq ==="
+          grep -A1 'name = "constant_time_eq"' Cargo.lock | head -2
 
       - name: Configure Solana for Devnet
         run: solana config set --url devnet
@@ -69,7 +95,12 @@ jobs:
           fi
 
       - name: Build instinctfi program
-        run: anchor build -p instinctfi
+        run: |
+          echo "=== Lockfile version at build time ==="
+          head -3 Cargo.lock
+          echo "=== System cargo version ==="
+          cargo --version
+          anchor build -p instinctfi
 
       - name: Get Program ID from keypair
         id: program-id
