@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import {
     fetchAllPolls,
@@ -27,6 +27,9 @@ export interface MutationTracker {
     deletedPollIds: React.MutableRefObject<Set<string>>;
 }
 
+/** Polls that have received a vote within the last 60 seconds (for live indicators). */
+const LIVE_WINDOW_MS = 60_000;
+
 /**
  * Handles all data fetching: initial load, periodic polling, Supabase realtime,
  * and on-chain data reconciliation.
@@ -49,6 +52,11 @@ export function useDataFetcher(
 
     const MUTATION_COOLDOWN_MS = 10_000;
 
+    // ── Live indicator tracking ──
+    // Maps poll_id → timestamp of last vote event received via realtime
+    const liveTimestamps = useRef<Map<string, number>>(new Map());
+    const [recentlyVotedPollIds, setRecentlyVotedPollIds] = useState<Set<string>>(new Set());
+
     // Keep up-to-date refs for async closures
     const updateUsersRef = useCallback((users: UserAccount[]) => {
         usersRef.current = users;
@@ -58,6 +66,25 @@ export function useDataFetcher(
     }, []);
     const updateVotesRef = useCallback((votes: DemoVote[]) => {
         votesRef.current = votes;
+    }, []);
+
+    // Prune stale live timestamps every 15s
+    useEffect(() => {
+        const pruneInterval = setInterval(() => {
+            const now = Date.now();
+            const map = liveTimestamps.current;
+            let changed = false;
+            Array.from(map.entries()).forEach(([id, ts]) => {
+                if (now - ts > LIVE_WINDOW_MS) {
+                    map.delete(id);
+                    changed = true;
+                }
+            });
+            if (changed) {
+                setRecentlyVotedPollIds(new Set(map.keys()));
+            }
+        }, 15_000);
+        return () => clearInterval(pruneInterval);
     }, []);
 
     const fetchAll = useCallback(async () => {
@@ -187,8 +214,8 @@ export function useDataFetcher(
     // Initial fetch + periodic polling + Supabase realtime
     useEffect(() => {
         fetchAll();
-        // Poll every 15s as fallback for missed realtime events
-        const interval = setInterval(fetchAll, 15_000);
+        // Poll every 60s as a safety-net fallback — realtime handles the fast path
+        const interval = setInterval(fetchAll, 60_000);
 
         let channel: ReturnType<typeof supabase.channel> | null = null;
         let realtimeDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -198,10 +225,23 @@ export function useDataFetcher(
                 if (realtimeDebounce) clearTimeout(realtimeDebounce);
                 realtimeDebounce = setTimeout(fetchAll, 500);
             };
+
+            // Track live votes for the LiveIndicator component
+            const handleVoteEvent = (payload: any) => {
+                // Extract poll_id from the realtime payload
+                const pollId = payload?.new?.poll_id || payload?.old?.poll_id;
+                if (pollId) {
+                    liveTimestamps.current.set(pollId, Date.now());
+                    setRecentlyVotedPollIds(new Set(liveTimestamps.current.keys()));
+                }
+                debouncedFetch();
+            };
+
             channel = supabase
                 .channel("polls-votes-realtime")
                 .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, debouncedFetch)
-                .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, debouncedFetch)
+                .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, handleVoteEvent)
+                .on("postgres_changes", { event: "INSERT", schema: "public", table: "comments" }, debouncedFetch)
                 .subscribe();
         }
 
@@ -228,5 +268,6 @@ export function useDataFetcher(
         updateUsersRef,
         updatePollsRef,
         updateVotesRef,
+        recentlyVotedPollIds,
     };
 }

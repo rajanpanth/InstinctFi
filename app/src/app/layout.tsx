@@ -4,6 +4,8 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
+import InstallPrompt from "@/components/InstallPrompt";
+import WebVitals from "@/components/WebVitals";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PageTransition from "@/components/PageTransition";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -138,6 +140,8 @@ export default function RootLayout({
             </main>
           </ErrorBoundary>
           <Footer />
+          <InstallPrompt />
+          <WebVitals />
           <Toaster
             position="bottom-right"
             toastOptions={{

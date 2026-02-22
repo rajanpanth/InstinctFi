@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, memo } from "react";
-import { DemoPoll, useApp, formatDollars, formatDollarsShort } from "./Providers";
+import { DemoPoll, useApp, formatDollars, formatDollarsShort, WINNING_OPTION_UNSET } from "./Providers";
 import Link from "next/link";
 import Image from "next/image";
 import { sanitizeImageUrl } from "@/lib/uploadImage";
@@ -94,7 +94,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
     isSettled &&
     vote &&
     !vote.claimed &&
-    poll.winningOption !== 255 &&
+    poll.winningOption !== WINNING_OPTION_UNSET &&
     (vote.votesPerOption[poll.winningOption] || 0) > 0;
 
   const potentialReward =

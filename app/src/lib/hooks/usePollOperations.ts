@@ -743,7 +743,7 @@ export function usePollOperations({
             const currentVotes = votesRef.current;
             const currentUsers = usersRef.current;
             const poll = currentPolls.find((p) => p.id === pollId);
-            if (!poll || poll.status !== 1 || poll.winningOption === 255) return 0;
+            if (!poll || poll.status !== PollStatus.Settled || poll.winningOption === WINNING_OPTION_UNSET) return 0;
 
             const voteRecord = currentVotes.find(v => v.pollId === pollId && v.voter === walletAddress);
             if (!voteRecord || voteRecord.claimed) return 0;

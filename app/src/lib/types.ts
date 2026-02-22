@@ -115,4 +115,5 @@ export type AppContextType = {
   settlePoll: (pollId: string, winningOption?: number) => Promise<boolean>;
   claimReward: (pollId: string) => Promise<number>;
   allUsers: UserAccount[];
+  recentlyVotedPollIds: Set<string>;
 };

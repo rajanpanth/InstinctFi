@@ -25,6 +25,7 @@ import {
   Wallet,
   Zap,
   MoreHorizontal,
+  Briefcase,
 } from "lucide-react";
 
 export function Navbar() {
@@ -74,6 +75,7 @@ export function Navbar() {
   const navItems = [
     { href: "/polls", label: t("polls"), Icon: LayoutGrid },
     { href: "/create", label: t("create"), Icon: Plus },
+    { href: "/portfolio", label: "Portfolio", Icon: Briefcase },
     { href: "/leaderboard", label: t("leaderboard"), Icon: Trophy },
     { href: "/activity", label: t("activity"), Icon: Activity },
     { href: "/profile", label: t("profile"), Icon: User },
@@ -232,6 +234,14 @@ export function Navbar() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="py-2">
+              <Link
+                href="/portfolio"
+                onClick={() => setShowMoreMenu(false)}
+                className={`flex items-center gap-3 px-5 py-3 transition-colors ${pathname === "/portfolio" ? "text-brand-400 bg-brand-500/10" : "text-neutral-300 hover:bg-surface-200"}`}
+              >
+                <Briefcase size={18} strokeWidth={1.8} />
+                <span className="text-sm font-medium">Portfolio</span>
+              </Link>
               <Link
                 href="/activity"
                 onClick={() => setShowMoreMenu(false)}

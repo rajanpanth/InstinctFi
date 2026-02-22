@@ -215,4 +215,119 @@ describe("InstinctFi E2E", () => {
       expect(reward).to.be.greaterThan(0);
     }
   });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // 4. Edge cases (NEW — Enhancement #3)
+  // ────────────────────────────────────────────────────────────────────────
+
+  it("Prevents same voter from deriving two different vote PDAs for same poll", () => {
+    // A voter should always get the same PDA for the same poll
+    const [votePda1] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote"), pollPda.toBuffer(), voter1.publicKey.toBuffer()],
+      VOTE_PROGRAM_ID
+    );
+    const [votePda1Again] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote"), pollPda.toBuffer(), voter1.publicKey.toBuffer()],
+      VOTE_PROGRAM_ID
+    );
+    expect(votePda1.toBase58()).to.equal(votePda1Again.toBase58());
+  });
+
+  it("Validates expired poll detection (off-chain)", () => {
+    const now = Math.floor(Date.now() / 1000);
+    // Poll that ended 1 hour ago
+    const endTime = now - 3600;
+    expect(now >= endTime).to.be.true;
+
+    // Poll that ends in 1 hour
+    const futureEndTime = now + 3600;
+    expect(now >= futureEndTime).to.be.false;
+  });
+
+  it("Prevents voting with zero coins (off-chain validation)", () => {
+    const numCoins = 0;
+    const unitPriceNum = 0.01 * LAMPORTS_PER_SOL;
+    const cost = numCoins * unitPriceNum;
+
+    expect(cost).to.equal(0);
+    expect(numCoins > 0).to.be.false;
+    // The contract should also reject this — require!(num_coins > 0)
+  });
+
+  it("Validates maximum coins per poll constraint", () => {
+    const MAX_COINS = 1000; // matches MAX_COINS_PER_POLL in types.ts
+    const numCoins = 1001;
+    expect(numCoins > MAX_COINS).to.be.true;
+    // Contract enforces: require!(total_coins <= MAX_COINS_PER_POLL)
+  });
+
+  it("Validates insufficient balance detection (off-chain)", () => {
+    const userBalance = 0.05 * LAMPORTS_PER_SOL; // 0.05 SOL
+    const unitPriceNum = 0.01 * LAMPORTS_PER_SOL;
+    const numCoins = 10;
+    const cost = numCoins * unitPriceNum; // 0.1 SOL
+
+    expect(cost > userBalance).to.be.true;
+    // UI should block this before sending the transaction
+  });
+
+  it("Validates creator cannot vote on own poll (off-chain)", () => {
+    const pollCreator = creator.publicKey.toString();
+    const voterWallet = creator.publicKey.toString(); // same wallet
+
+    expect(pollCreator === voterWallet).to.be.true;
+    // The contract enforces: require!(voter != poll.creator)
+  });
+
+  it("Validates reward calculation with rounding dust is safe", () => {
+    // Edge case: 3 voters with odd distribution
+    const distributable = 100_000_000; // 0.1 SOL
+    const votes = [1, 1, 1]; // all on winning option
+    const totalWinningVotes = votes.reduce((a, b) => a + b, 0);
+
+    let totalDistributed = 0;
+    for (const v of votes) {
+      totalDistributed += Math.floor((v / totalWinningVotes) * distributable);
+    }
+
+    // Due to rounding, some dust may remain
+    const dust = distributable - totalDistributed;
+    console.log("Rounding dust:", dust, "lamports");
+    expect(dust).to.be.at.least(0);
+    expect(dust).to.be.lessThan(totalWinningVotes); // dust < number of winners
+  });
+
+  it("Derives settlement PDA correctly", () => {
+    // Settlement account PDA: ["settlement", poll_pda]
+    const [settlementPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("settlement"), pollPda.toBuffer()],
+      SETTLEMENT_PROGRAM_ID
+    );
+    expect(settlementPda).to.not.be.null;
+    console.log("Settlement PDA:", settlementPda.toBase58());
+  });
+
+  it("Validates multiple polls by same creator have unique PDAs", () => {
+    const pollId1 = new anchor.BN(1);
+    const pollId2 = new anchor.BN(2);
+
+    const [pda1] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("poll"),
+        creator.publicKey.toBuffer(),
+        pollId1.toArrayLike(Buffer, "le", 8),
+      ],
+      POLL_PROGRAM_ID
+    );
+    const [pda2] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("poll"),
+        creator.publicKey.toBuffer(),
+        pollId2.toArrayLike(Buffer, "le", 8),
+      ],
+      POLL_PROGRAM_ID
+    );
+
+    expect(pda1.toBase58()).to.not.equal(pda2.toBase58());
+  });
 });

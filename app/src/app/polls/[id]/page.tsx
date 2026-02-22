@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
+import { useApp, formatDollars, DemoPoll, WINNING_OPTION_UNSET } from "@/components/Providers";
 import PollImage from "@/components/PollImage";
 import Image from "next/image";
 import WalletConnectModal from "@/components/WalletConnectModal";
@@ -79,7 +79,7 @@ export default function PollDetailPage() {
     try {
       const proofs = JSON.parse(localStorage.getItem("instinctfi_resolution_proofs") || "{}");
       if (proofs[pollId]) setResolutionProof(proofs[pollId]);
-    } catch {}
+    } catch { }
     // Then try Supabase
     if (isSupabaseConfigured) {
       supabase.from("resolution_proofs").select("source_url").eq("poll_id", pollId).single().then(({ data }) => {
@@ -101,7 +101,7 @@ export default function PollDetailPage() {
     return (
       <div className="text-center py-20">
         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface-100 border border-border flex items-center justify-center">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
         </div>
         <p className="text-gray-400 text-lg font-medium mb-2">{t("pollNotFound")}</p>
         <button onClick={() => router.push("/polls")} className="text-brand-400 hover:text-brand-300 text-sm font-medium transition-colors">
@@ -168,16 +168,16 @@ export default function PollDetailPage() {
     isSettled &&
     vote &&
     !vote.claimed &&
-    poll.winningOption !== 255 &&
+    poll.winningOption !== WINNING_OPTION_UNSET &&
     (vote.votesPerOption[poll.winningOption] || 0) > 0;
 
   const potentialReward =
     canClaim && vote
       ? Math.floor(
-          (vote.votesPerOption[poll.winningOption] /
-            poll.voteCounts[poll.winningOption]) *
-            poll.totalPoolCents
-        )
+        (vote.votesPerOption[poll.winningOption] /
+          poll.voteCounts[poll.winningOption]) *
+        poll.totalPoolCents
+      )
       : 0;
 
   return (
@@ -197,7 +197,7 @@ export default function PollDetailPage() {
 
       {/* Back */}
       <button onClick={() => router.push("/polls")} className="flex items-center gap-1.5 text-gray-400 hover:text-white mb-6 text-sm font-medium transition-colors group">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="group-hover:-translate-x-0.5 transition-transform"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="group-hover:-translate-x-0.5 transition-transform"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
         {t("backToPolls")}
       </button>
 
@@ -219,13 +219,12 @@ export default function PollDetailPage() {
             <div className="flex items-center gap-2">
               <ShareButton pollId={poll.id} pollTitle={poll.title} />
               <span
-                className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                  isSettled
+                className={`px-3 py-1 rounded-lg text-xs font-semibold ${isSettled
                     ? "bg-green-600/20 text-green-400"
                     : isEnded
-                    ? "bg-red-600/20 text-red-400"
-                    : "bg-brand-500/20 text-brand-400"
-                }`}
+                      ? "bg-red-600/20 text-red-400"
+                      : "bg-brand-500/20 text-brand-400"
+                  }`}
               >
                 {isSettled ? t("settled") : isEnded ? "Awaiting Settlement" : timeLeft}
               </span>
@@ -301,13 +300,12 @@ export default function PollDetailPage() {
               <button
                 key={i}
                 onClick={() => handleOptionClick(i)}
-                className={`w-full text-left p-4 rounded-xl transition-all border ${
-                  isWinner
+                className={`w-full text-left p-4 rounded-xl transition-all border ${isWinner
                     ? "border-green-500/50 bg-green-500/10"
                     : isSelected
-                    ? "border-brand-500 bg-brand-500/10"
-                    : "border-border bg-surface-50 hover:border-border"
-                } cursor-pointer`}
+                      ? "border-brand-500 bg-brand-500/10"
+                      : "border-border bg-surface-50 hover:border-border"
+                  } cursor-pointer`}
               >
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-3">
@@ -319,9 +317,8 @@ export default function PollDetailPage() {
                         <Image src={optImage} alt={opt} width={32} height={32} className="w-8 h-8 rounded-full object-cover border border-border" />
                       )
                     ) : (
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white border border-border ${
-                        i === 0 ? "bg-blue-600" : i === 1 ? "bg-red-600" : "bg-purple-600"
-                      }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white border border-border ${i === 0 ? "bg-blue-600" : i === 1 ? "bg-red-600" : "bg-purple-600"
+                        }`}>
                         {opt.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -378,15 +375,14 @@ export default function PollDetailPage() {
           <button
             onClick={handleVote}
             disabled={voting || (walletConnected && selectedOption === null)}
-            className={`w-full mt-4 py-3.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${
-              voting
+            className={`w-full mt-4 py-3.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${voting
                 ? "bg-brand-500/70 cursor-wait"
                 : walletConnected && selectedOption !== null
-                ? "bg-brand-500 hover:bg-brand-600 shadow-lg shadow-brand-500/15"
-                : !walletConnected
-                ? "bg-brand-500 hover:bg-brand-600"
-                : "bg-gray-700 text-gray-500 cursor-not-allowed"
-            }`}
+                  ? "bg-brand-500 hover:bg-brand-600 shadow-lg shadow-brand-500/15"
+                  : !walletConnected
+                    ? "bg-brand-500 hover:bg-brand-600"
+                    : "bg-gray-700 text-gray-500 cursor-not-allowed"
+              }`}
           >
             {voting ? (
               <span className="flex items-center justify-center gap-2">
@@ -396,8 +392,8 @@ export default function PollDetailPage() {
             ) : !walletConnected
               ? t("connectWalletToStart")
               : selectedOption !== null
-              ? `${t("vote")} "${poll.options[selectedOption]}"`
-              : "Select an option above"}
+                ? `${t("vote")} "${poll.options[selectedOption]}"`
+                : "Select an option above"}
           </button>
         </div>
       )}
@@ -412,11 +408,10 @@ export default function PollDetailPage() {
           <button
             onClick={handleSettle}
             disabled={settling}
-            className={`w-full py-3 rounded-xl font-semibold transition-colors ${
-              settling
+            className={`w-full py-3 rounded-xl font-semibold transition-colors ${settling
                 ? "bg-brand-500/60 text-dark-900/60 cursor-wait"
                 : "bg-brand-500 hover:bg-brand-600 text-dark-900"
-            }`}
+              }`}
           >
             {settling ? "Settling..." : t("settlePoll")}
           </button>
@@ -434,11 +429,10 @@ export default function PollDetailPage() {
           <button
             onClick={handleClaim}
             disabled={claiming}
-            className={`w-full py-3 rounded-xl font-semibold transition-colors ${
-              claiming
+            className={`w-full py-3 rounded-xl font-semibold transition-colors ${claiming
                 ? "bg-green-600/60 cursor-wait"
                 : "bg-green-600 hover:bg-green-700"
-            }`}
+              }`}
           >
             {claiming ? "Claiming..." : t("claimReward")}
           </button>

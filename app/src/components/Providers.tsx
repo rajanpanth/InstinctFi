@@ -98,7 +98,7 @@ export function Providers({ children }: { children: ReactNode }) {
     useWalletManager(users, setUsers);
 
   // ── Data fetching ──
-  const { initialFetchDone, usersRef, pollsRef, votesRef, updateUsersRef, updatePollsRef, updateVotesRef } =
+  const { initialFetchDone, usersRef, pollsRef, votesRef, updateUsersRef, updatePollsRef, updateVotesRef, recentlyVotedPollIds } =
     useDataFetcher(walletAddress, walletConnected, setPolls, setVotes, setUsers, setIsLoading, tracker);
 
   // Keep refs in sync with latest state
@@ -148,6 +148,7 @@ export function Providers({ children }: { children: ReactNode }) {
         settlePoll,
         claimReward,
         allUsers: users,
+        recentlyVotedPollIds,
       }}
     >
       {children}

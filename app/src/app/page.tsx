@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useApp, formatDollars, DemoPoll } from "@/components/Providers";
+import { useApp, formatDollars, DemoPoll, PollStatus } from "@/components/Providers";
 import PollCard from "@/components/PollCard";
 import SkeletonCard from "@/components/SkeletonCard";
 import { CATEGORY_META } from "@/lib/constants";
@@ -26,7 +26,7 @@ function getTrendingPolls(polls: DemoPoll[], limit = 6, windowMs = Infinity): De
   const ONE_DAY = 24 * 60 * 60 * 1000;
   const cutoff = windowMs === Infinity ? 0 : now - windowMs;
   return [...polls]
-    .filter((p) => p.status === 0 && p.createdAt * 1000 >= cutoff)
+    .filter((p) => p.status === PollStatus.Active && p.createdAt * 1000 >= cutoff)
     .sort((a, b) => {
       const aVotes = a.voteCounts.reduce((s, v) => s + v, 0);
       const bVotes = b.voteCounts.reduce((s, v) => s + v, 0);

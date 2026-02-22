@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useApp, formatDollars } from "@/components/Providers";
+import { useApp, formatDollars, PollStatus } from "@/components/Providers";
 import { useDailyCountdown } from "@/lib/useCountdown";
 import { shortAddr } from "@/lib/utils";
 import { useUserProfiles } from "@/lib/userProfiles";
@@ -332,9 +332,9 @@ export default function ProfilePage() {
                       {p.options.length} options · {p.voteCounts.reduce((a: number, b: number) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolCents)}
                     </div>
                   </div>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === 1 ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
+                  <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === PollStatus.Settled ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
                     }`}>
-                    {p.status === 1 ? t("settled") : t("active")}
+                    {p.status === PollStatus.Settled ? t("settled") : t("active")}
                   </span>
                 </Link>
               ))}
@@ -357,9 +357,9 @@ export default function ProfilePage() {
                     {p.options.length} options · {p.voteCounts.reduce((a, b) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolCents)}
                   </div>
                 </div>
-                <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === 1 ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
+                <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === PollStatus.Settled ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
                   }`}>
-                  {p.status === 1 ? t("settled") : t("active")}
+                  {p.status === PollStatus.Settled ? t("settled") : t("active")}
                 </span>
               </Link>
             ))}
@@ -379,7 +379,7 @@ export default function ProfilePage() {
               <div className="text-xs text-gray-500 mt-1">{t("pollsCreated")}</div>
             </div>
             <div className="text-center p-3 bg-surface-50 rounded-xl">
-              <div className="text-lg font-bold">{myPolls.filter(p => p.status === 0).length}</div>
+              <div className="text-lg font-bold">{myPolls.filter(p => p.status === PollStatus.Active).length}</div>
               <div className="text-xs text-gray-500 mt-1">{t("active")}</div>
             </div>
             <div className="text-center p-3 bg-surface-50 rounded-xl">
@@ -489,8 +489,8 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
 
   return (
     <div className={`mb-6 rounded-xl border overflow-hidden transition-all ${canClaim
-        ? "bg-gradient-to-r from-green-600/10 to-emerald-600/10 border-green-500/30"
-        : "bg-surface-50 border-border"
+      ? "bg-gradient-to-r from-green-600/10 to-emerald-600/10 border-green-500/30"
+      : "bg-surface-50 border-border"
       }`}>
       <div className="p-3 sm:p-4">
         <div className="flex items-center justify-between gap-3 mb-3">
@@ -508,10 +508,10 @@ function DailyClaimCard({ lastClaimTs, onClaim }: { lastClaimTs: number; onClaim
             onClick={handleClaim}
             disabled={!canClaim}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${claimed
-                ? "bg-green-600 text-white scale-95"
-                : canClaim
-                  ? "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20 hover:scale-105"
-                  : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
+              ? "bg-green-600 text-white scale-95"
+              : canClaim
+                ? "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20 hover:scale-105"
+                : "bg-gray-700/50 text-gray-500 cursor-not-allowed"
               }`}
           >
             {claimed ? `✓ ${t("claimed")}` : canClaim ? t("claimOneSol") : timeLeft}

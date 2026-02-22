@@ -52,10 +52,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       data.description ||
       `${data.options?.length || 0} options · ${totalVotes} votes · ${poolSize} pool · ${data.category || "General"}`;
 
-    // Build dynamic OG image: prefer poll image, fall back to generated OG card
+    // Build dynamic OG image: prefer poll image, fall back to auto-generated /api/og/[id]
     const ogImageUrl = data.image_url
       ? data.image_url
-      : `${baseUrl}/api/og?title=${encodeURIComponent(data.title)}&category=${encodeURIComponent(data.category || "General")}&status=${statusLabel}`;
+      : `${baseUrl}/api/og/${id}`;
 
     return {
       title: `${data.title} | InstinctFi`,
