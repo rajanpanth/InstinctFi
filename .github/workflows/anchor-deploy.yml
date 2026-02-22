@@ -46,7 +46,12 @@ jobs:
           cargo update -p blake3 --precise 1.5.5
           cargo update -p constant_time_eq --precise 0.3.1
           
-          # Verify the downgrades
+          # Downgrade lockfile format from v4 to v3 (Cargo 1.75 can't read v4)
+          sed -i 's/^version = 4$/version = 3/' Cargo.lock
+          
+          # Verify the fixes
+          echo "=== Cargo.lock version ==="
+          head -3 Cargo.lock
           echo "=== blake3 version ==="
           grep -A1 'name = "blake3"' Cargo.lock | head -2
           echo "=== constant_time_eq version ==="
