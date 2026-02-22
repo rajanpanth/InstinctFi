@@ -45,6 +45,11 @@ jobs:
           cargo update -p blake3 --precise 1.5.5
           cargo update -p constant_time_eq --precise 0.3.1
           
+          # Downgrade crates with MSRV > 1.75 (Solana platform-tools use Rust 1.75)
+          cargo update -p toml_datetime --precise 0.6.8
+          cargo update -p toml_edit --precise 0.22.22
+          cargo update -p winnow --precise 0.6.18
+          
           # Force lockfile to version 3 (Solana's Cargo 1.75 can't read v4)
           python3 -c "
           with open('Cargo.lock', 'r') as f:
@@ -61,6 +66,8 @@ jobs:
           grep -A1 'name = "blake3"' Cargo.lock | head -2
           echo "=== constant_time_eq ==="
           grep -A1 'name = "constant_time_eq"' Cargo.lock | head -2
+          echo "=== toml_datetime ==="
+          grep -A1 'name = "toml_datetime"' Cargo.lock | head -2
 
       - name: Switch to Rust 1.79 for build
         run: |
