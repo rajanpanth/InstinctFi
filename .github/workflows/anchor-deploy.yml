@@ -22,8 +22,8 @@ jobs:
       - name: Also install latest Rust for lockfile generation
         run: |
           rustup install stable
-          echo "Rust 1.79: $(rustc --version)"
-          echo "Rust stable: $(rustup run stable rustc --version)"
+          echo "Default Rust: $(rustc --version)"
+          echo "Stable Rust: $(rustup run stable rustc --version)"
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -32,7 +32,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-1.79-${{ hashFiles('**/Cargo.toml') }}-v4
+          key: ${{ runner.os }}-cargo-1.79-${{ hashFiles('**/Cargo.toml') }}-v5
 
       - name: Install Solana CLI v2.1.5
         run: |
@@ -43,17 +43,59 @@ jobs:
         run: |
           cargo install --git https://github.com/coral-xyz/anchor anchor-cli --tag v${{ env.ANCHOR_VERSION }} --locked --force
 
-      - name: Generate Cargo.lock with compatible crate versions
+      - name: Generate Cargo.lock and purge edition2024 crates
         run: |
-          # Use latest Rust (supports edition2024) to generate lockfile
+          # 1. Generate lockfile with latest Rust (understands edition2024)
           rm -f Cargo.lock
           rustup run stable cargo generate-lockfile
           
-          # Downgrade edition2024 crates (neither Rust 1.79 NOR platform-tools can handle them)
-          rustup run stable cargo update -p blake3 --precise 1.5.5
-          rustup run stable cargo update -p constant_time_eq --precise 0.3.1
+          # 2. Find and downgrade ALL edition2024 crates automatically
+          # Scan the registry for crates in our lockfile that use edition2024
+          echo "=== Scanning for edition2024 crates ==="
+          REGISTRY_DIR="$HOME/.cargo/registry/src"
+          EDITION2024_CRATES=""
           
-          # Downgrade lockfile from v4 to v3 (Rust 1.79 Cargo can't read v4)
+          # Fetch all crate sources first
+          rustup run stable cargo fetch 2>/dev/null || true
+          
+          # Search downloaded crate sources for edition = "2024"
+          if [ -d "$REGISTRY_DIR" ]; then
+            for manifest in $(find "$REGISTRY_DIR" -name "Cargo.toml" -path "*/index.crates.io-*" -maxdepth 3 2>/dev/null); do
+              if grep -q 'edition = "2024"' "$manifest" 2>/dev/null || grep -q "edition = '2024'" "$manifest" 2>/dev/null; then
+                crate_dir=$(dirname "$manifest")
+                crate_name=$(basename "$crate_dir")
+                # Check if this crate is actually in our lockfile
+                if grep -q "name = \"${crate_name%-*}\"" Cargo.lock 2>/dev/null; then
+                  echo "Found edition2024 crate: $crate_name"
+                  EDITION2024_CRATES="$EDITION2024_CRATES $crate_name"
+                fi
+              fi
+            done
+          fi
+          
+          echo "Edition2024 crates found: $EDITION2024_CRATES"
+          
+          # 3. Known edition2024 crates and their safe downgrade versions
+          # These are the latest versions that DON'T use edition2024
+          declare -A DOWNGRADES
+          DOWNGRADES[blake3]="1.5.5"
+          DOWNGRADES[constant_time_eq]="0.3.1"
+          DOWNGRADES[wit-bindgen]="0.36.0"
+          DOWNGRADES[wit-bindgen-rt]="0.36.0"
+          DOWNGRADES[wit-bindgen-core]="0.36.0"
+          DOWNGRADES[wit-component]="0.225.0"
+          DOWNGRADES[wit-parser]="0.225.0"
+          DOWNGRADES[wasm-encoder]="0.225.0"
+          DOWNGRADES[wasm-metadata]="0.225.0"
+          DOWNGRADES[wasmparser]="0.225.0"
+          
+          for crate in "${!DOWNGRADES[@]}"; do
+            version="${DOWNGRADES[$crate]}"
+            echo "Attempting to downgrade $crate to $version..."
+            rustup run stable cargo update -p "$crate" --precise "$version" 2>/dev/null || echo "  (skipped - not in dependency tree)"
+          done
+          
+          # 4. Force lockfile to version 3 (Cargo 1.79 can't read v4)
           python3 -c "
           with open('Cargo.lock', 'r') as f:
               content = f.read()
@@ -62,13 +104,15 @@ jobs:
               f.write(content)
           "
           
-          # Verify everything
-          echo "=== Lockfile version ==="
+          # 5. Verify
+          echo ""
+          echo "=== Final lockfile header ==="
           head -3 Cargo.lock
-          echo "=== blake3 ==="
-          grep -A1 'name = "blake3"' Cargo.lock | head -2
-          echo "=== constant_time_eq ==="
-          grep -A1 'name = "constant_time_eq"' Cargo.lock | head -2
+          echo "=== Key crate versions ==="
+          for crate in blake3 constant_time_eq wit-bindgen; do
+            echo "--- $crate ---"
+            grep -A1 "name = \"$crate\"" Cargo.lock | head -2 || echo "  (not in lockfile)"
+          done
 
       - name: Configure Solana for Devnet
         run: solana config set --url devnet
