@@ -15,7 +15,7 @@ export default function WebVitals() {
 
         // Dynamic import to avoid bundling web-vitals for users who don't need it
         import("web-vitals")
-            .then(({ onCLS, onFID, onLCP, onFCP, onTTFB, onINP }) => {
+            .then(({ onCLS, onLCP, onFCP, onTTFB, onINP }) => {
                 const report = (metric: { name: string; value: number; id: string }) => {
                     if (process.env.NODE_ENV === "development") {
                         console.log(
@@ -34,7 +34,6 @@ export default function WebVitals() {
                 };
 
                 onCLS(report);
-                onFID(report);
                 onLCP(report);
                 onFCP(report);
                 onTTFB(report);
