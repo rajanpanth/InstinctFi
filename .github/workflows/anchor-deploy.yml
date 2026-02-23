@@ -30,19 +30,39 @@ jobs:
       - name: Patch platform-tools cargo for edition2024 support
         run: |
           export PATH="/root/.cargo/bin:$PATH"
-          # cargo-build-sbf ships Cargo 1.75 inside platform-tools
-          # which can't parse edition2024 manifests. Replace it with system Cargo 1.85.
-          PLATFORM_TOOLS_CARGO=$(find /root/.local/share/solana/install -name "cargo" -path "*/platform-tools/*/bin/cargo" 2>/dev/null | head -1)
-          if [ -n "$PLATFORM_TOOLS_CARGO" ]; then
-            SYSTEM_CARGO=$(which cargo)
-            echo "Platform-tools cargo: $PLATFORM_TOOLS_CARGO"
-            echo "Before: $($PLATFORM_TOOLS_CARGO --version 2>/dev/null || echo 'unable to check')"
-            cp "$SYSTEM_CARGO" "$PLATFORM_TOOLS_CARGO"
-            echo "After: $($PLATFORM_TOOLS_CARGO --version)"
-          else
-            echo "WARNING: Could not find platform-tools cargo binary"
-            find /root/.local/share/solana/install -name "cargo" 2>/dev/null || echo "No cargo binaries found in solana install"
-          fi
+          
+          # Find where cargo-build-sbf lives
+          CARGO_BUILD_SBF=$(which cargo-build-sbf 2>/dev/null || find / -name "cargo-build-sbf" -type f 2>/dev/null | head -1)
+          echo "cargo-build-sbf location: $CARGO_BUILD_SBF"
+          
+          # Find ALL cargo binaries in platform-tools
+          echo "=== All cargo binaries on system ==="
+          find / -name "cargo" -type f 2>/dev/null | grep -v proc || true
+          
+          # Try to find platform-tools directory
+          echo "=== Platform-tools directories ==="
+          find / -path "*/platform-tools*" -name "cargo" -type f 2>/dev/null || true
+          find / -path "*/platform-tools*" -type d 2>/dev/null | head -5 || true
+          
+          # Replace ALL cargo binaries in platform-tools or sbf paths
+          SYSTEM_CARGO=$(which cargo)
+          echo "System cargo: $SYSTEM_CARGO ($($SYSTEM_CARGO --version))"
+          
+          for CARGO_BIN in $(find / -name "cargo" -type f 2>/dev/null | grep -E "(platform-tools|sbf)" || true); do
+            echo "Patching: $CARGO_BIN"
+            echo "  Before: $($CARGO_BIN --version 2>/dev/null || echo 'unknown')"
+            cp "$SYSTEM_CARGO" "$CARGO_BIN"
+            echo "  After: $($CARGO_BIN --version 2>/dev/null || echo 'unknown')"
+          done
+          
+          # Also check if there's a cargo in solana directory
+          for CARGO_BIN in $(find /root/.local -name "cargo" -type f 2>/dev/null || true); do
+            if [ "$CARGO_BIN" != "$SYSTEM_CARGO" ]; then
+              echo "Found extra cargo: $CARGO_BIN ($($CARGO_BIN --version 2>/dev/null || echo 'unknown'))"
+              cp "$SYSTEM_CARGO" "$CARGO_BIN"
+              echo "  Patched to: $($CARGO_BIN --version)"
+            fi
+          done
 
       - name: Generate Cargo.lock
         run: |
