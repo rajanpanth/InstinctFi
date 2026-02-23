@@ -47,12 +47,12 @@ jobs:
 
       - name: Pin toml_edit for platform-tools compatibility
         run: |
-          # toml_edit >=0.21.1 requires rustc 1.76+, but cargo-build-sbf ships rustc 1.76.0-dev
-          # which doesn't satisfy the >= 1.76 MSRV check. Pin to 0.21.0 which supports older rustc.
+          # toml_edit >=0.23.6 requires rustc 1.76+, but cargo-build-sbf ships rustc 1.76.0-dev
+          # which doesn't satisfy the >= 1.76 MSRV check. Pin to 0.23.5 (last version before MSRV bump).
           TOML_VER=$(grep -A1 'name = "toml_edit"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-          if [ -n "$TOML_VER" ] && [ "$TOML_VER" != "0.21.0" ]; then
-            echo "Pinning toml_edit from $TOML_VER to 0.21.0"
-            cargo update "toml_edit@$TOML_VER" --precise 0.21.0
+          if [ -n "$TOML_VER" ] && [ "$TOML_VER" != "0.23.5" ]; then
+            echo "Pinning toml_edit from $TOML_VER to 0.23.5"
+            cargo update "toml_edit@$TOML_VER" --precise 0.23.5
           fi
           echo "=== toml_edit version ==="
           grep -A2 'name = "toml_edit"' Cargo.lock | grep 'version'
