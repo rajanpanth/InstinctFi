@@ -15,21 +15,32 @@ jobs:
 
       - name: Configure Rust toolchain
         run: |
-          # Install Rust 1.75 to match Solana platform-tools exactly
+          # Docker image has RUSTUP_HOME=/root/.rustup CARGO_HOME=/root/.cargo
+          # but GitHub Actions sets HOME=/github/home, breaking rustup
+          export RUSTUP_HOME=/root/.rustup
+          export CARGO_HOME=/root/.cargo
+          export PATH="/root/.cargo/bin:$PATH"
+          
+          # Set Rust 1.75 as default to match Solana platform-tools
           rustup install 1.75.0
           rustup default 1.75.0
           echo "=== Rust ===" && rustc --version && cargo --version
           echo "=== Solana ===" && solana --version
           echo "=== Anchor ===" && anchor --version
+        env:
+          RUSTUP_HOME: /root/.rustup
+          CARGO_HOME: /root/.cargo
 
       - name: Generate compatible Cargo.lock
         run: |
-          # Generate lockfile with Rust 1.75 (same as platform-tools)
-          # This ensures ALL resolved crate versions are 1.75-compatible
+          # Generate lockfile with Rust 1.75 — all crates will be 1.75-compatible
           rm -f Cargo.lock
           cargo generate-lockfile
           echo "=== Lockfile version ==="
           head -3 Cargo.lock
+        env:
+          RUSTUP_HOME: /root/.rustup
+          CARGO_HOME: /root/.cargo
 
       - name: Build instinctfi program
         run: anchor build -p instinctfi
