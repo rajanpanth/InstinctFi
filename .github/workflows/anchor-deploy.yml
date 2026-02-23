@@ -84,6 +84,9 @@ jobs:
       - name: Build instinctfi program
         run: |
           export PATH="/root/.cargo/bin:$PATH"
+          # Force cargo-build-sbf to use our system Cargo 1.85 (supports edition2024)
+          export CARGO=$(which cargo)
+          echo "CARGO env: $CARGO ($($CARGO --version))"
           anchor build -p instinctfi
 
       - name: Configure Solana for Devnet
