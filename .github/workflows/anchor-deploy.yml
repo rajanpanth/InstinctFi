@@ -27,13 +27,6 @@ jobs:
           echo "=== Solana ===" && solana --version
           echo "=== Anchor ===" && anchor --version
 
-      - name: Downgrade Cargo.lock for platform-tools compatibility
-        run: |
-          # Downgrade lockfile v4 -> v3 (cargo-build-sbf internal Cargo 1.75-dev can't read v4)
-          sed -i 's/^version = 4$/version = 3/' Cargo.lock
-          echo "=== Lockfile version ==="
-          head -3 Cargo.lock
-
       - name: Pin borsh for platform-tools compatibility
         run: |
           # borsh >=1.6.0 requires rustc 1.77+, but cargo-build-sbf ships rustc 1.75-dev
@@ -56,6 +49,14 @@ jobs:
           fi
           echo "=== toml_edit version ==="
           grep -A2 'name = "toml_edit"' Cargo.lock | grep 'version'
+
+      - name: Downgrade Cargo.lock for platform-tools compatibility
+        run: |
+          # MUST run AFTER all cargo update steps — stable cargo rewrites lockfile as v4.
+          # cargo-build-sbf (internal Cargo 1.75-dev) cannot read v4 lockfiles.
+          sed -i 's/^version = 4$/version = 3/' Cargo.lock
+          echo "=== Lockfile version ==="
+          head -3 Cargo.lock
 
       - name: Build instinctfi program
         run: anchor build -p instinctfi
