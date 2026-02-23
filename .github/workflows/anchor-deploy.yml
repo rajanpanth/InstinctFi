@@ -23,9 +23,26 @@ jobs:
           # Need 1.85+ where edition2024 was stabilized
           rustup install 1.85.0
           rustup default 1.85.0
-          echo "=== Rust ===" && rustc --version && cargo --version
+          echo "=== System Rust ===" && rustc --version && cargo --version
           echo "=== Solana ===" && solana --version
           echo "=== Anchor ===" && anchor --version
+
+      - name: Patch platform-tools cargo for edition2024 support
+        run: |
+          export PATH="/root/.cargo/bin:$PATH"
+          # cargo-build-sbf ships Cargo 1.75 inside platform-tools
+          # which can't parse edition2024 manifests. Replace it with system Cargo 1.85.
+          PLATFORM_TOOLS_CARGO=$(find /root/.local/share/solana/install -name "cargo" -path "*/platform-tools/*/bin/cargo" 2>/dev/null | head -1)
+          if [ -n "$PLATFORM_TOOLS_CARGO" ]; then
+            SYSTEM_CARGO=$(which cargo)
+            echo "Platform-tools cargo: $PLATFORM_TOOLS_CARGO"
+            echo "Before: $($PLATFORM_TOOLS_CARGO --version 2>/dev/null || echo 'unable to check')"
+            cp "$SYSTEM_CARGO" "$PLATFORM_TOOLS_CARGO"
+            echo "After: $($PLATFORM_TOOLS_CARGO --version)"
+          else
+            echo "WARNING: Could not find platform-tools cargo binary"
+            find /root/.local/share/solana/install -name "cargo" 2>/dev/null || echo "No cargo binaries found in solana install"
+          fi
 
       - name: Generate Cargo.lock
         run: |
@@ -33,7 +50,7 @@ jobs:
           rm -f Cargo.lock
           cargo generate-lockfile
           
-          # Downgrade lockfile v4 -> v3 (cargo-build-sbf internal Cargo 1.75 can't read v4)
+          # Downgrade lockfile v4 -> v3 (cargo-build-sbf reads lockfile with its internal Cargo)
           python3 -c "
           with open('Cargo.lock', 'r') as f:
               content = f.read()
