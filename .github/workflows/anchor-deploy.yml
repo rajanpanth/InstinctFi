@@ -16,61 +16,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure Rust toolchain
+      - name: Install latest Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Verify toolchain versions
         run: |
-          export PATH="/root/.cargo/bin:$PATH"
-          # Docker image pins stable at 1.79 which can't handle edition2024
-          # Need 1.85+ where edition2024 was stabilized
-          rustup install 1.85.0
-          rustup default 1.85.0
-          echo "=== System Rust ===" && rustc --version && cargo --version
+          echo "=== Rust ===" && rustc --version && cargo --version
           echo "=== Solana ===" && solana --version
           echo "=== Anchor ===" && anchor --version
 
-      - name: Patch platform-tools cargo for edition2024 support
-        run: |
-          export PATH="/root/.cargo/bin:$PATH"
-          
-          # Find where cargo-build-sbf lives
-          CARGO_BUILD_SBF=$(which cargo-build-sbf 2>/dev/null || find / -name "cargo-build-sbf" -type f 2>/dev/null | head -1)
-          echo "cargo-build-sbf location: $CARGO_BUILD_SBF"
-          
-          # Find ALL cargo binaries in platform-tools
-          echo "=== All cargo binaries on system ==="
-          find / -name "cargo" -type f 2>/dev/null | grep -v proc || true
-          
-          # Try to find platform-tools directory
-          echo "=== Platform-tools directories ==="
-          find / -path "*/platform-tools*" -name "cargo" -type f 2>/dev/null || true
-          find / -path "*/platform-tools*" -type d 2>/dev/null | head -5 || true
-          
-          # Replace ALL cargo binaries in platform-tools or sbf paths
-          SYSTEM_CARGO=$(which cargo)
-          echo "System cargo: $SYSTEM_CARGO ($($SYSTEM_CARGO --version))"
-          
-          for CARGO_BIN in $(find / -name "cargo" -type f 2>/dev/null | grep -E "(platform-tools|sbf)" || true); do
-            echo "Patching: $CARGO_BIN"
-            echo "  Before: $($CARGO_BIN --version 2>/dev/null || echo 'unknown')"
-            cp "$SYSTEM_CARGO" "$CARGO_BIN"
-            echo "  After: $($CARGO_BIN --version 2>/dev/null || echo 'unknown')"
-          done
-          
-          # Also check if there's a cargo in solana directory
-          for CARGO_BIN in $(find /root/.local -name "cargo" -type f 2>/dev/null || true); do
-            if [ "$CARGO_BIN" != "$SYSTEM_CARGO" ]; then
-              echo "Found extra cargo: $CARGO_BIN ($($CARGO_BIN --version 2>/dev/null || echo 'unknown'))"
-              cp "$SYSTEM_CARGO" "$CARGO_BIN"
-              echo "  Patched to: $($CARGO_BIN --version)"
-            fi
-          done
-
       - name: Generate Cargo.lock
         run: |
-          export PATH="/root/.cargo/bin:$PATH"
           rm -f Cargo.lock
           cargo generate-lockfile
           
-          # Downgrade lockfile v4 -> v3 (cargo-build-sbf reads lockfile with its internal Cargo)
+          # Downgrade lockfile v4 -> v3 (cargo-build-sbf internal Cargo 1.75 can't read v4)
           python3 -c "
           with open('Cargo.lock', 'r') as f:
               content = f.read()
@@ -82,12 +45,7 @@ jobs:
           head -3 Cargo.lock
 
       - name: Build instinctfi program
-        run: |
-          export PATH="/root/.cargo/bin:$PATH"
-          # Force cargo-build-sbf to use our system Cargo 1.85 (supports edition2024)
-          export CARGO=$(which cargo)
-          echo "CARGO env: $CARGO ($($CARGO --version))"
-          anchor build -p instinctfi
+        run: anchor build -p instinctfi
 
       - name: Configure Solana for Devnet
         run: solana config set --url devnet
