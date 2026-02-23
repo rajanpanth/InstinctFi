@@ -19,17 +19,27 @@ jobs:
       - name: Configure Rust toolchain
         run: |
           export PATH="/root/.cargo/bin:$PATH"
-          rustup install 1.75.0
-          rustup default 1.75.0
+          # Use latest stable Rust — its cargo can handle edition2024 crates
+          # cargo-build-sbf calls system cargo for metadata, so it MUST support edition2024
+          rustup default stable
           echo "=== Rust ===" && rustc --version && cargo --version
           echo "=== Solana ===" && solana --version
           echo "=== Anchor ===" && anchor --version
 
-      - name: Generate compatible Cargo.lock
+      - name: Generate Cargo.lock
         run: |
           export PATH="/root/.cargo/bin:$PATH"
           rm -f Cargo.lock
           cargo generate-lockfile
+          
+          # Downgrade lockfile v4 -> v3 (cargo-build-sbf internal Cargo 1.75 can't read v4)
+          python3 -c "
+          with open('Cargo.lock', 'r') as f:
+              content = f.read()
+          content = content.replace('version = 4', 'version = 3', 1)
+          with open('Cargo.lock', 'w') as f:
+              f.write(content)
+          "
           echo "=== Lockfile version ==="
           head -3 Cargo.lock
 
