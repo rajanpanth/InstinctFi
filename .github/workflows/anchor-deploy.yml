@@ -15,17 +15,38 @@ jobs:
 
       - name: Configure Rust toolchain
         run: |
+          # Set latest stable for lockfile generation (supports edition2024)
           rustup default stable
-          echo "=== Rust ===" && rustc --version && cargo --version
+          echo "=== Latest Rust ===" && rustc --version && cargo --version
           echo "=== Solana ===" && solana --version
           echo "=== Anchor ===" && anchor --version
 
-      - name: Generate fresh Cargo.lock
+      - name: Generate Cargo.lock and fix for platform-tools
         run: |
+          # 1. Generate lockfile with latest Rust (can handle edition2024 crates)
           rm -f Cargo.lock
           cargo generate-lockfile
-          echo "=== Lockfile header ==="
+          
+          # 2. Downgrade edition2024 crates (platform-tools Cargo 1.75 can't parse them)
+          cargo update -p blake3 --precise 1.5.5 || true
+          cargo update -p constant_time_eq --precise 0.3.1 || true
+          
+          # 3. Downgrade lockfile v4 -> v3 (platform-tools Cargo 1.75 can't read v4)
+          python3 -c "
+          with open('Cargo.lock', 'r') as f:
+              content = f.read()
+          content = content.replace('version = 4', 'version = 3', 1)
+          with open('Cargo.lock', 'w') as f:
+              f.write(content)
+          "
+          
+          # 4. Verify
+          echo "=== Lockfile version ==="
           head -3 Cargo.lock
+          echo "=== blake3 ==="
+          grep -A1 'name = "blake3"' Cargo.lock | head -2
+          echo "=== constant_time_eq ==="
+          grep -A1 'name = "constant_time_eq"' Cargo.lock | head -2
 
       - name: Build instinctfi program
         run: anchor build -p instinctfi
