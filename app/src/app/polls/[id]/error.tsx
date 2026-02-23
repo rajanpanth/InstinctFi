@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 export default function PollDetailError({
     error,
@@ -28,12 +29,12 @@ export default function PollDetailError({
                     >
                         Try Again
                     </button>
-                    <a
+                    <Link
                         href="/polls"
                         className="px-5 py-2.5 bg-surface-100 hover:bg-surface-200 border border-border rounded-xl text-sm font-medium transition-colors text-neutral-300"
                     >
                         Back to Polls
-                    </a>
+                    </Link>
                 </div>
             </div>
         </div>

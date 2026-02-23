@@ -68,6 +68,7 @@ export default function PollDetailPage() {
   const [settling, setSettling] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [resolutionProof, setResolutionProof] = useState<string | null>(null);
+  const [voting, setVoting] = useState(false);
   const { t } = useLanguage();
 
   const { text: timeLeft } = useCountdown(poll?.endTime ?? 0);
@@ -112,8 +113,6 @@ export default function PollDetailPage() {
   }
 
   const canManage = isCreator && totalVotes === 0 && !isEnded && !isSettled;
-
-  const [voting, setVoting] = useState(false);
 
   const handleVote = async () => {
     if (!walletConnected) {

@@ -3,6 +3,7 @@
 import { useApp, formatDollars, UserAccount } from "@/components/Providers";
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { shortAddr } from "@/lib/utils";
 import { useLanguage } from "@/lib/languageContext";
 import { useUserProfiles } from "@/lib/userProfiles";
@@ -152,9 +153,9 @@ export default function LeaderboardPage() {
           </div>
           <p className="text-gray-400 text-lg mb-2 font-medium">{t("noUsersYet")}</p>
           <p className="text-gray-600 text-sm mb-5">{t("leaderboardHint")}</p>
-          <a href="/polls" className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-semibold text-sm transition-all active:scale-[0.97]">
+          <Link href="/polls" className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-semibold text-sm transition-all active:scale-[0.97]">
             Start Voting <span className="text-lg">→</span>
-          </a>
+          </Link>
         </div>
       ) : (
         <div className="bg-surface-100 border border-border rounded-2xl overflow-hidden">
