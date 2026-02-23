@@ -38,7 +38,11 @@ jobs:
       - name: Pin borsh for platform-tools compatibility
         run: |
           # borsh >=1.6.0 requires rustc 1.77+, but cargo-build-sbf ships rustc 1.75-dev
-          cargo update borsh@1.6.0 --precise 1.5.7 2>/dev/null || true
+          BORSH_VER=$(grep -A1 'name = "borsh"' Cargo.lock | grep -oP 'version = "1\.\K[^"]+' | head -1)
+          if [ -n "$BORSH_VER" ] && [ "1.$BORSH_VER" != "1.5.7" ]; then
+            echo "Pinning borsh from 1.$BORSH_VER to 1.5.7"
+            cargo update "borsh@1.$BORSH_VER" --precise 1.5.7
+          fi
           echo "=== borsh version ==="
           grep -A2 'name = "borsh"' Cargo.lock | grep 'version = "1\.'
 
