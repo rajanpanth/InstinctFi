@@ -35,6 +35,17 @@ jobs:
           echo "=== Lockfile version ==="
           head -3 Cargo.lock
 
+      - name: Pin borsh for platform-tools compatibility
+        run: |
+          # borsh >=1.6.0 requires rustc 1.77+, but cargo-build-sbf ships rustc 1.75-dev
+          BORSH_VER=$(grep -A1 'name = "borsh"' Cargo.lock | grep -oP 'version = "1\.\K[^"]+' | head -1)
+          if [ -n "$BORSH_VER" ] && [ "1.$BORSH_VER" != "1.5.7" ]; then
+            echo "Pinning borsh from 1.$BORSH_VER to 1.5.7"
+            cargo update "borsh@1.$BORSH_VER" --precise 1.5.7
+          fi
+          echo "=== borsh version ==="
+          grep -A2 'name = "borsh"' Cargo.lock | grep 'version = "1\.'
+
       - name: Build instinctfi program
         run: anchor build -p instinctfi
 
