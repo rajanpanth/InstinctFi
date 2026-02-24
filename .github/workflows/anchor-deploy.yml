@@ -68,9 +68,13 @@ jobs:
 
           # toml_datetime v0.7.x+spec requires rustc 1.76 — pin to 0.6.8 if it appears
           TDATETIME_VER=$(grep -A1 'name = "toml_datetime"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-          if [ -n "$TDATETIME_VER" ] && [[ "$TDATETIME_VER" == 0.7* ]]; then
-            echo "Pinning toml_datetime from $TDATETIME_VER to 0.6.8"
-            cargo update "toml_datetime@$TDATETIME_VER" --precise 0.6.8 || true
+          if [ -n "$TDATETIME_VER" ]; then
+            case "$TDATETIME_VER" in
+              0.7*)
+                echo "Pinning toml_datetime from $TDATETIME_VER to 0.6.8"
+                cargo update "toml_datetime@$TDATETIME_VER" --precise 0.6.8 || true
+                ;;
+            esac
           fi
 
           # indexmap 2.x requires rustc 1.82 — pin to 1.x series
