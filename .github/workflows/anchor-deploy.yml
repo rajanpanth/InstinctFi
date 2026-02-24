@@ -80,7 +80,7 @@ jobs:
           head -3 Cargo.lock
 
       - name: Build instinctfi program
-        run: anchor build -p instinctfi
+        run: anchor build -p instinctfi --no-idl
 
       - name: Configure Solana for Devnet
         run: solana config set --url devnet
@@ -122,7 +122,7 @@ jobs:
           grep instinctfi Anchor.toml
 
       - name: Rebuild with real Program ID
-        run: anchor build -p instinctfi
+        run: anchor build -p instinctfi --no-idl
 
       - name: Deploy to Devnet
         run: anchor deploy -p instinctfi --provider.cluster devnet
