@@ -65,6 +65,8 @@ jobs:
           downpin "hashbrown" "0.15" "0.14.5"
           downpin "thiserror" "1.0.69" "1.0.63"
           downpin "thiserror-impl" "1.0.69" "1.0.63"
+          downpin "proc-macro2" "1.0.93" "1.0.86"
+          downpin "syn" "2.0.99" "2.0.79"
 
           echo "=== Final key versions in Lockfile ==="
           grep -E 'name = "(borsh|toml_edit|toml_datetime|toml_parser|proc-macro-crate|indexmap|hashbrown|winnow)"' Cargo.lock -A1 | grep version || true
