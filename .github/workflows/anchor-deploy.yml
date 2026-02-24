@@ -88,8 +88,8 @@ jobs:
       - name: Set up deployment wallet
         run: |
           echo '${{ secrets.ANCHOR_WALLET_KEYPAIR }}' > /tmp/deployer-keypair.json
-          mkdir -p /github/home/.config/solana
-          cp /tmp/deployer-keypair.json /github/home/.config/solana/id.json
+          mkdir -p $HOME/.config/solana
+          cp /tmp/deployer-keypair.json $HOME/.config/solana/id.json
           solana config set --keypair /tmp/deployer-keypair.json
           echo "Wallet address:"
           solana address
@@ -127,7 +127,12 @@ jobs:
         run: anchor build -p instinctfi --no-idl
 
       - name: Deploy to Devnet
-        run: anchor deploy -p instinctfi --provider.cluster devnet
+        run: |
+          echo "Deploying with wallet:"
+          solana address
+          echo "Balance:"
+          solana balance
+          anchor deploy -p instinctfi --provider.cluster devnet --provider.wallet /tmp/deployer-keypair.json
 
       - name: Verify deployment
         run: solana program show ${{ steps.program-id.outputs.PROGRAM_ID }} --url devnet
