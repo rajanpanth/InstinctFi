@@ -5,7 +5,6 @@ pub mod delete_poll;
 pub mod cast_vote;
 pub mod settle_poll;
 pub mod claim_reward;
-pub mod mint_vote_token;
 
 pub use initialize_user::*;
 pub use create_poll::*;
@@ -14,4 +13,3 @@ pub use delete_poll::*;
 pub use cast_vote::*;
 pub use settle_poll::*;
 pub use claim_reward::*;
-pub use mint_vote_token::*;
