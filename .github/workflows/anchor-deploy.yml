@@ -88,6 +88,8 @@ jobs:
       - name: Set up deployment wallet
         run: |
           echo '${{ secrets.ANCHOR_WALLET_KEYPAIR }}' > /tmp/deployer-keypair.json
+          mkdir -p /github/home/.config/solana
+          cp /tmp/deployer-keypair.json /github/home/.config/solana/id.json
           solana config set --keypair /tmp/deployer-keypair.json
           echo "Wallet address:"
           solana address
