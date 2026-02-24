@@ -76,6 +76,18 @@ jobs:
                 ;;
             esac
           fi
+          
+          # toml_parser >= 0.2 (e.g. 1.0.9+spec) requires rustc 1.76+
+          TPARSER_VER=$(grep -A1 'name = "toml_parser"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
+          if [ -n "$TPARSER_VER" ]; then
+            case "$TPARSER_VER" in
+              0.*.*) ;; # versions like 0.1.X are fine
+              *)
+                echo "Pinning toml_parser from $TPARSER_VER to 0.1.5"
+                cargo update "toml_parser@$TPARSER_VER" --precise 0.1.5 || true
+                ;;
+            esac
+          fi
 
           # indexmap 2.x requires rustc 1.82 — pin to 1.x series
           IMAP_VER=$(grep -A1 'name = "indexmap"' Cargo.lock | grep -oP 'version = "2\.\K[^"]+' | head -1)
@@ -99,7 +111,7 @@ jobs:
           fi
 
           echo "=== Final key versions ==="
-          grep -E 'name = "(borsh|toml_edit|toml_datetime|proc-macro-crate|indexmap|hashbrown|winnow)"' Cargo.lock -A1 | grep version
+          grep -E 'name = "(borsh|toml_edit|toml_datetime|toml_parser|proc-macro-crate|indexmap|hashbrown|winnow)"' Cargo.lock -A1 | grep version
 
       - name: Downgrade Cargo.lock to v3 for cargo-build-sbf
         run: |
