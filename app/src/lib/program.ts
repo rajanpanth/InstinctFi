@@ -596,9 +596,9 @@ export async function buildClaimRewardIx(
 
 // ─── Token-2022 (Token Extension) Support ──────────────────────────────────
 
-/** SPL Token-2022 program ID */
-export const TOKEN_2022_PROGRAM_ID = new PublicKey(
-  "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+/** SPL Token program ID (used for vote receipt mints) */
+export const SPL_TOKEN_PROGRAM_ID = new PublicKey(
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 );
 
 /** seeds = ["vote_mint", poll_account, voter, poll_id (8 bytes LE)] */
@@ -649,7 +649,7 @@ export async function buildMintVoteTokenIx(
       { pubkey: pollPDA, isSigner: false, isWritable: false },
       { pubkey: voteMintPDA, isSigner: false, isWritable: true },
       { pubkey: voterTokenAccount, isSigner: false, isWritable: true },
-      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SPL_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     data,

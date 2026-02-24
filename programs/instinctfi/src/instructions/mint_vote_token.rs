@@ -1,19 +1,15 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use anchor_spl::token::{self, Mint, Token, TokenAccount, MintTo};
 use crate::state::PollAccount;
 use crate::errors::InstinctFiError;
 
-/// Mint a Token-2022 "Vote Receipt" NFT to a voter.
+/// Mint a "Vote Receipt" NFT to a voter using SPL Token.
 ///
-/// This instruction creates a Token-2022 mint (1 supply, 0 decimals) tied
-/// to each poll+voter combination. The mint PDA encodes the poll and voter,
-/// guaranteeing uniqueness. The token acts as an on-chain proof of
+/// This instruction creates a unique mint (1 supply, 0 decimals) per
+/// poll+voter combination. The token acts as an on-chain proof of
 /// participation in the prediction market.
 ///
-/// **Token Extension used**: Token-2022 (SPL Token 2022 program).
-/// This qualifies for the Superteam Nepal bounty's "brownie points"
-/// for exploring core Solana niches like Token Extensions.
+/// Uses the SPL Token program via anchor-spl for on-chain vote receipts.
 pub fn handler(ctx: Context<MintVoteToken>, _poll_id: u64) -> Result<()> {
     let poll = &ctx.accounts.poll_account;
 
@@ -21,26 +17,27 @@ pub fn handler(ctx: Context<MintVoteToken>, _poll_id: u64) -> Result<()> {
     require!(poll.is_active(), InstinctFiError::PollNotActive);
 
     // Mint exactly 1 token (NFT-like receipt) to the voter's token account
-    let cpi_accounts = token_2022::MintTo {
-        mint: ctx.accounts.vote_mint.to_account_info(),
-        to: ctx.accounts.voter_token_account.to_account_info(),
-        authority: ctx.accounts.vote_mint.to_account_info(), // mint authority is the mint PDA itself
-    };
-
+    let poll_key = ctx.accounts.poll_account.key();
+    let voter_key = ctx.accounts.voter.key();
     let poll_id_bytes = poll.poll_id.to_le_bytes();
+
     let seeds: &[&[u8]] = &[
         b"vote_mint",
-        ctx.accounts.poll_account.key().as_ref(),
-        ctx.accounts.voter.key.as_ref(),
+        poll_key.as_ref(),
+        voter_key.as_ref(),
         &poll_id_bytes,
         &[ctx.bumps.vote_mint],
     ];
     let signer_seeds = &[seeds];
 
-    token_2022::mint_to(
+    token::mint_to(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
+            MintTo {
+                mint: ctx.accounts.vote_mint.to_account_info(),
+                to: ctx.accounts.voter_token_account.to_account_info(),
+                authority: ctx.accounts.vote_mint.to_account_info(),
+            },
             signer_seeds,
         ),
         1, // mint exactly 1 token
@@ -71,7 +68,7 @@ pub struct MintVoteToken<'info> {
     )]
     pub poll_account: Account<'info, PollAccount>,
 
-    /// Token-2022 mint for this vote receipt.
+    /// SPL Token mint for this vote receipt.
     /// PDA seeds: ["vote_mint", poll_account, voter, poll_id]
     /// This ensures one unique mint per voter per poll.
     #[account(
@@ -79,7 +76,6 @@ pub struct MintVoteToken<'info> {
         payer = voter,
         mint::decimals = 0,
         mint::authority = vote_mint,  // self-authority (PDA signs)
-        mint::token_program = token_program,
         seeds = [
             b"vote_mint",
             poll_account.key().as_ref(),
@@ -88,15 +84,14 @@ pub struct MintVoteToken<'info> {
         ],
         bump,
     )]
-    pub vote_mint: InterfaceAccount<'info, Mint>,
+    pub vote_mint: Account<'info, Mint>,
 
-    /// Voter's associated token account for this mint (Token-2022)
+    /// Voter's token account for this mint
     #[account(
         init,
         payer = voter,
         token::mint = vote_mint,
         token::authority = voter,
-        token::token_program = token_program,
         seeds = [
             b"vote_receipt",
             vote_mint.key().as_ref(),
@@ -104,10 +99,10 @@ pub struct MintVoteToken<'info> {
         ],
         bump,
     )]
-    pub voter_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub voter_token_account: Account<'info, TokenAccount>,
 
-    /// Token-2022 program
-    pub token_program: Interface<'info, TokenInterface>,
+    /// SPL Token program
+    pub token_program: Program<'info, Token>,
 
     pub system_program: Program<'info, System>,
 }
