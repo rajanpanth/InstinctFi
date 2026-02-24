@@ -51,11 +51,26 @@ jobs:
             cargo update "borsh@1.$BORSH_VER" --precise 1.5.7 || true
           fi
 
-          # toml_edit >=0.23.6 requires rustc 1.76 (0.23.5 is the last safe version)
+          # toml_edit >=0.23.0 pulls in toml_datetime v0.7.x+spec (MSRV 1.76).
+          # The 0.22.x series uses toml_datetime 0.6.x (MSRV 1.65) — safe for rustc 1.75.
           TOML_VER=$(grep -A1 'name = "toml_edit"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-          if [ -n "$TOML_VER" ] && [ "$TOML_VER" != "0.23.5" ]; then
-            echo "Pinning toml_edit from $TOML_VER to 0.23.5"
-            cargo update "toml_edit@$TOML_VER" --precise 0.23.5 || true
+          if [ -n "$TOML_VER" ] && [ "$TOML_VER" != "0.22.22" ]; then
+            echo "Pinning toml_edit from $TOML_VER to 0.22.22"
+            cargo update "toml_edit@$TOML_VER" --precise 0.22.22 || true
+          fi
+
+          # proc-macro-crate >=3.2.0 requires toml_edit 0.23.x; pin to last 0.22-compatible version
+          PMC_VER=$(grep -A1 'name = "proc-macro-crate"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
+          if [ -n "$PMC_VER" ] && [ "$PMC_VER" != "3.1.0" ]; then
+            echo "Pinning proc-macro-crate from $PMC_VER to 3.1.0"
+            cargo update "proc-macro-crate@$PMC_VER" --precise 3.1.0 || true
+          fi
+
+          # toml_datetime v0.7.x+spec requires rustc 1.76 — pin to 0.6.8 if it appears
+          TDATETIME_VER=$(grep -A1 'name = "toml_datetime"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
+          if [ -n "$TDATETIME_VER" ] && [[ "$TDATETIME_VER" == 0.7* ]]; then
+            echo "Pinning toml_datetime from $TDATETIME_VER to 0.6.8"
+            cargo update "toml_datetime@$TDATETIME_VER" --precise 0.6.8 || true
           fi
 
           # indexmap 2.x requires rustc 1.82 — pin to 1.x series
@@ -80,7 +95,7 @@ jobs:
           fi
 
           echo "=== Final key versions ==="
-          grep -E 'name = "(borsh|toml_edit|indexmap|hashbrown|winnow)"' Cargo.lock -A1 | grep version
+          grep -E 'name = "(borsh|toml_edit|toml_datetime|proc-macro-crate|indexmap|hashbrown|winnow)"' Cargo.lock -A1 | grep version
 
       - name: Downgrade Cargo.lock to v3 for cargo-build-sbf
         run: |
