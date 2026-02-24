@@ -29,89 +29,25 @@ jobs:
 
       - name: Pin all high-MSRV packages for cargo-build-sbf compatibility
         run: |
-          # cargo-build-sbf (inside the Anchor Docker image) uses rustc 1.75.0-dev internally.
-          # Any crate whose MSRV exceeds 1.75 must be pinned to an older compatible version.
-          # Run ALL pins here so that the final lockfile downgrade (v4->v3) is the last mutation.
-
-          pin_if_needed() {
-            local PKG="$1" TARGET="$2"
-            local CUR=$(grep -A1 "name = \"$PKG\"" Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-            if [ -n "$CUR" ] && [ "$CUR" != "$TARGET" ]; then
-              echo "Pinning $PKG from $CUR to $TARGET"
-              cargo update "$PKG@$CUR" --precise "$TARGET" || true
-            else
-              echo "$PKG already at $TARGET (or not in lockfile), skipping"
-            fi
-          }
-
-          # borsh >=1.6.0 requires rustc 1.77+
-          BORSH_VER=$(grep -A1 'name = "borsh"' Cargo.lock | grep -oP 'version = "1\.\K[^"]+' | head -1)
-          if [ -n "$BORSH_VER" ] && [ "1.$BORSH_VER" != "1.5.7" ]; then
-            echo "Pinning borsh from 1.$BORSH_VER to 1.5.7"
-            cargo update "borsh@1.$BORSH_VER" --precise 1.5.7 || true
-          fi
-
-          # toml_edit >=0.23.0 pulls in toml_datetime v0.7.x+spec (MSRV 1.76).
-          # The 0.22.x series uses toml_datetime 0.6.x (MSRV 1.65) — safe for rustc 1.75.
-          TOML_VER=$(grep -A1 'name = "toml_edit"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-          if [ -n "$TOML_VER" ] && [ "$TOML_VER" != "0.22.22" ]; then
-            echo "Pinning toml_edit from $TOML_VER to 0.22.22"
-            cargo update "toml_edit@$TOML_VER" --precise 0.22.22 || true
-          fi
-
-          # proc-macro-crate >=3.2.0 requires toml_edit 0.23.x; pin to last 0.22-compatible version
-          PMC_VER=$(grep -A1 'name = "proc-macro-crate"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-          if [ -n "$PMC_VER" ] && [ "$PMC_VER" != "3.1.0" ]; then
-            echo "Pinning proc-macro-crate from $PMC_VER to 3.1.0"
-            cargo update "proc-macro-crate@$PMC_VER" --precise 3.1.0 || true
-          fi
-
-          # toml_datetime v0.7.x+spec requires rustc 1.76 — pin to 0.6.8 if it appears
-          TDATETIME_VER=$(grep -A1 'name = "toml_datetime"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-          if [ -n "$TDATETIME_VER" ]; then
-            case "$TDATETIME_VER" in
-              0.7*)
-                echo "Pinning toml_datetime from $TDATETIME_VER to 0.6.8"
-                cargo update "toml_datetime@$TDATETIME_VER" --precise 0.6.8 || true
-                ;;
-            esac
-          fi
+          # The local cargo-build-sbf inside the Docker image uses rustc 1.75.0-dev.
+          # We must forcefully downgrade crates that demand rustc 1.76 or higher.
           
-          # toml_parser >= 0.2 (e.g. 1.0.9+spec) requires rustc 1.76+
-          TPARSER_VER=$(grep -A1 'name = "toml_parser"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-          if [ -n "$TPARSER_VER" ]; then
-            case "$TPARSER_VER" in
-              0.*.*) ;; # versions like 0.1.X are fine
-              *)
-                echo "Pinning toml_parser from $TPARSER_VER to 0.1.5"
-                cargo update "toml_parser@$TPARSER_VER" --precise 0.1.5 || true
-                ;;
-            esac
-          fi
+          # Force a full dependency resolution first so that the lockfile is fully populated.
+          cargo metadata --format-version 1 > /dev/null || true
 
-          # indexmap 2.x requires rustc 1.82 — pin to 1.x series
-          IMAP_VER=$(grep -A1 'name = "indexmap"' Cargo.lock | grep -oP 'version = "2\.\K[^"]+' | head -1)
-          if [ -n "$IMAP_VER" ]; then
-            echo "Pinning indexmap from 2.$IMAP_VER to 1.9.3"
-            cargo update "indexmap@2.$IMAP_VER" --precise 1.9.3 || true
-          fi
+          echo "Down-pinning high-MSRV crates..."
+          
+          cargo update -p borsh --precise 1.5.7 || true
+          cargo update -p toml_edit --precise 0.22.22 || true
+          cargo update -p proc-macro-crate --precise 3.1.0 || true
+          cargo update -p toml_datetime --precise 0.6.8 || true
+          cargo update -p toml_parser --precise 0.1.5 || true
+          cargo update -p indexmap --precise 1.9.3 || true
+          cargo update -p hashbrown --precise 0.14.5 || true
+          cargo update -p winnow --precise 0.6.26 || true
 
-          # hashbrown >=0.15 requires rustc 1.80+
-          pin_if_needed "hashbrown" "0.14.5"
-
-          # winnow >=0.7 requires rustc 1.77+
-          WINNOW_VER=$(grep -A1 'name = "winnow"' Cargo.lock | grep -oP 'version = "\K[^"]+' | head -1)
-          if [ -n "$WINNOW_VER" ]; then
-            MAJOR=$(echo "$WINNOW_VER" | cut -d. -f1)
-            MINOR=$(echo "$WINNOW_VER" | cut -d. -f2)
-            if [ "$MAJOR" -gt 0 ] || [ "$MINOR" -ge 7 ]; then
-              echo "Pinning winnow from $WINNOW_VER to 0.6.26"
-              cargo update "winnow@$WINNOW_VER" --precise 0.6.26 || true
-            fi
-          fi
-
-          echo "=== Final key versions ==="
-          grep -E 'name = "(borsh|toml_edit|toml_datetime|toml_parser|proc-macro-crate|indexmap|hashbrown|winnow)"' Cargo.lock -A1 | grep version
+          echo "=== Final key versions in Lockfile ==="
+          grep -E 'name = "(borsh|toml_edit|toml_datetime|toml_parser|proc-macro-crate|indexmap|hashbrown|winnow)"' Cargo.lock -A1 | grep version || true
 
       - name: Downgrade Cargo.lock to v3 for cargo-build-sbf
         run: |
