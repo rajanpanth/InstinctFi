@@ -37,14 +37,32 @@ jobs:
 
           echo "Down-pinning high-MSRV crates..."
           
-          cargo update -p borsh --precise 1.5.7 || true
-          cargo update -p toml_edit --precise 0.22.22 || true
-          cargo update -p proc-macro-crate --precise 3.1.0 || true
-          cargo update -p toml_datetime --precise 0.6.8 || true
-          cargo update -p toml_parser --precise 0.1.5 || true
-          cargo update -p indexmap --precise 1.9.3 || true
-          cargo update -p hashbrown --precise 0.14.5 || true
-          cargo update -p winnow --precise 0.6.26 || true
+          downpin() {
+            local crate=$1
+            local prefix=$2
+            local target=$3
+            local versions=$(grep -A1 "name = \"$crate\"" Cargo.lock | grep version | cut -d '"' -f2)
+            for ver in $versions; do
+              case "$ver" in
+                $prefix*) 
+                  if [ "$ver" != "$target" ]; then
+                    echo "Downgrading $crate@$ver to $target"
+                    cargo update -p "$crate@$ver" --precise "$target" || true
+                  fi
+                  ;;
+              esac
+            done
+          }
+
+          # Target the specific high versions that cause rustc 1.76+ MSRV issues
+          downpin "proc-macro-crate" "3." "3.1.0"
+          downpin "indexmap" "2." "2.1.0"
+          downpin "borsh" "1." "1.5.7"
+          downpin "toml_edit" "0.23" "0.22.22"
+          downpin "toml_datetime" "0.7" "0.6.11"
+          downpin "toml_parser" "1." "0.1.5"
+          downpin "winnow" "0.7" "0.6.26"
+          downpin "hashbrown" "0.15" "0.14.5"
 
           echo "=== Final key versions in Lockfile ==="
           grep -E 'name = "(borsh|toml_edit|toml_datetime|toml_parser|proc-macro-crate|indexmap|hashbrown|winnow)"' Cargo.lock -A1 | grep version || true
