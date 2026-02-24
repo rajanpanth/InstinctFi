@@ -67,6 +67,7 @@ All poll creation, voting, settlement, and reward distribution logic runs **enti
 - **Option-Coin Voting** — Buy coins for your predicted option; more coins = higher conviction & reward
 - **Trustless Settlement** — Anyone can trigger settlement after the poll ends; highest-vote option wins
 - **Proportional Rewards** — Winners split the entire prize pool proportional to their coin count
+- **🆕 Token-2022 Vote Receipts** — Voters receive on-chain NFT-like tokens (Token Extensions / SPL Token-2022) as proof of participation
 - **Multi-Period Leaderboard** — Weekly, monthly, and all-time rankings with multiple sort criteria
 - **Rich Profile Dashboard** — Personal stats, created polls, vote history, net profit tracking
 - **Dark Mode UI** — Polished dark theme with smooth Framer Motion animations
@@ -87,6 +88,7 @@ All poll creation, voting, settlement, and reward distribution logic runs **enti
 |-------|-----------|
 | **Blockchain** | Solana (Devnet) |
 | **Smart Contracts** | Anchor 0.30.1 (Rust) |
+| **Token Extensions** | SPL Token-2022 (`anchor-spl`, `spl-token-2022`) |
 | **Frontend** | Next.js 15, React 19, TypeScript |
 | **Styling** | Tailwind CSS 3.4, Framer Motion |
 | **Wallet** | Phantom (via `@solana/wallet-adapter`) |
@@ -120,10 +122,11 @@ All poll creation, voting, settlement, and reward distribution logic runs **enti
 │  │                                                    │  │
 │  │  initialize_user · create_poll · edit_poll         │  │
 │  │  delete_poll · cast_vote · settle_poll             │  │
-│  │  claim_reward                                      │  │
+│  │  claim_reward · mint_vote_token (Token-2022)       │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                          │
 │  PDAs:  UserAccount · PollAccount · Treasury · Vote      │
+│  Token-2022: VoteMint · VoteReceipt (per voter per poll) │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -238,17 +241,20 @@ instinctfi/
 ├── tsconfig.json               # TypeScript config for tests
 │
 ├── programs/
-│   ├── instinctfi/             # ★ Main unified Anchor program
-│   │   └── src/
-│   │       ├── lib.rs          # Program entry (7 instructions)
-│   │       ├── state.rs        # Account structs (PDAs)
-│   │       ├── errors.rs       # Custom error enum
-│   │       └── instructions/   # One file per instruction
-│   │
-│   ├── poll_program/           # Standalone poll program
-│   ├── vote_program/           # Standalone vote program
-│   ├── user_program/           # Standalone user program
-│   └── settlement_program/     # Standalone settlement program
+│   └── instinctfi/             # ★ Unified Anchor program
+│       └── src/
+│           ├── lib.rs          # Program entry (8 instructions)
+│           ├── state.rs        # Account structs (PDAs)
+│           ├── errors.rs       # Custom error enum
+│           └── instructions/   # One file per instruction
+│               ├── cast_vote.rs
+│               ├── claim_reward.rs
+│               ├── create_poll.rs
+│               ├── delete_poll.rs
+│               ├── edit_poll.rs
+│               ├── initialize_user.rs
+│               ├── mint_vote_token.rs  # 🆕 Token-2022
+│               └── settle_poll.rs
 │
 ├── tests/
 │   └── voting.ts               # End-to-end Anchor tests
@@ -285,6 +291,7 @@ instinctfi/
 | `cast_vote` | Buy option-coins with SOL | Voter → Treasury |
 | `settle_poll` | Determine winner + send creator reward | Treasury → Creator |
 | `claim_reward` | Winners claim proportional SOL from pool | Treasury → Winner |
+| `mint_vote_token` | 🆕 Mint Token-2022 vote receipt NFT to voter | Rent only |
 
 ### PDA Accounts
 
@@ -294,6 +301,8 @@ instinctfi/
 | `PollAccount` | `["poll", creator, poll_id]` | Poll data, options, vote counts |
 | `Treasury` | `["treasury", poll_account]` | SOL vault for each poll |
 | `VoteAccount` | `["vote", poll_account, voter]` | Per-user vote record on a poll |
+| `VoteMint` | `["vote_mint", poll, voter, poll_id]` | 🆕 Token-2022 mint PDA (0-decimal receipt token) |
+| `VoteReceipt` | `["vote_receipt", vote_mint, voter]` | 🆕 Voter's token account for the receipt |
 
 ### Program ID
 
@@ -359,8 +368,8 @@ user_reward = (user_winning_votes / total_winning_votes) × total_pool
 
 | Phase | Feature | Description |
 |-------|---------|-------------|
-| **v1.1** | Real SOL Mode | Toggle between demo dollars and real SOL |
-| **v1.2** | SPL Token Support | Tradable option-coins as SPL tokens |
+| ~~**v1.1**~~ | ~~Real SOL Mode~~ | ✅ Implemented — all transactions use real SOL |
+| ~~**v1.2**~~ | ~~Token Extensions~~ | ✅ Implemented — Token-2022 vote receipt NFTs |
 | **v1.3** | Oracle Integration | Pyth/Switchboard for auto-settlement of price predictions |
 | **v2.0** | DAO Governance | Token holders vote on platform parameters |
 | **v2.1** | Tournament Mode | Multi-round prediction tournaments |

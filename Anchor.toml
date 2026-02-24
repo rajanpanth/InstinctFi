@@ -4,17 +4,9 @@ skip-lint = false
 
 [programs.localnet]
 instinctfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
-poll_program = "Po11CrtrPrgm1111111111111111111111111111111"
-vote_program = "VotePrgm11111111111111111111111111111111111"
-settlement_program = "Sett1ePrgm111111111111111111111111111111111"
-user_program = "UserPrgm11111111111111111111111111111111111"
 
 [programs.devnet]
 instinctfi = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
-poll_program = "Po11CrtrPrgm1111111111111111111111111111111"
-vote_program = "VotePrgm11111111111111111111111111111111111"
-settlement_program = "Sett1ePrgm111111111111111111111111111111111"
-user_program = "UserPrgm11111111111111111111111111111111111"
 
 [registry]
 url = "https://api.apr.dev"

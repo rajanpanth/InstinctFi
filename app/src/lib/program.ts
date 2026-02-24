@@ -24,6 +24,7 @@ export const PROGRAM_ID = new PublicKey(
 // WARNING (#35): While false, all on-chain instruction builders and Borsh
 // serialization below are dead code (~25KB). Consider tree-shaking or
 // lazy-loading this module when PROGRAM_DEPLOYED is false.
+// ⚠️ Flip to `true` AFTER deploying the program to devnet with `anchor deploy`
 export const PROGRAM_DEPLOYED = false;
 
 export const CLUSTER = "devnet" as "devnet" | "mainnet-beta" | "localnet";
@@ -587,6 +588,68 @@ export async function buildClaimRewardIx(
       { pubkey: pollPDA, isSigner: false, isWritable: false },
       { pubkey: treasuryPDA, isSigner: false, isWritable: true },
       { pubkey: votePDA, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
+}
+
+// ─── Token-2022 (Token Extension) Support ──────────────────────────────────
+
+/** SPL Token-2022 program ID */
+export const TOKEN_2022_PROGRAM_ID = new PublicKey(
+  "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+);
+
+/** seeds = ["vote_mint", poll_account, voter, poll_id (8 bytes LE)] */
+export function getVoteMintPDA(
+  pollAccount: PublicKey,
+  voter: PublicKey,
+  pollId: bigint | number
+): [PublicKey, number] {
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64LE(BigInt(pollId));
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("vote_mint"), pollAccount.toBuffer(), voter.toBuffer(), buf],
+    PROGRAM_ID
+  );
+}
+
+/** seeds = ["vote_receipt", vote_mint, voter] */
+export function getVoteReceiptPDA(
+  voteMint: PublicKey,
+  voter: PublicKey
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("vote_receipt"), voteMint.toBuffer(), voter.toBuffer()],
+    PROGRAM_ID
+  );
+}
+
+/** Build MintVoteToken instruction (Token-2022 vote receipt NFT) */
+export async function buildMintVoteTokenIx(
+  voter: PublicKey,
+  pollCreator: PublicKey,
+  pollId: number | bigint
+): Promise<TransactionInstruction> {
+  const disc = await ixDiscriminator("mint_vote_token");
+  const [pollPDA] = getPollPDA(pollCreator, pollId);
+  const [voteMintPDA] = getVoteMintPDA(pollPDA, voter, pollId);
+  const [voterTokenAccount] = getVoteReceiptPDA(voteMintPDA, voter);
+
+  const writer = new BorshWriter();
+  writer.writeU64(pollId);
+
+  const data = Buffer.concat([Buffer.from(disc), writer.toBuffer()]);
+
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: voter, isSigner: true, isWritable: true },
+      { pubkey: pollPDA, isSigner: false, isWritable: false },
+      { pubkey: voteMintPDA, isSigner: false, isWritable: true },
+      { pubkey: voterTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     data,

@@ -13,11 +13,9 @@ describe("InstinctFi E2E", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  // ── Program IDs (must match declare_id! in each program) ──
-  const POLL_PROGRAM_ID = new PublicKey("Po11CrtrPrgm1111111111111111111111111111111");
-  const VOTE_PROGRAM_ID = new PublicKey("VotePrgm11111111111111111111111111111111111");
-  const SETTLEMENT_PROGRAM_ID = new PublicKey("Sett1ePrgm111111111111111111111111111111111");
-  const USER_PROGRAM_ID = new PublicKey("UserPrgm11111111111111111111111111111111111");
+  // ── Program ID (must match declare_id! in instinctfi program) ──
+  // All instructions (user, poll, vote, settlement) live in a single program.
+  const INSTINCTFI_PROGRAM_ID = new PublicKey("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
   const creator = anchor.web3.Keypair.generate();
   const voter1 = anchor.web3.Keypair.generate();
@@ -48,7 +46,7 @@ describe("InstinctFi E2E", () => {
         creator.publicKey.toBuffer(),
         pollId.toArrayLike(Buffer, "le", 8),
       ],
-      POLL_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
   });
 
@@ -66,12 +64,12 @@ describe("InstinctFi E2E", () => {
     // seeds: ["vote", poll_pda, voter]
     const [votePda1] = PublicKey.findProgramAddressSync(
       [Buffer.from("vote"), pollPda.toBuffer(), voter1.publicKey.toBuffer()],
-      VOTE_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
 
     const [votePda2] = PublicKey.findProgramAddressSync(
       [Buffer.from("vote"), pollPda.toBuffer(), voter2.publicKey.toBuffer()],
-      VOTE_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
 
     console.log("Voter1 vote PDA:", votePda1.toBase58());
@@ -84,12 +82,12 @@ describe("InstinctFi E2E", () => {
     // seeds: ["user", authority]
     const [userPda1] = PublicKey.findProgramAddressSync(
       [Buffer.from("user"), voter1.publicKey.toBuffer()],
-      USER_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
 
     const [userPda2] = PublicKey.findProgramAddressSync(
       [Buffer.from("user"), voter2.publicKey.toBuffer()],
-      USER_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
 
     console.log("Voter1 user PDA:", userPda1.toBase58());
@@ -112,7 +110,7 @@ describe("InstinctFi E2E", () => {
         creator.publicKey.toBuffer(),
         pollId.toArrayLike(Buffer, "le", 8),
       ],
-      POLL_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
     expect(derivedPoll.toBase58()).to.equal(pollPda.toBase58());
   });
@@ -125,7 +123,7 @@ describe("InstinctFi E2E", () => {
         creator.publicKey.toBuffer(),
         pollId.toArrayLike(Buffer, "le", 8),
       ],
-      POLL_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
     expect(derivedPoll.toBase58()).to.equal(pollPda.toBase58());
   });
@@ -224,11 +222,11 @@ describe("InstinctFi E2E", () => {
     // A voter should always get the same PDA for the same poll
     const [votePda1] = PublicKey.findProgramAddressSync(
       [Buffer.from("vote"), pollPda.toBuffer(), voter1.publicKey.toBuffer()],
-      VOTE_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
     const [votePda1Again] = PublicKey.findProgramAddressSync(
       [Buffer.from("vote"), pollPda.toBuffer(), voter1.publicKey.toBuffer()],
-      VOTE_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
     expect(votePda1.toBase58()).to.equal(votePda1Again.toBase58());
   });
@@ -301,7 +299,7 @@ describe("InstinctFi E2E", () => {
     // Settlement account PDA: ["settlement", poll_pda]
     const [settlementPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("settlement"), pollPda.toBuffer()],
-      SETTLEMENT_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
     expect(settlementPda).to.not.be.null;
     console.log("Settlement PDA:", settlementPda.toBase58());
@@ -317,7 +315,7 @@ describe("InstinctFi E2E", () => {
         creator.publicKey.toBuffer(),
         pollId1.toArrayLike(Buffer, "le", 8),
       ],
-      POLL_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
     const [pda2] = PublicKey.findProgramAddressSync(
       [
@@ -325,7 +323,7 @@ describe("InstinctFi E2E", () => {
         creator.publicKey.toBuffer(),
         pollId2.toArrayLike(Buffer, "le", 8),
       ],
-      POLL_PROGRAM_ID
+      INSTINCTFI_PROGRAM_ID
     );
 
     expect(pda1.toBase58()).to.not.equal(pda2.toBase58());

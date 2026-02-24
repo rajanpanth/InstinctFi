@@ -76,4 +76,11 @@ pub mod instinctfi {
     pub fn claim_reward(ctx: Context<ClaimReward>, poll_id: u64) -> Result<()> {
         instructions::claim_reward::handler(ctx, poll_id)
     }
+
+    /// Mint a Token-2022 "Vote Receipt" NFT to a voter (Token Extension).
+    /// Creates a unique 0-decimal token per voter per poll as on-chain proof
+    /// of participation in the prediction market.
+    pub fn mint_vote_token(ctx: Context<MintVoteToken>, poll_id: u64) -> Result<()> {
+        instructions::mint_vote_token::handler(ctx, poll_id)
+    }
 }

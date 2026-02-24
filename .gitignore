@@ -27,10 +27,16 @@ target/
 Thumbs.db
 desktop.ini
 
-# Debug
+# Debug / CI logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+all_logs*.txt
+failed*.txt
+job*.txt
+job*.log
+log.txt
 
 # Misc
 *.tsbuildinfo
