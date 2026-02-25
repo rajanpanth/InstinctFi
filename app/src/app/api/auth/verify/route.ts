@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         // ── Issue a proper HMAC-SHA256 JWT ──
         const secret = process.env.AUTH_JWT_SECRET;
         if (!secret) {
-            console.error("[Auth] AUTH_JWT_SECRET not configured");
+            console.error("[Auth] AUTH_JWT_SECRET not configured. Available env keys:", Object.keys(process.env).filter(k => k.includes("AUTH") || k.includes("JWT") || k.includes("SECRET")).join(", ") || "(none matching)");
             return NextResponse.json(
                 { error: "Server misconfiguration — auth secret missing" },
                 { status: 500 }
