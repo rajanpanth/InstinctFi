@@ -120,13 +120,14 @@ export function Providers({ children }: { children: ReactNode }) {
       addNotification,
     });
 
-  // ── Auto-signup when connected ──
+  // ── Auto-signup / balance sync when connected ──
   useEffect(() => {
     if (!initialFetchDone.current) return;
-    if (walletConnected && walletAddress && !users.find((u) => u.wallet === walletAddress)) {
+    if (walletConnected && walletAddress) {
       signup();
     }
-  }, [walletConnected, walletAddress, signup, users]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletConnected, walletAddress]);
 
   return (
     <AppContext.Provider

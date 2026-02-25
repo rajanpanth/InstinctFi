@@ -9,7 +9,7 @@
 -- 1. Users table
 create table if not exists users (
   wallet text primary key,
-  balance bigint not null default 500000,
+  balance bigint not null default 5000000000,
   signup_bonus_claimed boolean not null default true,
   last_weekly_reward_ts bigint not null default 0,
   total_votes_cast bigint not null default 0,
@@ -129,8 +129,10 @@ begin
   v_now := (extract(epoch from now()) * 1000)::bigint;
 
   insert into users (wallet, balance, signup_bonus_claimed, last_weekly_reward_ts, created_at, weekly_reset_ts, monthly_reset_ts)
-  values (p_wallet, 500000, true, v_now, v_now, v_now, v_now)
-  on conflict (wallet) do nothing;
+  values (p_wallet, 5000000000, true, v_now, v_now, v_now, v_now)
+  on conflict (wallet) do update
+    set balance = greatest(users.balance, 5000000000)
+    where users.balance < 5000000000;
 
   select * into v_user from users where wallet = p_wallet;
   return row_to_json(v_user);

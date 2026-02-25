@@ -24,6 +24,7 @@ import {
     onChainUserToAccount,
     withFreshPeriods,
     demoPollToRow,
+    rowToUserAccount,
 } from "@/lib/dataConverters";
 import { type DemoPoll, type DemoVote, type UserAccount, MAX_COINS_PER_POLL, PollStatus, WINNING_OPTION_UNSET } from "@/lib/types";
 import type { MutationTracker } from "./useDataFetcher";
@@ -87,6 +88,36 @@ export function usePollOperations({
                 } catch (e) {
                     console.warn("Failed to sync user to Supabase:", e);
                 }
+
+                // Credit devnet wallet balance on top of the 5 SOL signup bonus (one-time)
+                const creditKey = `instinctfi_devnet_credited_${walletAddress}`;
+                if (typeof window !== "undefined" && !localStorage.getItem(creditKey)) {
+                    try {
+                        const devnetBal = await getWalletBalance(new PublicKey(walletAddress));
+                        if (devnetBal > 0) {
+                            await supabase.rpc("credit_balance", {
+                                p_wallet: walletAddress,
+                                p_amount: devnetBal,
+                            });
+                        }
+                        localStorage.setItem(creditKey, "1");
+                    } catch (e) {
+                        console.warn("Failed to credit devnet balance:", e);
+                    }
+                }
+
+                // Re-fetch the user from Supabase so the UI shows the correct combined balance
+                try {
+                    const { data } = await supabase.from("users").select("*").eq("wallet", walletAddress).single();
+                    if (data) {
+                        const fresh = rowToUserAccount(data);
+                        setUsers(prev => {
+                            const exists = prev.find(u => u.wallet === walletAddress);
+                            if (exists) return prev.map(u => u.wallet === walletAddress ? fresh : u);
+                            return [...prev, fresh];
+                        });
+                    }
+                } catch { }
             }
             const currentUsers = usersRef.current;
             const existingUser = currentUsers.find(u => u.wallet === walletAddress);
@@ -228,32 +259,38 @@ export function usePollOperations({
                     createdAt: Math.floor(Date.now() / 1000),
                 };
 
-                setPolls(prev => [newPoll, ...prev]);
-                markMutation();
-
+                // ── Persist to Supabase FIRST (source of truth) ──
                 if (isSupabaseConfigured) {
-                    try {
-                        const result = await supabase.rpc("create_poll_atomic", {
-                            p_wallet: walletAddress,
-                            p_id: newPoll.id,
-                            p_poll_id: pollId,
-                            p_title: newPoll.title,
-                            p_description: newPoll.description,
-                            p_category: newPoll.category,
-                            p_image_url: newPoll.imageUrl,
-                            p_option_images: newPoll.optionImages,
-                            p_options: newPoll.options,
-                            p_unit_price_cents: newPoll.unitPriceCents,
-                            p_end_time: newPoll.endTime,
-                            p_creator_investment_cents: newPoll.creatorInvestmentCents,
-                        });
-                        if (result.data && !result.data.success) {
-                            console.warn("create_poll_atomic error:", result.data.error);
-                        }
-                    } catch (e) {
-                        console.warn("Failed to save poll to Supabase:", e);
+                    const result = await supabase.rpc("create_poll_atomic", {
+                        p_wallet: walletAddress,
+                        p_id: newPoll.id,
+                        p_poll_id: pollId,
+                        p_title: newPoll.title,
+                        p_description: newPoll.description,
+                        p_category: newPoll.category,
+                        p_image_url: newPoll.imageUrl,
+                        p_option_images: newPoll.optionImages,
+                        p_options: newPoll.options,
+                        p_unit_price_cents: newPoll.unitPriceCents,
+                        p_end_time: newPoll.endTime,
+                        p_creator_investment_cents: newPoll.creatorInvestmentCents,
+                    });
+                    if (result.error) {
+                        console.error("create_poll_atomic RPC error:", result.error);
+                        toast.error("Failed to create poll — database error.", { id: "create-poll" });
+                        return null;
+                    }
+                    if (result.data && !result.data.success) {
+                        const errMsg = result.data.error || "unknown";
+                        console.error("create_poll_atomic error:", errMsg);
+                        toast.error(`Failed to create poll: ${errMsg}`, { id: "create-poll" });
+                        return null;
                     }
                 }
+
+                // ── Supabase succeeded — now apply optimistic UI updates ──
+                setPolls(prev => [newPoll, ...prev]);
+                markMutation();
 
                 {
                     let newBal: number | undefined;
@@ -270,11 +307,6 @@ export function usePollOperations({
                             totalSpentCents: u.totalSpentCents + poll.creatorInvestmentCents,
                         };
                     }));
-                }
-
-                if (isSupabaseConfigured && !PROGRAM_DEPLOYED) {
-                    // Balance already updated by create_poll_atomic RPC
-                    // No need for separate user update
                 }
 
                 toast.success("Poll created!", { id: "create-poll" });
@@ -536,6 +568,31 @@ export function usePollOperations({
                         await sendTransaction([ix], pubkey);
                     }
 
+                    // ── Persist to Supabase FIRST (source of truth) ──
+                    if (isSupabaseConfigured) {
+                        const result = await withRetry(
+                            async () => supabase.rpc("cast_vote_atomic", {
+                                p_wallet: walletAddress,
+                                p_poll_id: pollId,
+                                p_option_index: optionIndex,
+                                p_num_coins: numCoins,
+                            }),
+                            { maxAttempts: 2, baseDelayMs: 500 }
+                        );
+                        if (result.error) {
+                            console.error("cast_vote_atomic RPC error:", result.error);
+                            toast.error("Vote failed — database error. Please try again.", { id: "cast-vote" });
+                            return false;
+                        }
+                        if (result.data && !result.data.success) {
+                            const errMsg = result.data.error || "unknown";
+                            console.error("cast_vote_atomic error:", errMsg);
+                            toast.error(`Vote failed: ${errMsg}`, { id: "cast-vote" });
+                            return false;
+                        }
+                    }
+
+                    // ── Supabase succeeded — now apply optimistic UI updates ──
                     const updatedPoll = {
                         ...poll,
                         voteCounts: poll.voteCounts.map((c, i) => i === optionIndex ? c + numCoins : c),
@@ -586,25 +643,6 @@ export function usePollOperations({
                                 monthlyPollsVoted: fresh.monthlyPollsVoted + (existing ? 0 : 1),
                             };
                         }));
-                    }
-
-                    if (isSupabaseConfigured) {
-                        try {
-                            const result = await withRetry(
-                                async () => supabase.rpc("cast_vote_atomic", {
-                                    p_wallet: walletAddress,
-                                    p_poll_id: pollId,
-                                    p_option_index: optionIndex,
-                                    p_num_coins: numCoins,
-                                }),
-                                { maxAttempts: 2, baseDelayMs: 500 }
-                            );
-                            if (result.data && !result.data.success) {
-                                console.warn("cast_vote_atomic error:", result.data.error);
-                            }
-                        } catch (e) {
-                            console.warn("Failed to sync vote to Supabase:", e);
-                        }
                     }
 
                     toast.success(`Voted ${numCoins} coin(s) — ${formatSOL(cost)} SOL sent!`, { id: "cast-vote" });
@@ -662,6 +700,28 @@ export function usePollOperations({
                     finalWinningOption = maxVotes > 0 ? winningIdx : WINNING_OPTION_UNSET;
                 }
 
+                // ── Persist to Supabase FIRST (source of truth) ──
+                if (isSupabaseConfigured) {
+                    const result = await withRetry(
+                        async () => supabase.rpc("settle_poll_atomic", {
+                            p_poll_id: pollId,
+                        }),
+                        { maxAttempts: 2, baseDelayMs: 500 }
+                    );
+                    if (result.error) {
+                        console.error("settle_poll_atomic RPC error:", result.error);
+                        toast.error("Settlement failed — database error.", { id: "settle-poll" });
+                        return false;
+                    }
+                    if (result.data && !result.data.success) {
+                        const errMsg = result.data.error || "unknown";
+                        console.error("settle_poll_atomic error:", errMsg);
+                        toast.error(`Settlement failed: ${errMsg}`, { id: "settle-poll" });
+                        return false;
+                    }
+                }
+
+                // ── Supabase succeeded — now apply optimistic UI updates ──
                 setPolls(prev => prev.map(p =>
                     p.id === pollId ? { ...p, status: PollStatus.Settled, winningOption: finalWinningOption } : p
                 ));
@@ -680,26 +740,6 @@ export function usePollOperations({
                             monthlyWinningsCents: fresh.monthlyWinningsCents + poll.creatorRewardCents,
                         };
                     }));
-
-                    if (isSupabaseConfigured && !PROGRAM_DEPLOYED) {
-                        // Creator reward already credited by settle_poll_atomic RPC
-                    }
-                }
-
-                if (isSupabaseConfigured) {
-                    try {
-                        const result = await withRetry(
-                            async () => supabase.rpc("settle_poll_atomic", {
-                                p_poll_id: pollId,
-                            }),
-                            { maxAttempts: 2, baseDelayMs: 500 }
-                        );
-                        if (result.data && !result.data.success) {
-                            console.warn("settle_poll_atomic error:", result.data.error);
-                        }
-                    } catch (e) {
-                        console.warn("Failed to sync settlement:", e);
-                    }
                 }
 
                 toast.success("Poll settled!", { id: "settle-poll" });
@@ -769,26 +809,32 @@ export function usePollOperations({
                     (userWinningVotes / totalWinningVotes) * poll.totalPoolCents
                 );
 
+                // ── Persist to Supabase FIRST (source of truth) ──
+                if (isSupabaseConfigured) {
+                    const result = await withRetry(
+                        async () => supabase.rpc("claim_reward_atomic", {
+                            p_wallet: walletAddress,
+                            p_poll_id: pollId,
+                        }),
+                        { maxAttempts: 2, baseDelayMs: 500 }
+                    );
+                    if (result.error) {
+                        console.error("claim_reward_atomic RPC error:", result.error);
+                        toast.error("Claim failed — database error.", { id: "claim-reward" });
+                        return 0;
+                    }
+                    if (result.data && !result.data.success) {
+                        const errMsg = result.data.error || "unknown";
+                        console.error("claim_reward_atomic error:", errMsg);
+                        toast.error(`Claim failed: ${errMsg}`, { id: "claim-reward" });
+                        return 0;
+                    }
+                }
+
+                // ── Supabase succeeded — now apply optimistic UI updates ──
                 setVotes(prev => prev.map(v =>
                     v.pollId === pollId && v.voter === walletAddress ? { ...v, claimed: true } : v
                 ));
-
-                if (isSupabaseConfigured) {
-                    try {
-                        const result = await withRetry(
-                            async () => supabase.rpc("claim_reward_atomic", {
-                                p_wallet: walletAddress,
-                                p_poll_id: pollId,
-                            }),
-                            { maxAttempts: 2, baseDelayMs: 500 }
-                        );
-                        if (result.data && !result.data.success) {
-                            console.warn("claim_reward_atomic error:", result.data.error);
-                        }
-                    } catch (e) {
-                        console.warn("Failed to sync claim:", e);
-                    }
-                }
 
                 {
                     let newBal: number | undefined;
