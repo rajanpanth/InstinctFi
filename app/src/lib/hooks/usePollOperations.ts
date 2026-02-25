@@ -274,11 +274,6 @@ export function usePollOperations({
                         p_end_time: newPoll.endTime,
                         p_creator_investment_cents: newPoll.creatorInvestmentCents,
                     });
-                    if (result.error) {
-                        console.error("create_poll_atomic RPC error:", result.error);
-                        toast.error("Failed to create poll — database error.", { id: "create-poll" });
-                        return null;
-                    }
                     if (!result.success) {
                         const errMsg = result.error || "unknown";
                         console.error("create_poll_atomic error:", errMsg);
@@ -569,11 +564,6 @@ export function usePollOperations({
                             }),
                             { maxAttempts: 2, baseDelayMs: 500 }
                         );
-                        if (result.error) {
-                            console.error("cast_vote_atomic RPC error:", result.error);
-                            toast.error("Vote failed — database error. Please try again.", { id: "cast-vote" });
-                            return false;
-                        }
                         if (!result.success) {
                             const errMsg = result.error || "unknown";
                             console.error("cast_vote_atomic error:", errMsg);
@@ -698,11 +688,6 @@ export function usePollOperations({
                         }),
                         { maxAttempts: 2, baseDelayMs: 500 }
                     );
-                    if (result.error) {
-                        console.error("settle_poll_atomic RPC error:", result.error);
-                        toast.error("Settlement failed — database error.", { id: "settle-poll" });
-                        return false;
-                    }
                     if (!result.success) {
                         const errMsg = result.error || "unknown";
                         console.error("settle_poll_atomic error:", errMsg);
