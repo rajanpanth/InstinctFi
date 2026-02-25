@@ -8,6 +8,7 @@ import {
 } from "@/lib/program";
 import { createPlaceholderUser } from "@/lib/dataConverters";
 import { type UserAccount } from "@/lib/types";
+import { setAuthToken, clearAuthToken } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
@@ -22,7 +23,7 @@ export function useWalletManager(
     const [walletConnected, setWalletConnected] = useState(false);
     const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
-    // ── Wallet signature verification ──
+    // ── Wallet signature verification + JWT acquisition ──
     const verifyWalletOwnership = async (publicKey: any): Promise<boolean> => {
         try {
             const solana = (window as any).solana;
@@ -44,6 +45,29 @@ export function useWalletManager(
                 toast.error('Wallet verification failed');
                 return false;
             }
+
+            // ── Request a server-signed JWT ──
+            try {
+                const signatureBase64 = Buffer.from(signed.signature).toString("base64");
+                const res = await fetch("/api/auth/verify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        walletAddress: publicKey.toString(),
+                        signature: signatureBase64,
+                        message,
+                    }),
+                });
+                const data = await res.json();
+                if (data.success && data.token) {
+                    setAuthToken(data.token);
+                } else {
+                    console.warn("Failed to get auth token:", data.error);
+                }
+            } catch (e) {
+                console.warn("Auth token request failed:", e);
+            }
+
             return true;
         } catch (e: any) {
             if (e?.code === 4001 || e?.message?.includes('rejected')) {
@@ -134,6 +158,7 @@ export function useWalletManager(
             const solana = (window as any).solana;
             if (solana) await solana.disconnect();
         } catch { }
+        clearAuthToken();
         setWalletConnected(false);
         setWalletAddress(null);
     }, []);

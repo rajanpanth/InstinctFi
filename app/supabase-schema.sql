@@ -332,7 +332,7 @@ $$ language plpgsql security definer;
 -- ============================================================
 -- 8. Atomic settle_poll — winner determination + creator payout
 -- ============================================================
-create or replace function settle_poll_atomic(p_poll_id text)
+create or replace function settle_poll_atomic(p_wallet text, p_poll_id text)
 returns json as $$
 declare
   v_poll record;
@@ -340,6 +340,7 @@ declare
   v_winning_idx int := 0;
   v_total_votes bigint := 0;
   v_creator_credit bigint;
+  v_is_admin boolean;
   i int;
 begin
   select * into v_poll from polls where id = p_poll_id for update;
@@ -349,6 +350,12 @@ begin
 
   if v_poll.status != 0 then
     return json_build_object('success', false, 'error', 'already_settled');
+  end if;
+
+  -- Authorization: only creator or admin can settle
+  v_is_admin := EXISTS (SELECT 1 FROM admin_wallets WHERE wallet = p_wallet);
+  if v_poll.creator != p_wallet and not v_is_admin then
+    return json_build_object('success', false, 'error', 'not_authorized');
   end if;
 
   for i in 1..coalesce(array_length(v_poll.vote_counts, 1), 0) loop
@@ -430,7 +437,8 @@ begin
   end if;
 
   v_total_winning_votes := v_poll.vote_counts[v_poll.winning_option + 1];
-  v_reward := (v_user_winning_votes * v_poll.total_pool_cents) / v_total_winning_votes;
+  -- Use NUMERIC division + FLOOR to prevent rounding loss/leak
+  v_reward := floor((v_user_winning_votes::numeric * v_poll.total_pool_cents::numeric) / v_total_winning_votes::numeric)::bigint;
 
   update users
     set balance = balance + v_reward,
@@ -537,6 +545,27 @@ declare
 begin
   v_now := (extract(epoch from now()))::bigint;
 
+  -- ── Input validation ──
+  if char_length(p_title) < 1 or char_length(p_title) > 200 then
+    return json_build_object('success', false, 'error', 'title_invalid_length');
+  end if;
+
+  if array_length(p_options, 1) is null or array_length(p_options, 1) < 2 then
+    return json_build_object('success', false, 'error', 'need_at_least_2_options');
+  end if;
+
+  if p_end_time <= v_now then
+    return json_build_object('success', false, 'error', 'end_time_must_be_future');
+  end if;
+
+  if p_unit_price_cents <= 0 then
+    return json_build_object('success', false, 'error', 'unit_price_must_be_positive');
+  end if;
+
+  if p_creator_investment_cents <= 0 then
+    return json_build_object('success', false, 'error', 'investment_must_be_positive');
+  end if;
+
   select * into v_user from users where wallet = p_wallet for update;
   if not found then
     return json_build_object('success', false, 'error', 'user_not_found');
@@ -587,6 +616,20 @@ $$ language plpgsql security definer;
 -- ============================================================
 -- 11. Atomic edit_poll — validates ownership & state before editing
 -- ============================================================
+-- 10b. Admin wallets config table
+-- ============================================================
+create table if not exists admin_wallets (
+  wallet text primary key
+);
+alter table admin_wallets enable row level security;
+create policy "Anyone can read admin_wallets" on admin_wallets for select using (true);
+-- Seed with the initial admin wallet
+insert into admin_wallets (wallet) values ('62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS')
+  on conflict do nothing;
+
+-- ============================================================
+-- 11. Atomic edit_poll — validates ownership/admin, updates poll
+-- ============================================================
 create or replace function edit_poll_atomic(
   p_wallet text,
   p_poll_id text,
@@ -605,10 +648,8 @@ declare
   v_is_admin boolean;
   i int;
 begin
-  -- Admin wallets list (must match ADMIN_WALLETS in constants.ts)
-  v_is_admin := p_wallet = ANY(ARRAY[
-    '62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS'
-  ]);
+  -- Check admin status from admin_wallets table
+  v_is_admin := EXISTS (SELECT 1 FROM admin_wallets WHERE wallet = p_wallet);
 
   select * into v_poll from polls where id = p_poll_id for update;
   if not found then

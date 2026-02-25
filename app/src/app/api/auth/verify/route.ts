@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import nacl from "tweetnacl";
+import { signJWT } from "@/lib/jwt";
 
 /**
  * POST /api/auth/verify
@@ -7,7 +8,7 @@ import nacl from "tweetnacl";
  * Wallet-based authentication endpoint.
  * 1. Client signs a message with their wallet private key.
  * 2. This endpoint verifies the signature using tweetnacl.
- * 3. If valid, returns a session token (wallet address) for authenticated requests.
+ * 3. If valid, returns an HMAC-SHA256 signed JWT containing the wallet address.
  *
  * Body: { walletAddress: string, signature: string, message: string }
  */
@@ -51,7 +52,6 @@ export async function POST(req: NextRequest) {
         const messageBytes = new TextEncoder().encode(message);
 
         // Decode the wallet address (base58) to public key bytes
-        // We use dynamic import to handle the ESM bs58 module
         const bs58 = await import("bs58");
         const publicKeyBytes = bs58.default.decode(walletAddress);
 
@@ -69,20 +69,22 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Authentication successful — return a session token
-        // In production, you'd issue a JWT here and set it as an httpOnly cookie
-        const sessionToken = Buffer.from(
-            JSON.stringify({
-                wallet: walletAddress,
-                issuedAt: Date.now(),
-                expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24h
-            })
-        ).toString("base64");
+        // ── Issue a proper HMAC-SHA256 JWT ──
+        const secret = process.env.AUTH_JWT_SECRET;
+        if (!secret) {
+            console.error("[Auth] AUTH_JWT_SECRET not configured");
+            return NextResponse.json(
+                { error: "Server misconfiguration — auth secret missing" },
+                { status: 500 }
+            );
+        }
+
+        const token = await signJWT({ wallet: walletAddress }, secret, 86400); // 24h
 
         return NextResponse.json({
             success: true,
             wallet: walletAddress,
-            token: sessionToken,
+            token,
         });
     } catch (error: any) {
         console.error("Auth verification error:", error);

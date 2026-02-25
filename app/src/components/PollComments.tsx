@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useApp } from "./Providers";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { authenticatedFetch } from "@/lib/apiClient";
 import { shortAddr, timeAgo } from "@/lib/utils";
 import { useUserProfiles } from "@/lib/userProfiles";
 import { sanitizeComment } from "@/lib/sanitize";
@@ -41,7 +42,7 @@ export default function PollComments({ pollId }: Props) {
       try {
         const saved = localStorage.getItem(`comments_${pollId}`);
         if (saved) setComments(JSON.parse(saved));
-      } catch {}
+      } catch { }
       setLoading(false);
       return;
     }
@@ -117,13 +118,11 @@ export default function PollComments({ pollId }: Props) {
 
     try {
       if (isSupabaseConfigured) {
-        const { error } = await supabase.rpc("insert_comment_atomic", {
-          p_id: comment.id,
+        const result = await authenticatedFetch("/api/rpc/comment", {
           p_poll_id: comment.poll_id,
-          p_wallet: comment.wallet,
           p_text: comment.text,
         });
-        if (error) throw error;
+        if (!result.success) throw new Error(result.error);
       } else {
         // localStorage fallback
         const all = [...comments, comment];

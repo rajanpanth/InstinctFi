@@ -18,6 +18,7 @@ import {
     PROGRAM_DEPLOYED,
 } from "@/lib/program";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { authenticatedFetch } from "@/lib/apiClient";
 import { isAdminWallet } from "@/lib/constants";
 import { friendlyErrorMessage, withRetry } from "@/lib/errorRecovery";
 import {
@@ -84,7 +85,7 @@ export function usePollOperations({
         if (!PROGRAM_DEPLOYED) {
             if (isSupabaseConfigured) {
                 try {
-                    await supabase.rpc("signup_user", { p_wallet: walletAddress });
+                    await authenticatedFetch("/api/rpc/signup");
                 } catch (e) {
                     console.warn("Failed to sync user to Supabase:", e);
                 }
@@ -95,8 +96,7 @@ export function usePollOperations({
                     try {
                         const devnetBal = await getWalletBalance(new PublicKey(walletAddress));
                         if (devnetBal > 0) {
-                            await supabase.rpc("credit_balance", {
-                                p_wallet: walletAddress,
+                            await authenticatedFetch("/api/rpc/credit-balance", {
                                 p_amount: devnetBal,
                             });
                         }
@@ -205,7 +205,7 @@ export function usePollOperations({
             // ── Sync to Supabase ──
             if (isSupabaseConfigured) {
                 try {
-                    await supabase.rpc("claim_daily_reward", { p_wallet: walletAddress });
+                    await authenticatedFetch("/api/rpc/claim-daily");
                 } catch { }
             }
 
@@ -261,8 +261,7 @@ export function usePollOperations({
 
                 // ── Persist to Supabase FIRST (source of truth) ──
                 if (isSupabaseConfigured) {
-                    const result = await supabase.rpc("create_poll_atomic", {
-                        p_wallet: walletAddress,
+                    const result = await authenticatedFetch("/api/rpc/create-poll", {
                         p_id: newPoll.id,
                         p_poll_id: pollId,
                         p_title: newPoll.title,
@@ -280,8 +279,8 @@ export function usePollOperations({
                         toast.error("Failed to create poll — database error.", { id: "create-poll" });
                         return null;
                     }
-                    if (result.data && !result.data.success) {
-                        const errMsg = result.data.error || "unknown";
+                    if (!result.success) {
+                        const errMsg = result.error || "unknown";
                         console.error("create_poll_atomic error:", errMsg);
                         toast.error(`Failed to create poll: ${errMsg}`, { id: "create-poll" });
                         return null;
@@ -369,8 +368,7 @@ export function usePollOperations({
                 }
 
                 if (isSupabaseConfigured) {
-                    const result = await supabase.rpc("edit_poll_atomic", {
-                        p_wallet: walletAddress,
+                    const result = await authenticatedFetch("/api/rpc/edit-poll", {
                         p_poll_id: pollId,
                         p_title: updates.title ?? poll.title,
                         p_description: updates.description ?? poll.description,
@@ -380,17 +378,11 @@ export function usePollOperations({
                         p_options: updates.options ?? poll.options,
                         p_end_time: updates.endTime ?? poll.endTime,
                     });
-                    if (result.data && !result.data.success) {
-                        console.error("edit_poll_atomic error:", result.data.error);
+                    if (!result.success) {
+                        console.error("edit_poll_atomic error:", result.error);
                         // Rollback optimistic update
                         setPolls(prev => prev.map(p => p.id === pollId ? poll : p));
-                        toast.error(`Edit failed: ${result.data.error}`, { id: "edit-poll" });
-                        return false;
-                    }
-                    if (result.error) {
-                        console.error("edit_poll_atomic RPC error:", result.error);
-                        setPolls(prev => prev.map(p => p.id === pollId ? poll : p));
-                        toast.error("Edit failed: database error", { id: "edit-poll" });
+                        toast.error(`Edit failed: ${result.error}`, { id: "edit-poll" });
                         return false;
                     }
                 }
@@ -446,13 +438,12 @@ export function usePollOperations({
 
                 let supabaseDeleteOk = true;
                 if (isSupabaseConfigured) {
-                    const result = await supabase.rpc("delete_poll_atomic", {
-                        p_wallet: walletAddress,
+                    const result = await authenticatedFetch("/api/rpc/delete-poll", {
                         p_poll_id: pollId,
                     });
-                    if (result.data && !result.data.success) {
+                    if (!result.success) {
                         supabaseDeleteOk = false;
-                        console.warn("delete_poll_atomic error:", result.data.error);
+                        console.warn("delete_poll_atomic error:", result.error);
                     }
 
                     if (!supabaseDeleteOk) {
@@ -571,8 +562,7 @@ export function usePollOperations({
                     // ── Persist to Supabase FIRST (source of truth) ──
                     if (isSupabaseConfigured) {
                         const result = await withRetry(
-                            async () => supabase.rpc("cast_vote_atomic", {
-                                p_wallet: walletAddress,
+                            async () => authenticatedFetch("/api/rpc/cast-vote", {
                                 p_poll_id: pollId,
                                 p_option_index: optionIndex,
                                 p_num_coins: numCoins,
@@ -584,8 +574,8 @@ export function usePollOperations({
                             toast.error("Vote failed — database error. Please try again.", { id: "cast-vote" });
                             return false;
                         }
-                        if (result.data && !result.data.success) {
-                            const errMsg = result.data.error || "unknown";
+                        if (!result.success) {
+                            const errMsg = result.error || "unknown";
                             console.error("cast_vote_atomic error:", errMsg);
                             toast.error(`Vote failed: ${errMsg}`, { id: "cast-vote" });
                             return false;
@@ -703,7 +693,7 @@ export function usePollOperations({
                 // ── Persist to Supabase FIRST (source of truth) ──
                 if (isSupabaseConfigured) {
                     const result = await withRetry(
-                        async () => supabase.rpc("settle_poll_atomic", {
+                        async () => authenticatedFetch("/api/rpc/settle-poll", {
                             p_poll_id: pollId,
                         }),
                         { maxAttempts: 2, baseDelayMs: 500 }
@@ -713,8 +703,8 @@ export function usePollOperations({
                         toast.error("Settlement failed — database error.", { id: "settle-poll" });
                         return false;
                     }
-                    if (result.data && !result.data.success) {
-                        const errMsg = result.data.error || "unknown";
+                    if (!result.success) {
+                        const errMsg = result.error || "unknown";
                         console.error("settle_poll_atomic error:", errMsg);
                         toast.error(`Settlement failed: ${errMsg}`, { id: "settle-poll" });
                         return false;
@@ -812,8 +802,7 @@ export function usePollOperations({
                 // ── Persist to Supabase FIRST (source of truth) ──
                 if (isSupabaseConfigured) {
                     const result = await withRetry(
-                        async () => supabase.rpc("claim_reward_atomic", {
-                            p_wallet: walletAddress,
+                        async () => authenticatedFetch("/api/rpc/claim-reward", {
                             p_poll_id: pollId,
                         }),
                         { maxAttempts: 2, baseDelayMs: 500 }
@@ -823,8 +812,8 @@ export function usePollOperations({
                         toast.error("Claim failed — database error.", { id: "claim-reward" });
                         return 0;
                     }
-                    if (result.data && !result.data.success) {
-                        const errMsg = result.data.error || "unknown";
+                    if (!result.success) {
+                        const errMsg = result.error || "unknown";
                         console.error("claim_reward_atomic error:", errMsg);
                         toast.error(`Claim failed: ${errMsg}`, { id: "claim-reward" });
                         return 0;
