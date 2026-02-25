@@ -8,7 +8,7 @@ import {
 } from "@/lib/program";
 import { createPlaceholderUser } from "@/lib/dataConverters";
 import { type UserAccount } from "@/lib/types";
-import { setAuthToken, clearAuthToken } from "@/lib/supabase";
+import { setAuthToken, clearAuthToken, isAuthTokenValid } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
@@ -122,6 +122,16 @@ export function useWalletManager(
                 if (solana?.isPhantom) {
                     const resp = await solana.connect({ onlyIfTrusted: true });
                     const addr = resp.publicKey.toString();
+
+                    // If the stored JWT is missing or expired, re-authenticate
+                    if (!isAuthTokenValid()) {
+                        const verified = await verifyWalletOwnership(resp.publicKey);
+                        if (!verified) {
+                            await solana.disconnect();
+                            return;
+                        }
+                    }
+
                     setWalletAddress(addr);
                     setWalletConnected(true);
                     ensureUserAndBalance(addr, resp.publicKey);

@@ -37,6 +37,25 @@ export function getAuthToken(): string | null {
   return null;
 }
 
+/**
+ * Check whether the stored JWT is present and not expired.
+ * Decodes the payload without cryptographic verification (that happens server-side).
+ */
+export function isAuthTokenValid(): boolean {
+  const token = getAuthToken();
+  if (!token) return false;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const now = Math.floor(Date.now() / 1000);
+    // Consider expired if less than 60 seconds remaining
+    return typeof payload.exp === "number" && payload.exp > now + 60;
+  } catch {
+    return false;
+  }
+}
+
 /** Clear the auth token (on disconnect) */
 export function clearAuthToken() {
   if (typeof window !== "undefined") {
