@@ -61,14 +61,17 @@ export function useWalletManager(
                 const data = await res.json();
                 if (data.success && data.token) {
                     setAuthToken(data.token);
+                    return true;
                 } else {
                     console.warn("Failed to get auth token:", data.error);
+                    toast.error("Authentication failed: " + (data.error || "Unknown error"));
+                    return false;
                 }
             } catch (e) {
                 console.warn("Auth token request failed:", e);
+                toast.error("Auth token request failed or server error.");
+                return false;
             }
-
-            return true;
         } catch (e: any) {
             if (e?.code === 4001 || e?.message?.includes('rejected')) {
                 toast.error('Signature rejected — please sign to verify wallet ownership');
