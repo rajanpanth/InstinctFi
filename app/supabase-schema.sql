@@ -130,9 +130,7 @@ begin
 
   insert into users (wallet, balance, signup_bonus_claimed, last_weekly_reward_ts, created_at, weekly_reset_ts, monthly_reset_ts)
   values (p_wallet, 5000000000, true, v_now, v_now, v_now, v_now)
-  on conflict (wallet) do update
-    set balance = greatest(users.balance, 5000000000)
-    where users.balance < 5000000000;
+  on conflict (wallet) do nothing;
 
   select * into v_user from users where wallet = p_wallet;
   return row_to_json(v_user);
@@ -165,7 +163,7 @@ begin
   end if;
 
   update users
-    set balance = balance + 10000,
+    set balance = balance + 2000000000,
         last_weekly_reward_ts = v_now
     where wallet = p_wallet
     returning * into v_user;
@@ -700,6 +698,7 @@ declare
   v_total_votes bigint := 0;
   v_vote record;
   v_refund_total bigint := 0;
+  v_is_admin boolean := false;
   i int;
 begin
   select * into v_poll from polls where id = p_poll_id for update;
@@ -707,7 +706,11 @@ begin
     return json_build_object('success', false, 'error', 'poll_not_found');
   end if;
 
-  if v_poll.creator != p_wallet then
+  -- Check if caller is an admin
+  select exists(select 1 from admin_wallets where wallet = p_wallet) into v_is_admin;
+
+  -- Only creator or admin can delete
+  if v_poll.creator != p_wallet and not v_is_admin then
     return json_build_object('success', false, 'error', 'not_creator');
   end if;
 
@@ -719,8 +722,19 @@ begin
     v_total_votes := v_total_votes + v_poll.vote_counts[i];
   end loop;
 
-  if v_total_votes > 0 then
+  -- Non-admin creators cannot delete polls with votes
+  if v_total_votes > 0 and not v_is_admin then
     return json_build_object('success', false, 'error', 'poll_has_votes');
+  end if;
+
+  -- Refund all voters if poll has votes (admin force-delete)
+  if v_total_votes > 0 then
+    for v_vote in select * from votes where poll_id = p_poll_id loop
+      update users
+        set balance = balance + v_vote.total_staked_cents
+        where wallet = v_vote.voter;
+      v_refund_total := v_refund_total + v_vote.total_staked_cents;
+    end loop;
   end if;
 
   -- Refund creator investment
@@ -728,7 +742,7 @@ begin
     set balance = balance + v_poll.creator_investment_cents,
         total_spent_cents = greatest(0, total_spent_cents - v_poll.creator_investment_cents),
         polls_created = greatest(0, polls_created - 1)
-    where wallet = p_wallet;
+    where wallet = v_poll.creator;
 
   -- Delete votes (cascade would handle this, but be explicit)
   delete from votes where poll_id = p_poll_id;
@@ -736,7 +750,7 @@ begin
   -- Delete poll
   delete from polls where id = p_poll_id;
 
-  return json_build_object('success', true, 'refund', v_poll.creator_investment_cents);
+  return json_build_object('success', true, 'refund', v_poll.creator_investment_cents, 'voter_refund', v_refund_total);
 end;
 $$ language plpgsql security definer;
 
@@ -865,3 +879,34 @@ begin
   return json_build_object('success', true);
 end;
 $$ language plpgsql security definer;
+
+-- ============================================================
+-- 18. Performance Indexes
+-- ============================================================
+-- These indexes speed up common query patterns used by the app.
+create index if not exists idx_votes_voter on votes(voter);
+create index if not exists idx_votes_poll_id on votes(poll_id);
+create index if not exists idx_polls_creator on polls(creator);
+create index if not exists idx_polls_status on polls(status);
+create index if not exists idx_polls_created_at on polls(created_at desc);
+create index if not exists idx_comments_poll_id on comments(poll_id);
+
+-- ============================================================
+-- TODO: Weekly/Monthly Reset Cron Job
+-- ============================================================
+-- The users table has weekly_reset_ts, monthly_reset_ts, weekly_winnings_cents,
+-- monthly_winnings_cents, weekly_spent_cents, and monthly_spent_cents columns.
+-- These are currently only reset client-side via withFreshPeriods() in dataConverters.ts.
+--
+-- For accurate leaderboards, set up a Supabase Edge Function cron job or pg_cron:
+--
+-- Weekly (every Monday at 00:00 UTC):
+--   UPDATE users SET weekly_winnings_cents = 0, weekly_spent_cents = 0,
+--     weekly_reset_ts = (extract(epoch from now()) * 1000)::bigint
+--     WHERE weekly_reset_ts < (extract(epoch from now()) * 1000)::bigint - 604800000;
+--
+-- Monthly (1st of each month at 00:00 UTC):
+--   UPDATE users SET monthly_winnings_cents = 0, monthly_spent_cents = 0,
+--     monthly_reset_ts = (extract(epoch from now()) * 1000)::bigint
+--     WHERE monthly_reset_ts < (extract(epoch from now()) * 1000)::bigint - 2592000000;
+

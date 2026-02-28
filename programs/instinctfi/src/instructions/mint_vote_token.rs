@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, MintTo};
-use crate::state::PollAccount;
+use crate::state::{PollAccount, VoteAccount};
 use crate::errors::InstinctFiError;
 
 /// Mint a "Vote Receipt" NFT to a voter using SPL Token.
@@ -12,9 +12,23 @@ use crate::errors::InstinctFiError;
 /// Uses the SPL Token program via anchor-spl for on-chain vote receipts.
 pub fn handler(ctx: Context<MintVoteToken>, _poll_id: u64) -> Result<()> {
     let poll = &ctx.accounts.poll_account;
+    let vote = &ctx.accounts.vote_account;
 
     // Guard: poll must be active
     require!(poll.is_active(), InstinctFiError::PollNotActive);
+
+    // Guard: voter must have actually voted (VoteAccount must exist and belong to caller)
+    require!(
+        vote.voter == ctx.accounts.voter.key(),
+        InstinctFiError::Unauthorized
+    );
+    require!(
+        vote.poll == ctx.accounts.poll_account.key(),
+        InstinctFiError::Unauthorized
+    );
+    // Ensure voter has actually cast at least one vote
+    let total_votes: u64 = vote.votes_per_option.iter().sum();
+    require!(total_votes > 0, InstinctFiError::Unauthorized);
 
     // Mint exactly 1 token (NFT-like receipt) to the voter's token account
     let poll_key = ctx.accounts.poll_account.key();
@@ -67,6 +81,14 @@ pub struct MintVoteToken<'info> {
         bump = poll_account.bump,
     )]
     pub poll_account: Account<'info, PollAccount>,
+
+    /// The voter's VoteAccount for this poll — proves they actually voted.
+    /// Must exist (created by cast_vote) and match the poll+voter combination.
+    #[account(
+        seeds = [b"vote", poll_account.key().as_ref(), voter.key().as_ref()],
+        bump = vote_account.bump,
+    )]
+    pub vote_account: Account<'info, VoteAccount>,
 
     /// SPL Token mint for this vote receipt.
     /// PDA seeds: ["vote_mint", poll_account, voter, poll_id]

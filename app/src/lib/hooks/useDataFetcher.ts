@@ -104,23 +104,8 @@ export function useDataFetcher(
                     fetchAllUsers(),
                 ]);
 
-                let optionImagesMap: Record<string, string[]> = {};
-                if (isSupabaseConfigured) {
-                    try {
-                        const { data } = await supabase
-                            .from("poll_images")
-                            .select("poll_pda, option_images");
-                        if (data) {
-                            for (const row of data) {
-                                optionImagesMap[row.poll_pda] = row.option_images || [];
-                            }
-                        }
-                    } catch { }
-                }
-                optionImagesCache.current = optionImagesMap;
-
                 const demoPolls = onChainPolls.map((p) =>
-                    onChainPollToDemo(p, optionImagesMap[p.address.toString()])
+                    onChainPollToDemo(p)
                 );
 
                 const usersWithBalances = await Promise.all(
@@ -155,15 +140,16 @@ export function useDataFetcher(
                 // Demo mode
                 if (isSupabaseConfigured) {
                     try {
-                        const [pollsRes, votesRes, usersRes] = await Promise.all([
+                        // Fetch polls and votes
+                        const [pollsRes, votesRes] = await Promise.all([
                             supabase.from("polls").select("*").order("created_at", { ascending: false }),
                             supabase.from("votes").select("*"),
-                            supabase.from("users").select("*"),
                         ]);
+
                         if (pollsRes.data) {
                             const fetched = pollsRes.data.map(rowToDemoPoll);
                             const filtered = tracker.deletedPollIds.current.size > 0
-                                ? fetched.filter(p => !tracker.deletedPollIds.current.has(p.id))
+                                ? fetched.filter((p: DemoPoll) => !tracker.deletedPollIds.current.has(p.id))
                                 : fetched;
 
                             if (gen === tracker.mutationGeneration.current) {
@@ -173,25 +159,30 @@ export function useDataFetcher(
                         if (votesRes.data && gen === tracker.mutationGeneration.current) {
                             setVotes(votesRes.data.map(rowToDemoVote));
                         }
-                        if (usersRes.data && gen === tracker.mutationGeneration.current) {
-                            const supaUsers: UserAccount[] = usersRes.data.map(rowToUserAccount);
-                            setUsers(supaUsers);
+
+                        // Only fetch the current user's row (not all users) to prevent
+                        // financial data leakage via browser devtools (#14).
+                        if (walletAddress && gen === tracker.mutationGeneration.current) {
+                            const usersRes = await supabase
+                                .from("users")
+                                .select("*")
+                                .eq("wallet", walletAddress)
+                                .single();
+                            if (usersRes.data) {
+                                const currentUser = rowToUserAccount(usersRes.data);
+                                setUsers(prev => {
+                                    const others = prev.filter(u => u.wallet !== walletAddress);
+                                    return [...others, currentUser];
+                                });
+                            }
                         }
                     } catch (e) {
                         console.warn("Failed to load from Supabase:", e);
                     }
                 }
 
-                if (PROGRAM_DEPLOYED && walletAddress) {
-                    try {
-                        const bal = await getWalletBalance(new PublicKey(walletAddress));
-                        setUsers(prev => prev.map(u =>
-                            u.wallet === walletAddress ? { ...u, balance: bal } : u
-                        ));
-                    } catch { }
-                }
-
-                if (!PROGRAM_DEPLOYED && walletAddress) {
+                // Fetch wallet balance for current user if balance is 0
+                if (walletAddress) {
                     const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
                     if (currentUser && currentUser.balance === 0) {
                         try {

@@ -9,7 +9,8 @@ mod settlement_program_id {
 }
 
 /// CPI-callable instruction: marks a vote as claimed and sets the reward amount.
-/// Only the settlement_program may call this via CPI — enforced by caller_program constraint.
+/// Only the settlement_program may call this via CPI — enforced by requiring a PDA
+/// signer that only the settlement_program can produce via invoke_signed.
 pub fn handler(
     ctx: Context<MarkClaimed>,
     _poll_id: u64,
@@ -45,7 +46,14 @@ pub struct MarkClaimed<'info> {
     )]
     pub vote_account: Account<'info, VoteAccount>,
 
-    /// CHECK: The calling program — must be the settlement_program.
-    #[account(address = settlement_program_id::ID)]
-    pub caller_program: AccountInfo<'info>,
+    /// CPI authority PDA from settlement_program — proves CPI origin.
+    /// Only settlement_program can sign for seeds [b"cpi_authority"] via invoke_signed.
+    /// CHECK: Verified by seeds constraint against settlement_program ID.
+    #[account(
+        seeds = [b"cpi_authority"],
+        bump,
+        seeds::program = settlement_program_id::ID,
+    )]
+    pub cpi_authority: Signer<'info>,
 }
+

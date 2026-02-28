@@ -9,7 +9,8 @@ mod vote_program_id {
 }
 
 /// CPI-callable instruction: records a vote on a poll.
-/// Only the vote_program may call this via CPI — enforced by caller_program constraint.
+/// Only the vote_program may call this via CPI — enforced by requiring a PDA
+/// signer that only the vote_program can produce via invoke_signed.
 pub fn handler(
     ctx: Context<RecordVote>,
     _poll_id: u64,
@@ -56,8 +57,13 @@ pub struct RecordVote<'info> {
     )]
     pub poll_account: Account<'info, PollAccount>,
 
-    /// CHECK: The calling program — must be the vote_program.
-    /// This prevents unauthorized programs or direct calls from manipulating vote counts.
-    #[account(address = vote_program_id::ID)]
-    pub caller_program: AccountInfo<'info>,
+    /// CPI authority PDA from vote_program — proves CPI origin.
+    /// Only vote_program can sign for seeds [b"cpi_authority"] via invoke_signed.
+    /// CHECK: Verified by seeds constraint against vote_program ID.
+    #[account(
+        seeds = [b"cpi_authority"],
+        bump,
+        seeds::program = vote_program_id::ID,
+    )]
+    pub cpi_authority: Signer<'info>,
 }

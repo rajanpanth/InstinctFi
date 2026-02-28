@@ -9,8 +9,6 @@ import { formatSOL, formatSOLShort } from "@/lib/program";
 /** SOL_UNIT converts user-facing SOL values to lamports (1 SOL = 1e9 lamports) */
 export const SOL_UNIT = LAMPORTS_PER_SOL;
 
-/** @deprecated Use SOL_UNIT instead. Kept for backward compat. */
-export const CENTS = SOL_UNIT;
 
 /** Maximum coins a single user can stake on one poll */
 export const MAX_COINS_PER_POLL = 100;
@@ -49,6 +47,7 @@ export type DemoPoll = {
   imageUrl: string;
   optionImages: string[];        // Off-chain only (Supabase)
   options: string[];
+  /** Vote counts per option — length MUST equal options.length */
   voteCounts: number[];
   unitPriceCents: number;        // LAMPORTS per option-coin
   endTime: number;               // Unix timestamp
@@ -65,6 +64,7 @@ export type DemoPoll = {
 export type DemoVote = {
   pollId: string;                // Poll PDA address (base58)
   voter: string;                 // Voter wallet address
+  /** Votes placed per option — length MUST equal poll's options.length */
   votesPerOption: number[];
   totalStakedCents: number;      // LAMPORTS total staked
   claimed: boolean;
@@ -95,6 +95,7 @@ export type UserAccount = {
   weeklyResetTs: number;
   monthlyResetTs: number;
   createdAt: number;
+  loginStreak: number;
 };
 
 export type AppContextType = {

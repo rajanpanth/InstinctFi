@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -12,10 +12,13 @@ if (!isSupabaseConfigured) {
   );
 }
 
-/** Public (anonymous) Supabase client — used for reads and unauthenticated operations */
+/** Public (anonymous) Supabase client — used for reads and unauthenticated operations.
+ *  When env vars are missing (offline/demo mode), requests go to localhost:0
+ *  which fails instantly (connection refused) — no DNS leaks, no slow timeouts.
+ *  All write callsites check `isSupabaseConfigured` before using this client. */
 export const supabase = createClient(
-  supabaseUrl || "https://placeholder.supabase.co",
-  supabaseAnonKey || "placeholder-key"
+  supabaseUrl || "http://localhost:0",
+  supabaseAnonKey || "missing-key"
 );
 
 // ── Authenticated client ────────────────────────────────────────────────
@@ -63,19 +66,33 @@ export function clearAuthToken() {
   }
 }
 
+// ── Cached authenticated client ──────────────────────────────────────────
+// Reuse the same Supabase client as long as the token hasn't changed,
+// avoiding connection pool leaks from creating a new client each call.
+let _cachedAuthClient: SupabaseClient | null = null;
+let _cachedAuthToken: string | null = null;
+
 /**
- * Create an authenticated Supabase client using the wallet auth token.
+ * Create (or return cached) authenticated Supabase client using the wallet auth token.
  * Falls back to the anonymous client if no token is available.
  */
-export function createAuthenticatedClient() {
+export function createAuthenticatedClient(): SupabaseClient {
   const token = getAuthToken();
   if (!token || !isSupabaseConfigured) return supabase;
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  // Return cached client if token hasn't changed
+  if (_cachedAuthClient && _cachedAuthToken === token) {
+    return _cachedAuthClient;
+  }
+
+  _cachedAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: {
       headers: {
         "x-instinctfi-auth": token,
       },
     },
   });
+  _cachedAuthToken = token;
+
+  return _cachedAuthClient;
 }

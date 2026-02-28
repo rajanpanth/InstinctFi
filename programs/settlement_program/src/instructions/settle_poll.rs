@@ -36,9 +36,11 @@ pub fn handler(
     let cpi_accounts = poll_program::cpi::accounts::SettlePollCpi {
         settler: ctx.accounts.settler.to_account_info(),
         poll_account: ctx.accounts.poll_account.to_account_info(),
-        caller_program: ctx.accounts.settlement_program_id.to_account_info(),
+        cpi_authority: ctx.accounts.cpi_authority.to_account_info(),
     };
-    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    let seeds = &[b"cpi_authority".as_ref(), &[ctx.bumps.cpi_authority]];
+    let signer_seeds = &[&seeds[..]];
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
     poll_program::cpi::settle_poll_cpi(cpi_ctx, poll_id, winning_idx)?;
 
     msg!(
@@ -74,9 +76,13 @@ pub struct SettlePoll<'info> {
     #[account(address = poll_program::ID)]
     pub poll_program: AccountInfo<'info>,
 
-    /// CHECK: this program's own ID — passed as caller_program for CPI verification
-    #[account(address = crate::ID)]
-    pub settlement_program_id: AccountInfo<'info>,
+    /// CPI authority PDA for this program — used to prove CPI origin to poll_program
+    /// CHECK: PDA derived from this program's seeds [b"cpi_authority"]
+    #[account(
+        seeds = [b"cpi_authority"],
+        bump,
+    )]
+    pub cpi_authority: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
 }

@@ -54,4 +54,6 @@ pub enum InstinctFiError {
     NotAWinner,
     #[msg("Treasury has insufficient funds")]
     TreasuryInsufficient,
+    #[msg("Unauthorized: caller does not have permission")]
+    Unauthorized,
 }

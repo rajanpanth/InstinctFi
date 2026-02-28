@@ -1,0 +1,513 @@
+================================================================================
+  INSTINCTFI — FULL WEBSITE AUDIT REPORT
+  Generated: February 26, 2026
+================================================================================
+
+TABLE OF CONTENTS
+─────────────────
+  1. CRITICAL Issues (5)
+  2. HIGH Severity Issues (15)
+  3. MEDIUM Severity Issues (30)
+  4. LOW Severity Issues (21)
+  5. Top Recommendations (Priority Order)
+
+Total Issues Found: 71
+
+
+================================================================================
+  1. CRITICAL ISSUES — Fix Immediately
+================================================================================
+
+#1  Broken CPI Caller Verification (record_vote)
+    File: programs/poll_program/src/instructions/record_vote.rs
+    ──────────────────────────────────────────────────────────────
+    #[account(address = vote_program_id::ID)] only checks the account pubkey,
+    NOT that the instruction was invoked via CPI from that program. Any user
+    can call record_vote directly and inflate vote counts on any poll without
+    spending funds.
+    FIX: Use a PDA owned by vote_program as a signer to prove CPI origin.
+
+#2  Broken CPI Caller Verification (settle_cpi)
+    File: programs/poll_program/src/instructions/settle_cpi.rs
+    ──────────────────────────────────────────────────────────────
+    Same broken pattern. Anyone can settle any poll with any winning_option
+    of their choice, completely breaking the prediction market.
+    FIX: Use a PDA signer from the settlement_program.
+
+#3  Unlimited Balance Minting
+    File: app/src/app/api/rpc/credit-balance/route.ts
+    ──────────────────────────────────────────────────────────────
+    Any authenticated user can call credit_balance with any p_amount. No
+    server-side cap or admin restriction. Users can credit themselves
+    unlimited funds.
+    FIX: Restrict to admin-only, or tie to a verified Solana transaction
+    with amount cap.
+
+#4  Admin Check is Client-Side Only
+    File: app/src/app/admin/page.tsx
+    ──────────────────────────────────────────────────────────────
+    isAdminWallet() is a UI gate using a hardcoded constant. If Supabase
+    RPC functions don't independently enforce admin authorization, any user
+    can settle/delete/edit polls by calling the API directly.
+    FIX: Enforce admin authorization in every Supabase RPC function
+    server-side.
+
+#5  Placeholder Supabase Client
+    File: app/src/lib/supabase.ts
+    ──────────────────────────────────────────────────────────────
+    When env vars are missing, HTTP requests go to
+    "https://placeholder.supabase.co", causing slow timeouts and DNS leaks
+    instead of failing fast.
+    FIX: Throw an error at startup if env vars are missing, or return null
+    and check before every call.
+
+
+================================================================================
+  2. HIGH SEVERITY ISSUES
+================================================================================
+
+#6  Hardcoded Devnet Cluster
+    File: app/src/components/WalletAdapterProvider.tsx (line 25)
+    ──────────────────────────────────────────────────────────────
+    clusterApiUrl("devnet") is hardcoded. Deploying to mainnet will silently
+    connect to devnet RPC, causing every transaction to fail.
+    FIX: Use RPC_URL / CLUSTER from program.base.ts or environment variable.
+
+#7  Division by Zero in Reward Calculation
+    File: app/src/components/PollCard.tsx (lines 102-108)
+    ──────────────────────────────────────────────────────────────
+    poll.voteCounts[poll.winningOption] can be 0, producing Infinity/NaN.
+    FIX: Add guard: if (denominator === 0) return 0;
+
+#8  No JWT Refresh
+    File: app/src/lib/apiClient.ts
+    ──────────────────────────────────────────────────────────────
+    Expired tokens silently kill write operations with no user prompt or
+    auto-refresh. Users lose the ability to perform actions mid-session.
+    FIX: Implement auto-refresh before expiry or prompt re-sign.
+
+#9  New Supabase Client on Every createAuthenticatedClient() Call
+    File: app/src/lib/supabase.ts (lines 68-78)
+    ──────────────────────────────────────────────────────────────
+    Each invocation allocates a new client with its own connection pool.
+    Leaks connections and memory.
+    FIX: Cache/reuse authenticated clients keyed by token.
+
+#10 Auth Timestamp Check is Optional
+    File: app/src/app/api/auth/verify/route.ts
+    ──────────────────────────────────────────────────────────────
+    Messages without a Timestamp: field bypass replay protection entirely.
+    Attackers can replay captured signatures forever.
+    FIX: Reject messages that don't include a valid timestamp.
+
+#11 Zero Server-Side Input Validation on All RPC Routes
+    Files: app/src/app/api/rpc/*/route.ts (all routes)
+    ──────────────────────────────────────────────────────────────
+    body.p_poll_id, body.p_option_index, body.p_num_coins, etc. are passed
+    directly to Supabase with no type or range checks.
+    FIX: Use zod schemas (already in schemas.ts) to validate every field
+    before calling Supabase RPCs.
+
+#12 No Admin/Ownership Check at API Layer
+    Files: api/rpc/settle-poll, delete-poll, edit-poll
+    ──────────────────────────────────────────────────────────────
+    Relies entirely on Supabase RPC for authorization. If the RPC doesn't
+    enforce it, any user can settle/delete/edit any poll.
+    FIX: Add server-side admin/ownership verification before RPC calls.
+
+#13 Health Endpoint Information Disclosure
+    File: app/src/app/api/health/route.ts
+    ──────────────────────────────────────────────────────────────
+    Unauthenticated endpoint reveals which env vars are configured. Attackers
+    can fingerprint the deployment.
+    FIX: Remove env var checks from response, or restrict to admin.
+
+#14 All Users' Financial Data Sent to Every Client
+    File: app/src/components/Providers.tsx
+    ──────────────────────────────────────────────────────────────
+    useApp() loads ALL polls, votes, and users. Any user can read every other
+    user's balance/winnings via browser devtools.
+    FIX: Implement server-side pagination and only send current user's data.
+
+#15 No Authorization Check on Mint Vote Token
+    File: programs/instinctfi/src/instructions/mint_vote_token.rs
+    ──────────────────────────────────────────────────────────────
+    Any signer can mint a vote receipt NFT without having voted. Only checks
+    poll.is_active(), not that caller has a VoteAccount.
+    FIX: Verify VoteAccount existence and ownership before minting.
+
+#16 Placeholder Program IDs in All Solana Programs
+    Files: All programs (instinctfi, poll_program, vote_program, etc.)
+    ──────────────────────────────────────────────────────────────
+    Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS (Anchor default) and
+    fake multi-program IDs. Deploying with these will conflict or fail.
+    FIX: Generate real keypairs and update all program IDs before deployment.
+
+#17 Reset-After-Credit Ordering Bug
+    File: programs/user_program/src/instructions/credit_balance.rs
+    ──────────────────────────────────────────────────────────────
+    maybe_reset_weekly() and maybe_reset_monthly() are called AFTER adding
+    the reward. Freshly credited amounts get zeroed at period boundaries.
+    FIX: Call resets BEFORE crediting rewards.
+
+#18 Service Role Key Falls Back to Anon Key
+    File: app/src/lib/supabaseAdmin.ts
+    ──────────────────────────────────────────────────────────────
+    If SUPABASE_SERVICE_ROLE_KEY isn't set, the "admin" client silently uses
+    the anon key. Admin API routes may run with reduced permissions with no
+    error.
+    FIX: Throw an error if service role key is missing in production.
+
+#19 Potential XSS via resolutionProof
+    File: app/src/app/polls/[id]/page.tsx (line 243)
+    ──────────────────────────────────────────────────────────────
+    resolutionProof rendered as <a href={resolutionProof}>. If a javascript:
+    URL is stored, it could execute.
+    FIX: Use sanitizeUrl() to validate the URL before rendering.
+
+#20 Hardcoded Admin Wallet
+    File: app/src/lib/constants.ts (lines 7-9)
+    ──────────────────────────────────────────────────────────────
+    If the key is compromised, changing admin requires a code redeploy.
+    FIX: Fetch admin list from API/env var, or rely solely on Supabase
+    admin_wallets table.
+
+
+================================================================================
+  3. MEDIUM SEVERITY ISSUES
+================================================================================
+
+#21 Race Condition on Auto-Signup
+    File: app/src/components/Providers.tsx (lines 113-117)
+    No mutex on signup(). Rapid wallet reconnects can interleave.
+
+#22 Context Value Not Memoized
+    File: app/src/components/Providers.tsx (lines 120-141)
+    Object literal re-created every render. Wrap in useMemo.
+
+#23 Unbounded JSON.parse from localStorage
+    File: app/src/components/Providers.tsx (lines 61-67)
+    No schema validation on cached data. Corrupt data causes crashes.
+
+#24 Missing Keyboard/Focus Trap on Modals
+    File: app/src/components/Navbar.tsx
+    No role="dialog", aria-modal, or Escape key handler. Screen-reader
+    users cannot interact properly.
+
+#25 More-Menu State Leaks Across Viewport Resize
+    File: app/src/components/Navbar.tsx
+    Mobile overlay remains on desktop after resize.
+
+#26 Percentage Normalization Only for 2-Option Polls
+    File: app/src/components/PollCard.tsx (lines 89-90)
+    3+ option polls can show totals summing to 99% or 101%.
+
+#27 Legal Links Point to #
+    File: app/src/components/Footer.tsx (lines 26-30)
+    "Terms of Service", "Privacy Policy", "Documentation" are placeholder
+    links. Misleading for users and problematic for crawlers.
+
+#28 Hardcoded "Devnet" Badge
+    File: app/src/components/Footer.tsx (line 147)
+    Always shows "Devnet" regardless of actual cluster.
+
+#29 Error Messages Exposed to Users
+    File: app/src/components/ErrorBoundary.tsx (line 50)
+    Stack traces and internal paths can leak. Show generic message instead.
+
+#30 No Error Reporting/Telemetry
+    File: app/src/components/ErrorBoundary.tsx
+    Only logs to console.error. Production errors vanish silently.
+    Integrate Sentry or similar.
+
+#31 No Request Timeout
+    File: app/src/lib/apiClient.ts
+    No AbortController. Hung backend leaves client waiting forever.
+
+#32 No Retry Logic
+    File: app/src/lib/apiClient.ts
+    Transient 502/503 errors immediately fail with "network_error".
+
+#33 res.json() Without Content-Type Check
+    File: app/src/lib/apiClient.ts (line 43)
+    HTML error pages throw "Unexpected token <" errors.
+
+#34 In-Memory Rate Limiter Not Production-Safe
+    File: app/src/app/api/rpc/_handler.ts
+    Resets on cold starts, per-instance in serverless. Use Redis.
+
+#35 setInterval in Module Scope
+    File: app/src/app/api/rpc/_handler.ts (line 37)
+    Interferes with serverless instance recycling.
+
+#36 No Comment Text Validation
+    File: app/src/app/api/rpc/comment/route.ts
+    No length limit or content sanitization at API layer.
+
+#37 Weak Auth Message Format
+    File: app/src/app/api/auth/verify/route.ts
+    Only checks message.includes(walletAddress). No domain binding.
+    Consider SIWS (Sign-In With Solana).
+
+#38 XSS in Embed Code Generation
+    File: app/src/components/ShareButton.tsx (line 41)
+    Poll title interpolated into HTML attribute without escaping. Quotes
+    in titles break out of the attribute.
+
+#39 Client-Side-Only Comment Rate Limiting
+    File: app/src/components/PollComments.tsx
+    30-second cooldown bypassed by calling API directly.
+
+#40 Push Notification URL Not Validated
+    File: app/public/sw.js (line 102)
+    Malicious push notification could redirect to phishing sites.
+    Validate same-origin.
+
+#41 Regex-Based HTML Stripping is Fragile
+    File: app/src/lib/sanitize.ts
+    /<[^>]*>/g doesn't handle malformed tags. Use DOMPurify.
+
+#42 JS Number Truncation for u64 Values
+    File: app/src/lib/schemas.ts
+    poll_id: z.number() loses precision above 2^53-1. Use z.string()
+    or z.coerce.bigint().
+
+#43 No Token Revocation
+    File: app/src/lib/jwt.ts
+    Stolen tokens remain valid for 24h. No blacklist mechanism.
+
+#44 Naming Confusion (*Cents = lamports)
+    File: app/src/lib/types.ts
+    Fields named totalPoolCents, unitPriceCents actually hold lamports.
+    Major maintainability hazard for future developers.
+
+#45 All Polls Loaded Client-Side
+    File: app/src/app/polls/page.tsx
+    No server-side pagination. Will degrade with data growth.
+
+#46 Logic Bug: mainOption Comparison
+    File: app/src/app/portfolio/page.tsx (line 55)
+    if (coins > mainOption) compares coins against option INDEX, not
+    mainCoins. Should be: if (coins > mainCoins).
+
+#47 Division by Zero in P&L Calculation
+    File: app/src/app/portfolio/page.tsx (line 73)
+    mainCoins / totalWinning can be division by zero.
+
+#48 No Platform-Fee Withdrawal Mechanism
+    File: programs/instinctfi/src/instructions/create_poll.rs
+    Platform fees permanently locked in treasury PDA.
+
+#49 Dust Accumulation from Integer Rounding
+    File: programs/instinctfi/src/instructions/claim_reward.rs
+    Residual lamports permanently locked in treasury.
+
+#50 3 More Broken CPI Auth Instructions
+    Files: user_program/credit_balance, debit_balance,
+           vote_program/mark_claimed
+    Same broken #[account(address = ...)] pattern. Anyone can call directly.
+
+
+================================================================================
+  4. LOW SEVERITY ISSUES
+================================================================================
+
+#51 Dead import of `toast` in Navbar.tsx
+    react-hot-toast imported but no toast.* call exists in the file.
+
+#52 Non-null assertion on walletAddress
+    File: app/src/components/Navbar.tsx (line 163)
+    shortAddr(walletAddress!) — should use type narrowing instead of !.
+
+#53 onDeleted={() => {}} No-Op Callback
+    File: app/src/components/PollCard.tsx (line 141)
+    DeletePollModal receives empty callback. Nothing happens after
+    deletion from card view.
+
+#54 External Placeholder Links
+    File: app/src/components/Footer.tsx
+    github.com/instinctfi, x.com/instinctfi may not exist → 404s.
+
+#55 Hardcoded Year "2026" in Footer
+    File: app/src/components/Footer.tsx
+    Will cause hydration mismatch in 2027. Use dynamic value.
+
+#56 ErrorBoundary Retry Loop Not Debounced
+    File: app/src/components/ErrorBoundary.tsx
+    Synchronous throws create rapid error→retry→error loop.
+
+#57 ErrorBoundary Fallback Uses Wrong Color Tokens
+    File: app/src/components/ErrorBoundary.tsx
+    Uses text-gray-* instead of design system text-neutral-*.
+
+#58 Generic "network_error" String in apiClient
+    File: app/src/lib/apiClient.ts
+    Callers can't distinguish DNS failure, timeout, CORS, or server error.
+
+#59 No Request Deduplication
+    File: app/src/lib/apiClient.ts
+    Double-click sends duplicate requests. Add debounce.
+
+#60 Empty Wallets Array
+    File: app/src/components/WalletAdapterProvider.tsx
+    Non-standard/older wallets (Glow, Slope) won't appear in modal.
+
+#61 "Trending" in CATEGORY_META but Not in CATEGORIES
+    File: app/src/lib/constants.ts
+    Dual source of truth. Easy to drift between the two.
+
+#62 Untyped voteCounts/votesPerOption Arrays
+    File: app/src/lib/types.ts
+    No length constraint to match options.length. Array access can
+    silently return undefined.
+
+#63 Deprecated CENTS Alias Still Re-exported
+    File: app/src/lib/types.ts + Providers.tsx
+    @deprecated alias still exported; should be removed.
+
+#64 Silent Overflow Saturation in User Program
+    File: programs/user_program/src/state.rs
+    unwrap_or(u64::MAX) silently caps instead of returning error.
+
+#65 Missing iss/aud JWT Claims
+    File: app/src/lib/jwt.ts
+    No issuer or audience claims. Risk of token reuse across services.
+
+#66 overflow-x: clip Limited Browser Support
+    File: app/src/app/globals.css (line 72)
+    Not supported in Safari < 16. Use overflow-x: hidden as fallback.
+
+#67 PWA Manifest Icon Purpose Should Be Split
+    File: app/public/manifest.json
+    "purpose": "any maskable" should be separate icon entries per W3C spec.
+
+#68 Missing Raster Icon Validation
+    File: app/public/manifest.json
+    References /icon-192.png and /icon-512.png — may not exist in public/.
+
+#69 Tie Resolution Undocumented
+    File: programs/instinctfi/src/instructions/settle_poll.rs
+    Ties go to lower index. Not documented on-chain or in UI.
+
+#70 PRECACHE_URLS May Cache Dynamic Routes
+    File: app/public/sw.js
+    Caching /polls, /create as static may serve stale HTML shells.
+
+#71 Verbose Env Key Logging in Auth
+    File: app/src/app/api/auth/verify/route.ts (line 76)
+    Server logs all env keys matching AUTH, JWT, SECRET. Key names could
+    leak to third-party logging services.
+
+
+================================================================================
+  5. TOP RECOMMENDATIONS (Priority Order)
+================================================================================
+
+PRIORITY 1 — SECURITY (Do Before Any Deployment)
+─────────────────────────────────────────────────
+  1. Fix CPI caller verification in ALL multi-program instructions.
+     Use PDA signers to prove cross-program invocation, not address
+     checks on read-only accounts. (Fixes #1, #2, #50)
+
+  2. Add server-side input validation on ALL RPC API routes.
+     Use zod schemas (already in schemas.ts) to validate every field
+     before calling Supabase RPCs. (Fixes #11)
+
+  3. Restrict credit-balance to admin-only or tie it to a verified
+     Solana transaction. (Fixes #3)
+
+  4. Make auth timestamp mandatory and reject messages without it.
+     (Fixes #10)
+
+  5. Enforce admin authorization in Supabase RPC functions, not just
+     in the client UI. (Fixes #4, #12)
+
+  6. Sanitize all user-generated URLs with sanitizeUrl(). HTML-escape
+     poll titles in embed code. (Fixes #19, #38)
+
+  7. Remove or restrict /api/health endpoint. (Fixes #13)
+
+  8. Validate push notification URLs are same-origin. (Fixes #40)
+
+
+PRIORITY 2 — DATA & PERFORMANCE
+────────────────────────────────
+  9. Implement server-side pagination. Stop loading all polls/users/votes
+     into every client. (Fixes #14, #45)
+
+ 10. Add useMemo to Provider context value to prevent cascading
+     re-renders. (Fixes #22)
+
+ 11. Cache/reuse Supabase authenticated clients instead of creating new
+     ones per call. (Fixes #9)
+
+ 12. Add request timeout (AbortController) and retry logic to
+     apiClient.ts. (Fixes #31, #32)
+
+
+PRIORITY 3 — INFRASTRUCTURE
+────────────────────────────
+ 13. Replace hardcoded devnet cluster with shared CLUSTER config from
+     environment. (Fixes #6, #28)
+
+ 14. Generate real Solana program IDs before deployment. (Fixes #16)
+
+ 15. Implement JWT refresh flow. Auto-refresh before expiry or prompt
+     re-sign. (Fixes #8)
+
+ 16. Add error telemetry (Sentry/LogRocket). (Fixes #30)
+
+ 17. Fix service role key fallback — throw in production if missing.
+     (Fixes #18)
+
+
+PRIORITY 4 — BUGS
+──────────────────
+ 18. Guard ALL division operations with denominator === 0 checks.
+     (Fixes #7, #47)
+
+ 19. Fix mainOption logic bug in portfolio/page.tsx.
+     Change: if (coins > mainOption) → if (coins > mainCoins)
+     (Fixes #46)
+
+ 20. Fix reset-before-credit ordering in user_program. (Fixes #17)
+
+ 21. Fix Supabase placeholder client — throw at startup if env vars
+     missing. (Fixes #5)
+
+
+PRIORITY 5 — ACCESSIBILITY & UX
+────────────────────────────────
+ 22. Add focus trapping, role="dialog", aria-modal, and Escape key
+     handlers to all modals. (Fixes #24)
+
+ 23. Create actual legal pages for Terms/Privacy. (Fixes #27)
+
+ 24. Use DOMPurify instead of regex-based HTML stripping. (Fixes #41)
+
+ 25. Add schema validation to all localStorage JSON.parse calls.
+     (Fixes #23)
+
+
+================================================================================
+  SUMMARY
+================================================================================
+
+  Critical:  5 issues
+  High:     15 issues
+  Medium:   30 issues
+  Low:      21 issues
+  ─────────────────
+  Total:    71 issues
+
+  Top concerns:
+  • Solana programs have fundamentally broken CPI verification — anyone
+    can manipulate votes and settle polls.
+  • API routes have no input validation and missing authorization checks.
+  • credit-balance endpoint allows unlimited fund minting.
+  • All user data is exposed to every client.
+  • Hardcoded devnet configuration will break mainnet deployment.
+
+================================================================================
+  END OF REPORT
+================================================================================

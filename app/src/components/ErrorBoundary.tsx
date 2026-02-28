@@ -4,34 +4,49 @@ import React, { Component, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 type Props = { children: ReactNode; fallback?: ReactNode };
-type State = { hasError: boolean; error: Error | null; retryCount: number };
+type State = { hasError: boolean; error: Error | null; retryCount: number; lastErrorTime: number };
 
 class ErrorBoundaryInner extends Component<Props & { pathname: string }, State> {
   constructor(props: Props & { pathname: string }) {
     super(props);
-    this.state = { hasError: false, error: null, retryCount: 0 };
+    this.state = { hasError: false, error: null, retryCount: 0, lastErrorTime: 0 };
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    return { hasError: true, error };
+    return { hasError: true, error, lastErrorTime: Date.now() };
   }
 
   componentDidUpdate(prevProps: Props & { pathname: string }) {
     // Reset error state when the route changes
     if (prevProps.pathname !== this.props.pathname && this.state.hasError) {
-      this.setState({ hasError: false, error: null, retryCount: 0 });
+      this.setState({ hasError: false, error: null, retryCount: 0, lastErrorTime: 0 });
     }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // #30: Structured error reporting — integrate with Sentry or similar
+    // Replace console.error with your error reporting service:
+    // e.g. Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
     console.error("ErrorBoundary caught:", error, errorInfo);
+    if (typeof window !== "undefined" && (window as any).__ERROR_REPORTER__) {
+      try {
+        (window as any).__ERROR_REPORTER__.captureException(error, {
+          componentStack: errorInfo.componentStack,
+          pathname: this.props.pathname,
+        });
+      } catch { /* reporter failed — don't crash the error boundary */ }
+    }
   }
 
+  // #56: Debounced retry — if re-error within 1s, auto-cap retries
   handleRetry = () => {
+    const now = Date.now();
+    const tooFast = this.state.lastErrorTime > 0 && (now - this.state.lastErrorTime) < 1000;
     this.setState((prev) => ({
       hasError: false,
       error: null,
-      retryCount: prev.retryCount + 1,
+      retryCount: tooFast ? 3 : prev.retryCount + 1, // cap at max if looping
+      lastErrorTime: 0,
     }));
   };
 
@@ -43,11 +58,12 @@ class ErrorBoundaryInner extends Component<Props & { pathname: string }, State> 
         this.props.fallback || (
           <div className="text-center py-20 px-4">
             <div className="text-5xl mb-4">⚠️</div>
-            <h2 className="text-xl font-semibold mb-2 text-gray-300">
+            <h2 className="text-xl font-semibold mb-2 text-neutral-300">
               Something went wrong
             </h2>
-            <p className="text-gray-400 mb-6 text-sm max-w-md mx-auto">
-              {this.state.error?.message || "An unexpected error occurred."}
+            {/* #29: Show generic message instead of internal error details */}
+            <p className="text-neutral-400 mb-6 text-sm max-w-md mx-auto">
+              An unexpected error occurred. Please try again or reload the page.
             </p>
             <div className="flex items-center justify-center gap-3">
               {!maxRetries ? (
@@ -68,14 +84,14 @@ class ErrorBoundaryInner extends Component<Props & { pathname: string }, State> 
               {this.state.retryCount > 0 && !maxRetries && (
                 <button
                   onClick={() => window.location.reload()}
-                  className="px-4 py-3 border border-gray-600 text-gray-400 hover:text-white rounded-xl text-sm transition-colors"
+                  className="px-4 py-3 border border-neutral-600 text-neutral-400 hover:text-white rounded-xl text-sm transition-colors"
                 >
                   Reload
                 </button>
               )}
             </div>
             {maxRetries && (
-              <p className="text-xs text-gray-500 mt-4">
+              <p className="text-xs text-neutral-500 mt-4">
                 This error persists. Try reloading the page or clearing your browser cache.
               </p>
             )}

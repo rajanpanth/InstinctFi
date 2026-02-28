@@ -11,11 +11,17 @@ mod settlement_id {
 }
 
 /// CPI-callable: credit `amount` cents to the user's demo_balance.
-/// Only settlement_program may call this (enforced by `caller_program` address constraint).
+/// Only settlement_program may call this — enforced by requiring a PDA signer
+/// that only the settlement_program can produce via invoke_signed.
 /// Also updates the user's winning stats.
 pub fn handler(ctx: Context<CreditBalance>, amount: u64) -> Result<()> {
     let user = &mut ctx.accounts.user_account;
     let clock = Clock::get()?;
+
+    // Auto-reset weekly/monthly BEFORE crediting — prevents freshly
+    // credited amounts from being zeroed at period boundaries (#17).
+    user.maybe_reset_weekly(clock.unix_timestamp);
+    user.maybe_reset_monthly(clock.unix_timestamp);
 
     user.demo_balance = user
         .demo_balance
@@ -37,9 +43,6 @@ pub fn handler(ctx: Context<CreditBalance>, amount: u64) -> Result<()> {
         .checked_add(amount)
         .unwrap_or(u64::MAX);
 
-    // Auto-reset weekly/monthly if needed
-    user.maybe_reset_weekly(clock.unix_timestamp);
-    user.maybe_reset_monthly(clock.unix_timestamp);
     user.last_active_at = clock.unix_timestamp;
 
     msg!("CreditBalance: user={} amount={}", user.authority, amount);
@@ -60,7 +63,14 @@ pub struct CreditBalance<'info> {
     )]
     pub user_account: Account<'info, UserAccount>,
 
-    /// CHECK: The calling program — must be settlement_program.
-    #[account(address = settlement_id::ID)]
-    pub caller_program: AccountInfo<'info>,
+    /// CPI authority PDA from settlement_program — proves CPI origin.
+    /// Only settlement_program can sign for seeds [b"cpi_authority"] via invoke_signed.
+    /// CHECK: Verified by seeds constraint against settlement_program ID.
+    #[account(
+        seeds = [b"cpi_authority"],
+        bump,
+        seeds::program = settlement_id::ID,
+    )]
+    pub caller_program: Signer<'info>,
 }
+

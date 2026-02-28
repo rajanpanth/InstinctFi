@@ -6,6 +6,8 @@ pub mod instructions;
 
 use instructions::*;
 
+// TODO(#16): Replace placeholder program ID with a real keypair before deployment.
+// Generate with: `solana-keygen grind --starts-with Vo:1`
 declare_id!("VotePrgm11111111111111111111111111111111111");
 
 #[program]

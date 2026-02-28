@@ -37,9 +37,11 @@ pub fn handler(
     let debit_cpi_accounts = user_program::cpi::accounts::DebitBalance {
         authority: ctx.accounts.voter.to_account_info(),
         user_account: ctx.accounts.user_account.to_account_info(),
-        caller_program: ctx.accounts.vote_program_id.to_account_info(),
+        caller_program: ctx.accounts.cpi_authority.to_account_info(),
     };
-    let debit_cpi_ctx = CpiContext::new(debit_cpi_program, debit_cpi_accounts);
+    let seeds = &[b"cpi_authority".as_ref(), &[ctx.bumps.cpi_authority]];
+    let signer_seeds = &[&seeds[..]];
+    let debit_cpi_ctx = CpiContext::new_with_signer(debit_cpi_program, debit_cpi_accounts, signer_seeds);
     user_program::cpi::debit_balance(debit_cpi_ctx, cost)?;
 
     // ── Determine if this is a new voter ──
@@ -51,9 +53,11 @@ pub fn handler(
     let cpi_accounts = poll_program::cpi::accounts::RecordVote {
         caller: ctx.accounts.voter.to_account_info(),
         poll_account: ctx.accounts.poll_account.to_account_info(),
-        caller_program: ctx.accounts.vote_program_id.to_account_info(),
+        cpi_authority: ctx.accounts.cpi_authority.to_account_info(),
     };
-    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    let seeds = &[b"cpi_authority".as_ref(), &[ctx.bumps.cpi_authority]];
+    let signer_seeds = &[&seeds[..]];
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
     poll_program::cpi::record_vote(cpi_ctx, poll_id, option_index, num_coins, cost, is_new_voter)?;
 
     // ── Update or init VoteAccount (owned by vote_program) ──
@@ -131,9 +135,13 @@ pub struct CastVote<'info> {
     #[account(address = user_program::ID)]
     pub user_program_info: AccountInfo<'info>,
 
-    /// CHECK: this program's own ID — passed as caller_program for CPI verification
-    #[account(address = crate::ID)]
-    pub vote_program_id: AccountInfo<'info>,
+    /// CPI authority PDA for this program — used to prove CPI origin to poll_program
+    /// CHECK: PDA derived from this program's seeds [b"cpi_authority"]
+    #[account(
+        seeds = [b"cpi_authority"],
+        bump,
+    )]
+    pub cpi_authority: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
 }

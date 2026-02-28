@@ -1,9 +1,21 @@
-import confetti from "canvas-confetti";
+// Dynamic import — canvas-confetti (~40kB) is only loaded when confetti fires,
+// not included in every page's initial bundle.
+let _confetti: any = null;
+
+async function getConfetti() {
+  if (!_confetti) {
+    const mod = await import("canvas-confetti");
+    _confetti = mod.default;
+  }
+  return _confetti!;
+}
 
 /**
  * Fire a celebratory confetti burst — used when claiming rewards.
  */
-export function fireConfetti() {
+export async function fireConfetti() {
+  const confetti = await getConfetti();
+
   // First burst from center
   confetti({
     particleCount: 100,
@@ -34,7 +46,9 @@ export function fireConfetti() {
 /**
  * Quick confetti for smaller wins (e.g., daily claim).
  */
-export function fireSmallConfetti() {
+export async function fireSmallConfetti() {
+  const confetti = await getConfetti();
+
   confetti({
     particleCount: 40,
     spread: 50,
@@ -43,3 +57,4 @@ export function fireSmallConfetti() {
     scalar: 0.8,
   });
 }
+

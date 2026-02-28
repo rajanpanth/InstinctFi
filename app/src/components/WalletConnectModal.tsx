@@ -1,5 +1,7 @@
 "use client";
 
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useApp } from "./Providers";
 import Modal from "./Modal";
 import { useLanguage } from "@/lib/languageContext";
@@ -11,11 +13,13 @@ type Props = {
 
 export default function WalletConnectModal({ isOpen, onClose }: Props) {
   const { connectWallet } = useApp();
+  const { setVisible } = useWalletModal();
   const { t } = useLanguage();
 
   const handleConnect = async () => {
-    await connectWallet();
     onClose();
+    // Open the standard wallet adapter modal which shows all available wallets
+    setVisible(true);
   };
 
   return (
@@ -57,7 +61,7 @@ export default function WalletConnectModal({ isOpen, onClose }: Props) {
             </p>
           </div>
 
-          {/* Connect button */}
+          {/* Connect button — opens standard wallet adapter modal */}
           <button
             onClick={handleConnect}
             className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 rounded-2xl font-semibold text-base transition-all flex items-center justify-center gap-3 shadow-lg shadow-brand-500/20 active:scale-[0.98]"

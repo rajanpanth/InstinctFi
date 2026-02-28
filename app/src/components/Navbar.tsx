@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -11,7 +11,7 @@ import DarkModeToggle from "./DarkModeToggle";
 import LanguageToggle from "./LanguageToggle";
 import NotificationBell from "./NotificationBell";
 import { useLanguage } from "@/lib/languageContext";
-import toast from "react-hot-toast";
+
 import { useNotifications } from "@/lib/notifications";
 import {
   Home,
@@ -44,6 +44,28 @@ export function Navbar() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const { markAllRead } = useNotifications();
 
+  // #25: Close mobile more-menu when viewport resizes to desktop
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const handler = () => { if (mq.matches) setShowMoreMenu(false); };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // #24: Escape key handler for modals
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showDisconnectConfirm) setShowDisconnectConfirm(false);
+        else if (showMoreMenu) setShowMoreMenu(false);
+      }
+    };
+    if (showDisconnectConfirm || showMoreMenu) {
+      document.addEventListener("keydown", handleEscape);
+      return () => document.removeEventListener("keydown", handleEscape);
+    }
+  }, [showDisconnectConfirm, showMoreMenu]);
+
   const handleDisconnect = () => {
     setShowDisconnectConfirm(true);
   };
@@ -75,7 +97,7 @@ export function Navbar() {
   const navItems = [
     { href: "/polls", label: t("polls"), Icon: LayoutGrid },
     { href: "/create", label: t("create"), Icon: Plus },
-    { href: "/portfolio", label: "Portfolio", Icon: Briefcase },
+    { href: "/portfolio", label: t("portfolio"), Icon: Briefcase },
     { href: "/leaderboard", label: t("leaderboard"), Icon: Trophy },
     { href: "/activity", label: t("activity"), Icon: Activity },
     { href: "/profile", label: t("profile"), Icon: User },
@@ -155,7 +177,7 @@ export function Navbar() {
                     title="Click to disconnect"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-                    {shortAddr(walletAddress!)}
+                    {walletAddress ? shortAddr(walletAddress) : ""}
                     <LogOut size={11} className="text-neutral-600 group-hover:text-red-400 transition-colors" />
                   </button>
 
@@ -183,7 +205,7 @@ export function Navbar() {
               { href: "/", label: t("home") || "Home", Icon: Home },
               { href: "/polls", label: t("polls"), Icon: LayoutGrid },
               { href: "/create", label: t("create"), Icon: Plus, isCreate: true },
-              { href: "/leaderboard", label: "Rankings", Icon: Trophy },
+              { href: "/leaderboard", label: t("rankings"), Icon: Trophy },
             ].map((item) => {
               const active = pathname === item.href;
               const isCreate = "isCreate" in item && item.isCreate;
@@ -227,7 +249,7 @@ export function Navbar() {
 
       {/* More menu overlay (mobile) */}
       {showMoreMenu && (
-        <div className="md:hidden fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Navigation menu" className="md:hidden fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
             className="absolute bottom-[5.5rem] left-3 right-3 bg-surface-100/95 backdrop-blur-xl border border-border/60 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden animate-scaleIn"
@@ -293,7 +315,7 @@ export function Navbar() {
 
       {/* Disconnect confirmation modal */}
       {showDisconnectConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDisconnectConfirm(false)}>
+        <div role="dialog" aria-modal="true" aria-label="Disconnect wallet confirmation" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDisconnectConfirm(false)}>
           <div className="bg-surface-100 border border-border rounded-2xl p-6 mx-4 max-w-sm w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">

@@ -6,6 +6,9 @@ pub mod instructions;
 
 use instructions::*;
 
+// TODO(#16): Replace this placeholder program ID with a real keypair before deployment.
+// Generate with: `solana-keygen grind --starts-with IF:1`
+// Then update this declare_id! and all cross-program references.
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
@@ -75,5 +78,10 @@ pub mod instinctfi {
     /// Claim winnings — real SOL transferred from treasury to winner.
     pub fn claim_reward(ctx: Context<ClaimReward>, poll_id: u64) -> Result<()> {
         instructions::claim_reward::handler(ctx, poll_id)
+    }
+
+    /// Sweep residual dust/platform fees from a settled poll's treasury (#48/#49).
+    pub fn sweep_dust(ctx: Context<SweepDust>, poll_id: u64) -> Result<()> {
+        instructions::sweep_dust::handler(ctx, poll_id)
     }
 }

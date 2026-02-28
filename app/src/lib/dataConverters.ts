@@ -71,6 +71,7 @@ export function onChainUserToAccount(u: OnChainUser, balance: number): UserAccou
     weeklyResetTs: now,
     monthlyResetTs: now,
     createdAt: u.createdAt * 1000,
+    loginStreak: 0,
   };
 }
 
@@ -188,6 +189,7 @@ export function rowToUserAccount(r: any): UserAccount {
     weeklyResetTs: Number(r.weekly_reset_ts || 0),
     monthlyResetTs: Number(r.monthly_reset_ts || 0),
     createdAt: Number(r.created_at || 0),
+    loginStreak: Number(r.login_streak || 0),
   };
 }
 
@@ -218,5 +220,6 @@ export function createPlaceholderUser(wallet: string): UserAccount {
     weeklyResetTs: Date.now(),
     monthlyResetTs: Date.now(),
     createdAt: Date.now(),
+    loginStreak: 0,
   };
 }

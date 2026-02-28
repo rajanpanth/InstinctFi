@@ -46,9 +46,11 @@ pub fn handler(
     let cpi_accounts = vote_program::cpi::accounts::MarkClaimed {
         claimer: ctx.accounts.claimer.to_account_info(),
         vote_account: ctx.accounts.vote_account.to_account_info(),
-        caller_program: ctx.accounts.settlement_program_id.to_account_info(),
+        cpi_authority: ctx.accounts.cpi_authority.to_account_info(),
     };
-    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    let seeds = &[b"cpi_authority".as_ref(), &[ctx.bumps.cpi_authority]];
+    let signer_seeds = &[&seeds[..]];
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
     vote_program::cpi::mark_claimed(cpi_ctx, poll_id, reward_amount)?;
 
     // ── CPI to user_program::credit_balance to add reward to user's demo_balance ──
@@ -56,9 +58,11 @@ pub fn handler(
     let credit_cpi_accounts = user_program::cpi::accounts::CreditBalance {
         authority: ctx.accounts.claimer.to_account_info(),
         user_account: ctx.accounts.user_account.to_account_info(),
-        caller_program: ctx.accounts.settlement_program_id.to_account_info(),
+        caller_program: ctx.accounts.cpi_authority.to_account_info(),
     };
-    let credit_cpi_ctx = CpiContext::new(credit_cpi_program, credit_cpi_accounts);
+    let seeds = &[b"cpi_authority".as_ref(), &[ctx.bumps.cpi_authority]];
+    let signer_seeds = &[&seeds[..]];
+    let credit_cpi_ctx = CpiContext::new_with_signer(credit_cpi_program, credit_cpi_accounts, signer_seeds);
     user_program::cpi::credit_balance(credit_cpi_ctx, reward_amount)?;
 
     msg!(
@@ -116,9 +120,13 @@ pub struct ClaimReward<'info> {
     #[account(address = user_program::ID)]
     pub user_program_info: AccountInfo<'info>,
 
-    /// CHECK: this program's own ID — passed to mark_claimed and credit_balance as caller_program
-    #[account(address = crate::ID)]
-    pub settlement_program_id: AccountInfo<'info>,
+    /// CPI authority PDA for this program — used to prove CPI origin to vote_program and user_program
+    /// CHECK: PDA derived from this program's seeds [b"cpi_authority"]
+    #[account(
+        seeds = [b"cpi_authority"],
+        bump,
+    )]
+    pub cpi_authority: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
 }

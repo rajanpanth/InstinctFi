@@ -48,7 +48,8 @@ export default function PortfolioPage() {
                 let mainOption = 0;
                 let mainCoins = 0;
                 v.votesPerOption.forEach((coins, i) => {
-                    if (coins > mainOption) {
+                    // #46: Compare coins against mainCoins, not mainOption (index)
+                    if (coins > mainCoins) {
                         mainOption = i;
                         mainCoins = coins;
                     }
@@ -61,12 +62,15 @@ export default function PortfolioPage() {
                 const isLoser = isSettled && poll.winningOption !== mainOption;
 
                 // Calculate P&L
+                // #47: Guard against division by zero when totalWinning is 0
                 let pnl = 0;
                 if (isSettled && isWinner) {
-                    const totalWinning = poll.voteCounts[poll.winningOption] || 1;
-                    const share = mainCoins / totalWinning;
-                    const reward = Math.floor(share * poll.totalPoolCents);
-                    pnl = reward - v.totalStakedCents;
+                    const totalWinning = poll.voteCounts[poll.winningOption] || 0;
+                    if (totalWinning > 0) {
+                        const share = mainCoins / totalWinning;
+                        const reward = Math.floor(share * poll.totalPoolCents);
+                        pnl = reward - v.totalStakedCents;
+                    }
                 } else if (isSettled && isLoser) {
                     pnl = -v.totalStakedCents;
                 }
@@ -126,7 +130,7 @@ export default function PortfolioPage() {
         <div className="max-w-4xl mx-auto">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-brand-400 to-accent-400 bg-clip-text text-transparent">
+                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-brand-400 to-accent-400 bg-clip-text text-transparent pb-1 shrink-0">
                     Portfolio
                 </h1>
                 {userAccount && (
@@ -177,8 +181,8 @@ export default function PortfolioPage() {
                         key={key}
                         onClick={() => setActiveTab(key)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === key
-                                ? "bg-brand-500/20 text-brand-400 shadow-sm"
-                                : "text-neutral-400 hover:text-neutral-200"
+                            ? "bg-brand-500/20 text-brand-400 shadow-sm"
+                            : "text-neutral-400 hover:text-neutral-200"
                             }`}
                     >
                         {label}

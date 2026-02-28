@@ -10,7 +10,8 @@ mod vote_id {
 }
 
 /// CPI-callable: debit `amount` cents from the user's demo_balance.
-/// Only vote_program may call this (enforced by `caller_program` address constraint).
+/// Only vote_program may call this — enforced by requiring a PDA signer
+/// that only the vote_program can produce via invoke_signed.
 pub fn handler(ctx: Context<DebitBalance>, amount: u64) -> Result<()> {
     let user = &mut ctx.accounts.user_account;
 
@@ -40,7 +41,14 @@ pub struct DebitBalance<'info> {
     )]
     pub user_account: Account<'info, UserAccount>,
 
-    /// CHECK: The calling program — must be vote_program.
-    #[account(address = vote_id::ID)]
-    pub caller_program: AccountInfo<'info>,
+    /// CPI authority PDA from vote_program — proves CPI origin.
+    /// Only vote_program can sign for seeds [b"cpi_authority"] via invoke_signed.
+    /// CHECK: Verified by seeds constraint against vote_program ID.
+    #[account(
+        seeds = [b"cpi_authority"],
+        bump,
+        seeds::program = vote_id::ID,
+    )]
+    pub caller_program: Signer<'info>,
 }
+

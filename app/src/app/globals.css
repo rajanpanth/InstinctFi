@@ -1,3 +1,7 @@
+/* Solana wallet adapter styles — imported here instead of in a JS module
+   to avoid client-side module evaluation crashes in Next.js 15 dev mode */
+@import "@solana/wallet-adapter-react-ui/styles.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -57,8 +61,10 @@ body {
 }
 
 /* ── Prevent horizontal overflow ── */
+/* #66: overflow-x: hidden fallback for Safari < 16 which doesn't support clip */
 html,
 body {
+  overflow-x: hidden;
   overflow-x: clip;
   -webkit-text-size-adjust: 100%;
 }

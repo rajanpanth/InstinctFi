@@ -7,6 +7,8 @@ import { useApp, DemoPoll } from "@/components/Providers";
 import PollCard from "@/components/PollCard";
 import SkeletonCard from "@/components/SkeletonCard";
 import { CATEGORIES as CONST_CATEGORIES } from "@/lib/constants";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { rowToDemoPoll } from "@/lib/dataConverters";
 import { useLanguage } from "@/lib/languageContext";
 import { tCat } from "@/lib/translations";
 
@@ -14,14 +16,17 @@ const CATEGORIES = ["All", ...CONST_CATEGORIES];
 
 const POLLS_PER_PAGE = 12;
 
-type SortOption = "most-voted" | "latest" | "oldest";
+type SortOption = "most-voted" | "latest" | "oldest" | "highest-pool" | "ending-soon";
 const SORT_OPTIONS: { value: SortOption; label: string; icon: string }[] = [
   { value: "most-voted", label: "Most Voted", icon: "🔥" },
-  { value: "latest",     label: "Latest",     icon: "🕐" },
-  { value: "oldest",     label: "Oldest",     icon: "📜" },
+  { value: "latest", label: "Latest", icon: "🕐" },
+  { value: "oldest", label: "Oldest", icon: "📜" },
+  { value: "highest-pool", label: "Highest Pool", icon: "💰" },
+  { value: "ending-soon", label: "Ending Soon", icon: "⏰" },
 ];
 
 function sortPolls(polls: DemoPoll[], sort: SortOption): DemoPoll[] {
+  const now = Math.floor(Date.now() / 1000);
   return [...polls].sort((a, b) => {
     switch (sort) {
       case "most-voted": {
@@ -33,6 +38,17 @@ function sortPolls(polls: DemoPoll[], sort: SortOption): DemoPoll[] {
         return b.createdAt - a.createdAt;
       case "oldest":
         return a.createdAt - b.createdAt;
+      case "highest-pool":
+        return b.totalPoolCents - a.totalPoolCents;
+      case "ending-soon": {
+        // Active polls ending soonest first; expired/settled go to the bottom
+        const aActive = a.status === 0 && a.endTime > now ? 0 : 1;
+        const bActive = b.status === 0 && b.endTime > now ? 0 : 1;
+        if (aActive !== bActive) return aActive - bActive;
+        return a.endTime - b.endTime;
+      }
+      default:
+        return 0;
     }
   });
 }
@@ -49,8 +65,12 @@ export default function PollsPageWrapper() {
   );
 }
 
+/**
+ * #45: Polls page with server-side pagination when Supabase is configured.
+ * Falls back to client-side filtering/pagination when not configured (demo mode).
+ */
 function PollsPage() {
-  const { polls, walletConnected, isLoading } = useApp();
+  const { polls: contextPolls, walletConnected, isLoading: contextLoading } = useApp();
   const { t, lang } = useLanguage();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -69,6 +89,12 @@ function PollsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [page, setPage] = useState(1);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Server-side pagination state
+  const [serverPolls, setServerPolls] = useState<DemoPoll[]>([]);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverLoading, setServerLoading] = useState(false);
+  const useServerPagination = isSupabaseConfigured;
 
   // Sync filters to URL
   useEffect(() => {
@@ -92,7 +118,41 @@ function PollsPage() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   }, []);
 
-  const filtered = useMemo(() => polls.filter((p) => {
+  // ─── Server-side fetch (#45) ──────────────────────────────────────────
+  useEffect(() => {
+    if (!useServerPagination) return;
+
+    const controller = new AbortController();
+    setServerLoading(true);
+
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(POLLS_PER_PAGE));
+    if (selectedCategory !== "All") params.set("category", selectedCategory);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    params.set("sort", sortBy);
+    if (debouncedSearch.trim()) params.set("q", debouncedSearch.trim());
+
+    fetch(`/api/polls?${params}`, { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        if (data.polls) {
+          setServerPolls(data.polls.map(rowToDemoPoll));
+          setServerTotal(data.total ?? 0);
+        }
+      })
+      .catch(err => {
+        if (err.name !== "AbortError") {
+          console.warn("[PollsPage] Server fetch failed, falling back to context:", err);
+        }
+      })
+      .finally(() => setServerLoading(false));
+
+    return () => controller.abort();
+  }, [useServerPagination, page, selectedCategory, statusFilter, sortBy, debouncedSearch]);
+
+  // ─── Client-side fallback (demo mode) ─────────────────────────────────
+  const filtered = useMemo(() => contextPolls.filter((p) => {
     if (selectedCategory !== "All" && p.category !== selectedCategory) return false;
     if (statusFilter === "active" && p.status !== 0) return false;
     if (statusFilter === "settled" && p.status !== 1) return false;
@@ -101,11 +161,15 @@ function PollsPage() {
       if (!p.title.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
     }
     return true;
-  }), [polls, selectedCategory, statusFilter, debouncedSearch]);
+  }), [contextPolls, selectedCategory, statusFilter, debouncedSearch]);
 
   const sorted = useMemo(() => sortPolls(filtered, sortBy), [filtered, sortBy]);
-  const totalPages = Math.max(1, Math.ceil(sorted.length / POLLS_PER_PAGE));
-  const paginated = useMemo(() => sorted.slice((page - 1) * POLLS_PER_PAGE, page * POLLS_PER_PAGE), [sorted, page]);
+
+  // ─── Resolve which data source to use ─────────────────────────────────
+  const displayPolls = useServerPagination ? serverPolls : sorted.slice((page - 1) * POLLS_PER_PAGE, page * POLLS_PER_PAGE);
+  const totalCount = useServerPagination ? serverTotal : sorted.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / POLLS_PER_PAGE));
+  const isLoading = useServerPagination ? serverLoading : contextLoading;
 
   return (
     <div>
@@ -148,11 +212,10 @@ function PollsPage() {
             <button
               key={cat}
               onClick={() => handleCategoryChange(cat)}
-              className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
-                selectedCategory === cat
-                  ? "bg-brand-600 text-white"
-                  : "bg-surface-100 text-gray-400 hover:text-white"
-              }`}
+              className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${selectedCategory === cat
+                ? "bg-brand-600 text-white"
+                : "bg-surface-100 text-gray-400 hover:text-white"
+                }`}
             >
               {tCat(cat, lang)}
             </button>
@@ -165,11 +228,10 @@ function PollsPage() {
               <button
                 key={s}
                 onClick={() => handleStatusChange(s)}
-                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm capitalize transition-colors ${
-                  statusFilter === s
-                    ? "bg-brand-600 text-white"
-                    : "bg-surface-100 text-gray-400 hover:text-white"
-                }`}
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm capitalize transition-colors ${statusFilter === s
+                  ? "bg-brand-600 text-white"
+                  : "bg-surface-100 text-gray-400 hover:text-white"
+                  }`}
               >
                 {s}
               </button>
@@ -183,11 +245,10 @@ function PollsPage() {
                 onClick={() => handleSortChange(opt.value)}
                 role="radio"
                 aria-checked={sortBy === opt.value}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
-                  sortBy === opt.value
-                    ? "bg-brand-600 text-white shadow-md shadow-brand-500/15"
-                    : "text-gray-400 hover:text-white hover:bg-surface-100"
-                }`}
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${sortBy === opt.value
+                  ? "bg-brand-600 text-white shadow-md shadow-brand-500/15"
+                  : "text-gray-400 hover:text-white hover:bg-surface-100"
+                  }`}
               >
                 <span className="text-xs">{opt.icon}</span>
                 {opt.label}
@@ -204,10 +265,10 @@ function PollsPage() {
             <SkeletonCard key={i} delay={i * 0.07} />
           ))}
         </div>
-      ) : sorted.length === 0 ? (
+      ) : displayPolls.length === 0 ? (
         <div className="text-center py-20">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface-100 border border-border flex items-center justify-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </div>
           <p className="text-gray-400 text-lg mb-2 font-medium">{t("noPollsFound")}</p>
           <p className="text-gray-600 text-sm mb-5">{t("noPollsHint")}</p>
@@ -220,7 +281,7 @@ function PollsPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {paginated.map((poll) => (
+            {displayPolls.map((poll) => (
               <PollCard key={poll.id} poll={poll} />
             ))}
           </div>
@@ -246,9 +307,8 @@ function PollsPage() {
                       )}
                       <button
                         onClick={() => setPage(p)}
-                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                          p === page ? "bg-brand-600 text-white" : "bg-surface-100 text-gray-400 hover:text-white"
-                        }`}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${p === page ? "bg-brand-600 text-white" : "bg-surface-100 text-gray-400 hover:text-white"
+                          }`}
                       >
                         {p}
                       </button>
@@ -267,7 +327,7 @@ function PollsPage() {
           )}
 
           <p className="text-center text-xs text-gray-600 mt-3">
-            Showing {(page - 1) * POLLS_PER_PAGE + 1}–{Math.min(page * POLLS_PER_PAGE, sorted.length)} of {sorted.length} polls
+            Showing {(page - 1) * POLLS_PER_PAGE + 1}–{Math.min(page * POLLS_PER_PAGE, totalCount)} of {totalCount} polls
           </p>
         </>
       )}

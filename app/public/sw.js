@@ -2,15 +2,12 @@
 //
 // Bump CACHE_VERSION on every release to bust the old cache.
 // The activate event automatically purges old versioned caches.
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 const CACHE_NAME = `instinctfi-v${CACHE_VERSION}`;
+// #70: Only precache truly static pages. Dynamic Next.js routes (/polls, /create,
+// /leaderboard, etc.) use stale-while-revalidate at fetch time instead.
 const PRECACHE_URLS = [
   "/",
-  "/polls",
-  "/create",
-  "/leaderboard",
-  "/activity",
-  "/portfolio",
   "/offline.html",
 ];
 
@@ -116,7 +113,20 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const url = event.notification.data?.url || "/";
+  // #40: Validate URL is same-origin before navigating to prevent phishing
+  let url = event.notification.data?.url || "/";
+  try {
+    const parsed = new URL(url, self.location.origin);
+    if (parsed.origin !== self.location.origin) {
+      console.warn("Push notification URL blocked (cross-origin):", url);
+      url = "/";
+    } else {
+      url = parsed.pathname + parsed.search + parsed.hash;
+    }
+  } catch {
+    url = "/";
+  }
+
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })

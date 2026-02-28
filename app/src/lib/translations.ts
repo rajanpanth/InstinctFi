@@ -21,6 +21,8 @@ const translations = {
   airdropReceived: { en: "Airdrop received!", ne: "एयरड्रप प्राप्त भयो!" },
 
   /* ── Hero / Home ── */
+  heroTagline: { en: "Prediction Markets on Solana", ne: "Solana मा भविष्यवाणी बजार" },
+  heroTitle: { en: "Trust Your Instinct.", ne: "आफ्नो सहजज्ञानमा विश्वास गर।" },
   predictVoteWin: { en: "Predict. Vote. Win.", ne: "भविष्यवाणी गर। मतदान गर। जित।" },
   heroDesc: {
     en: "Buy option-coins on prediction polls. If your side wins, you take the entire losing pool.",
@@ -39,6 +41,8 @@ const translations = {
   browsePolls: { en: "Browse Polls", ne: "मतदानहरू हेर्नुहोस्" },
   createPoll: { en: "Create Poll", ne: "मतदान सिर्जना गर्नुहोस्" },
   createPollPlus: { en: "+ Create Poll", ne: "+ मतदान सिर्जना" },
+  portfolio: { en: "Portfolio", ne: "पोर्टफोलियो" },
+  rankings: { en: "Rankings", ne: "र्‍याङ्किङ" },
 
   /* ── Trending ── */
   trending: { en: "Trending", ne: "ट्रेन्डिङ" },

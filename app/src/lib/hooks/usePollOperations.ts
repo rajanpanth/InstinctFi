@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useRef } from "react";
-import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { useCallback, useRef, useMemo } from "react";
+import { PublicKey, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
 import {
     sendTransaction,
     formatSOL,
@@ -31,6 +31,9 @@ import { type DemoPoll, type DemoVote, type UserAccount, MAX_COINS_PER_POLL, Pol
 import type { MutationTracker } from "./useDataFetcher";
 import toast from "react-hot-toast";
 
+// Daily reward amount — module-level constant avoids React Hook dependency warnings
+const DAILY_REWARD_LAMPORTS = 2 * LAMPORTS_PER_SOL; // 2 SOL worth of internal balance
+
 interface PollOpsArgs {
     walletAddress: string | null;
     polls: DemoPoll[];
@@ -46,6 +49,7 @@ interface PollOpsArgs {
     votesRef: React.MutableRefObject<DemoVote[]>;
     initialFetchDone: React.MutableRefObject<boolean>;
     addNotification: (n: any) => void;
+    signTransaction: ((tx: Transaction) => Promise<Transaction>) | undefined;
 }
 
 /**
@@ -66,13 +70,16 @@ export function usePollOperations({
     votesRef,
     initialFetchDone,
     addNotification,
+    signTransaction,
 }: PollOpsArgs) {
 
     // ── Helper: bump mutation tracking ──
-    const markMutation = () => {
+    // tracker is a stable ref object — no deps needed
+    const markMutation = useCallback(() => {
         tracker.mutationGeneration.current++;
         tracker.lastMutationTs.current = Date.now();
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Voting lock to prevent concurrent submissions (#4) ──
     const votingLock = useRef<Set<string>>(new Set());
@@ -151,7 +158,7 @@ export function usePollOperations({
         try {
             const pubkey = new PublicKey(walletAddress);
             const ix = await buildInitializeUserIx(pubkey);
-            const sig = await sendTransaction([ix], pubkey);
+            const sig = await sendTransaction([ix], pubkey, signTransaction!);
             console.log("User initialized on-chain:", sig);
             toast.success("Account created on Solana!");
 
@@ -174,10 +181,9 @@ export function usePollOperations({
                 toast.error("Failed to create account — make sure you have SOL for gas");
             }
         }
-    }, [walletAddress, setUsers, usersRef, initialFetchDone]);
+    }, [walletAddress, setUsers, usersRef, initialFetchDone, signTransaction]);
 
     // ── Claim daily reward ──
-    const DAILY_REWARD_LAMPORTS = 2 * LAMPORTS_PER_SOL; // 2 SOL worth of internal balance
     const claimDailyReward = useCallback(async (): Promise<boolean> => {
         if (!walletAddress) return false;
 
@@ -195,19 +201,24 @@ export function usePollOperations({
         try {
             const now = Date.now();
 
-            // ── Credit internal balance (no devnet faucet needed) ──
+            // ── Persist to Supabase FIRST (source of truth) ──
+            if (isSupabaseConfigured) {
+                const result = await authenticatedFetch("/api/rpc/claim-daily");
+                if (!result.success) {
+                    const errorMsg = result.error === 'too_early'
+                        ? 'Daily reward not available yet'
+                        : (result.error || 'Claim failed');
+                    toast.error(errorMsg, { id: "daily-reward" });
+                    return false;
+                }
+            }
+
+            // ── Update UI only after successful RPC ──
             setUsers(prev => prev.map(u =>
                 u.wallet === walletAddress
                     ? { ...u, balance: u.balance + DAILY_REWARD_LAMPORTS, lastWeeklyRewardTs: now }
                     : u
             ));
-
-            // ── Sync to Supabase ──
-            if (isSupabaseConfigured) {
-                try {
-                    await authenticatedFetch("/api/rpc/claim-daily");
-                } catch { }
-            }
 
             toast.success(
                 `Claimed ${formatSOL(DAILY_REWARD_LAMPORTS)} daily reward!`,
@@ -219,7 +230,8 @@ export function usePollOperations({
             toast.error("Failed to claim daily reward — try again", { id: "daily-reward" });
             return false;
         }
-    }, [walletAddress, setUsers, usersRef]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [walletAddress, setUsers, markMutation]);
 
     // ── Create poll ──
     const createPoll = useCallback(
@@ -237,7 +249,7 @@ export function usePollOperations({
                         poll.imageUrl, poll.options, poll.unitPriceCents, poll.endTime,
                         poll.creatorInvestmentCents
                     );
-                    await sendTransaction([ix], pubkey);
+                    await sendTransaction([ix], pubkey, signTransaction!);
                 }
 
                 const [pollPDA] = getPollPDA(pubkey, pollId);
@@ -311,7 +323,8 @@ export function usePollOperations({
                 return null;
             }
         },
-        [walletAddress, setPolls, setUsers, usersRef, tracker]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [walletAddress, setPolls, setUsers, markMutation, signTransaction]
     );
 
     // ── Edit poll ──
@@ -346,8 +359,6 @@ export function usePollOperations({
                 options: updates.options ?? poll.options,
                 endTime: updates.endTime ?? poll.endTime,
             };
-            setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
-            markMutation();
 
             try {
                 if (PROGRAM_DEPLOYED) {
@@ -359,9 +370,10 @@ export function usePollOperations({
                         updates.category ?? poll.category, updates.imageUrl ?? poll.imageUrl,
                         updates.options ?? poll.options, updates.endTime ?? poll.endTime
                     );
-                    await sendTransaction([ix], pubkey);
+                    await sendTransaction([ix], pubkey, signTransaction!);
                 }
 
+                // ── Persist to Supabase FIRST, before optimistic UI update ──
                 if (isSupabaseConfigured) {
                     const result = await authenticatedFetch("/api/rpc/edit-poll", {
                         p_poll_id: pollId,
@@ -375,23 +387,25 @@ export function usePollOperations({
                     });
                     if (!result.success) {
                         console.error("edit_poll_atomic error:", result.error);
-                        // Rollback optimistic update
-                        setPolls(prev => prev.map(p => p.id === pollId ? poll : p));
                         toast.error(`Edit failed: ${result.error}`, { id: "edit-poll" });
                         return false;
                     }
                 }
 
+                // ── Apply optimistic update AFTER persistence succeeds ──
+                setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
+                markMutation();
+
                 toast.success("Poll edited!", { id: "edit-poll" });
                 return true;
             } catch (e: any) {
-                setPolls(prev => prev.map(p => p.id === pollId ? poll : p));
                 console.error("Edit poll failed:", e);
                 toast.error(friendlyErrorMessage(e, "Edit"), { id: "edit-poll" });
                 return false;
             }
         },
-        [walletAddress, setPolls, tracker, pollsRef]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [walletAddress, setPolls, markMutation, signTransaction]
     );
 
     // ── Delete poll ──
@@ -425,7 +439,7 @@ export function usePollOperations({
 
                 if (PROGRAM_DEPLOYED) {
                     const ix = await buildDeletePollIx(pubkey, poll.pollId);
-                    await sendTransaction([ix], pubkey);
+                    await sendTransaction([ix], pubkey, signTransaction!);
                 }
 
                 tracker.deletedPollIds.current.add(pollId);
@@ -443,7 +457,7 @@ export function usePollOperations({
 
                     if (!supabaseDeleteOk) {
                         tracker.deletedPollIds.current.delete(pollId);
-                        toast.error("Failed to delete poll from database.", { id: "delete-poll" });
+                        toast.error(`Failed to delete poll: ${result.error || "unknown error"}`, { id: "delete-poll" });
                         return false;
                     }
                 }
@@ -501,7 +515,8 @@ export function usePollOperations({
                 return false;
             }
         },
-        [walletAddress, setPolls, setVotes, setUsers, tracker, usersRef, pollsRef, votesRef]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [walletAddress, setPolls, setVotes, setUsers, markMutation, signTransaction]
     );
 
     // ── Cast vote ──
@@ -551,7 +566,7 @@ export function usePollOperations({
 
                     if (PROGRAM_DEPLOYED) {
                         const ix = await buildCastVoteIx(pubkey, pollCreator, poll.pollId, optionIndex, numCoins);
-                        await sendTransaction([ix], pubkey);
+                        await sendTransaction([ix], pubkey, signTransaction!);
                     }
 
                     // ── Persist to Supabase FIRST (source of truth) ──
@@ -645,7 +660,8 @@ export function usePollOperations({
                 votingLock.current.delete(lockKey);
             }
         },
-        [walletAddress, setPolls, setVotes, setUsers, tracker, usersRef, pollsRef, votesRef, addNotification]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [walletAddress, setPolls, setVotes, setUsers, addNotification, markMutation, signTransaction]
     );
 
     // ── Settle poll ──
@@ -665,7 +681,7 @@ export function usePollOperations({
 
                 if (PROGRAM_DEPLOYED) {
                     const ix = await buildSettlePollIx(pubkey, pollCreator, poll.pollId);
-                    await sendTransaction([ix], pubkey);
+                    await sendTransaction([ix], pubkey, signTransaction!);
                 }
 
                 let finalWinningOption: number;
@@ -747,7 +763,8 @@ export function usePollOperations({
                 return false;
             }
         },
-        [walletAddress, setPolls, setUsers, tracker, usersRef, pollsRef, votesRef, addNotification]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [walletAddress, setPolls, setUsers, addNotification, markMutation, signTransaction]
     );
 
     // ── Claim reward ──
@@ -776,10 +793,14 @@ export function usePollOperations({
 
                 if (PROGRAM_DEPLOYED) {
                     const ix = await buildClaimRewardIx(pubkey, pollCreator, poll.pollId);
-                    await sendTransaction([ix], pubkey);
+                    await sendTransaction([ix], pubkey, signTransaction!);
                 }
 
-                const totalWinningVotes = poll.voteCounts[poll.winningOption];
+                const totalWinningVotes = poll.voteCounts[poll.winningOption] || 0;
+                if (totalWinningVotes === 0) {
+                    toast.error("No winning votes — cannot calculate reward.", { id: "claim-reward" });
+                    return 0;
+                }
                 const reward = Math.floor(
                     (userWinningVotes / totalWinningVotes) * poll.totalPoolCents
                 );
@@ -849,7 +870,8 @@ export function usePollOperations({
                 return 0;
             }
         },
-        [walletAddress, setVotes, setUsers, tracker, usersRef, pollsRef, votesRef, addNotification]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [walletAddress, setVotes, setUsers, addNotification, signTransaction]
     );
 
     return {

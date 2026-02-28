@@ -5,6 +5,7 @@ pub mod delete_poll;
 pub mod cast_vote;
 pub mod settle_poll;
 pub mod claim_reward;
+pub mod sweep_dust;
 
 pub use initialize_user::*;
 pub use create_poll::*;
@@ -13,3 +14,4 @@ pub use delete_poll::*;
 pub use cast_vote::*;
 pub use settle_poll::*;
 pub use claim_reward::*;
+pub use sweep_dust::*;

@@ -20,14 +20,20 @@ const PLATFORM_LINKS = [
   { href: "/profile", label: "Profile" },
 ];
 
+// #27: Use real paths instead of placeholder # links
 const LEGAL_LINKS = [
-  { href: "#", label: "Terms of Service" },
-  { href: "#", label: "Privacy Policy" },
-  { href: "#", label: "Documentation" },
+  { href: "/legal/terms", label: "Terms of Service" },
+  { href: "/legal/privacy", label: "Privacy Policy" },
+  { href: "/docs", label: "Documentation" },
 ];
 
+// #54: Social links — use env vars or default to real profiles
+const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/rajanpanth";
+const TWITTER_URL = process.env.NEXT_PUBLIC_TWITTER_URL || "https://x.com/Rajan_panth";
+
 export default function Footer() {
-  const [year, setYear] = useState("2026");
+  // #55: SSR-safe year — empty initial state avoids hydration mismatch at midnight boundary
+  const [year, setYear] = useState("");
   useEffect(() => {
     setYear(String(new Date().getFullYear()));
   }, []);
@@ -49,7 +55,7 @@ export default function Footer() {
             </p>
             <div className="flex items-center gap-3 mt-4">
               <a
-                href="https://github.com/instinctfi"
+                href={GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-100 border border-border text-neutral-500 hover:text-neutral-200 hover:border-border-hover transition-all"
@@ -58,7 +64,7 @@ export default function Footer() {
                 <Github size={14} />
               </a>
               <a
-                href="https://x.com/instinctfi"
+                href={TWITTER_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-100 border border-border text-neutral-500 hover:text-neutral-200 hover:border-border-hover transition-all"
@@ -118,7 +124,6 @@ export default function Footer() {
                   <Link
                     href={link.href}
                     className="text-xs text-neutral-500 hover:text-brand-400 transition-colors"
-                    title="Coming Soon"
                   >
                     {link.label}
                   </Link>
@@ -130,7 +135,7 @@ export default function Footer() {
 
         {/* ── Bottom bar ── */}
         <div className="border-t border-border py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <p className="text-neutral-600 text-[10px]">
+          <p className="text-neutral-600 text-[10px]" suppressHydrationWarning>
             © {year} InstinctFi. All rights reserved.
           </p>
           <div className="flex items-center gap-3">
@@ -139,7 +144,7 @@ export default function Footer() {
               Powered by Solana
             </span>
             <span className="text-[10px] text-neutral-600 px-2 py-0.5 bg-surface-100 border border-border rounded">
-              Devnet
+              {process.env.NEXT_PUBLIC_SOLANA_NETWORK === "mainnet-beta" ? "Mainnet" : "Devnet"}
             </span>
           </div>
         </div>

@@ -6,6 +6,8 @@ pub mod instructions;
 
 use instructions::*;
 
+// TODO(#16): Replace placeholder program ID with a real keypair before deployment.
+// Generate with: `solana-keygen grind --starts-with Us:1`
 declare_id!("UserPrgm11111111111111111111111111111111111");
 
 /// Dollar amounts stored as cents (u64). $1.00 = 100 cents.

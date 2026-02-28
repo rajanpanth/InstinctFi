@@ -6,6 +6,8 @@ import React, {
   useState,
   useEffect,
   useRef,
+  useMemo,
+  useCallback,
   ReactNode,
 } from "react";
 import { PROGRAM_DEPLOYED } from "@/lib/program";
@@ -13,12 +15,12 @@ import { useNotifications } from "@/lib/notifications";
 import { useWalletManager } from "@/lib/hooks/useWalletManager";
 import { useDataFetcher, type MutationTracker } from "@/lib/hooks/useDataFetcher";
 import { usePollOperations } from "@/lib/hooks/usePollOperations";
+import { useRealtimePolls } from "@/lib/hooks/useRealtimePolls";
 
 // ── Re-export types & constants from shared modules ──────────────────────
 // This maintains backward compatibility for all existing imports
 export {
   SOL_UNIT,
-  CENTS,
   MAX_COINS_PER_POLL,
   PollStatus,
   WINNING_OPTION_UNSET,
@@ -55,31 +57,49 @@ export function Providers({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Hydrate from localStorage on mount (client only, after first render)
+  // #23: Validate parsed data shape to prevent crashes from corrupt localStorage
   useEffect(() => {
     if (PROGRAM_DEPLOYED) return;
     try {
       const savedUsers = localStorage.getItem("instinctfi_users");
-      if (savedUsers) setUsers(JSON.parse(savedUsers));
+      if (savedUsers) {
+        const parsed = JSON.parse(savedUsers);
+        if (Array.isArray(parsed)) setUsers(parsed);
+      }
       const savedPolls = localStorage.getItem("instinctfi_polls");
-      if (savedPolls) setPolls(JSON.parse(savedPolls));
+      if (savedPolls) {
+        const parsed = JSON.parse(savedPolls);
+        if (Array.isArray(parsed)) setPolls(parsed);
+      }
       const savedVotes = localStorage.getItem("instinctfi_votes");
-      if (savedVotes) setVotes(JSON.parse(savedVotes));
-    } catch { /* corrupt cache — start fresh */ }
+      if (savedVotes) {
+        const parsed = JSON.parse(savedVotes);
+        if (Array.isArray(parsed)) setVotes(parsed);
+      }
+    } catch {
+      // Corrupt cache — clear it and start fresh
+      try {
+        localStorage.removeItem("instinctfi_users");
+        localStorage.removeItem("instinctfi_polls");
+        localStorage.removeItem("instinctfi_votes");
+      } catch { /* localStorage unavailable */ }
+    }
   }, []);
 
-  // Persist to localStorage in demo mode
+  // Persist to localStorage in demo mode (debounced to avoid jank)
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (PROGRAM_DEPLOYED) return;
-    try { localStorage.setItem("instinctfi_polls", JSON.stringify(polls)); } catch { }
-  }, [polls]);
-  useEffect(() => {
-    if (PROGRAM_DEPLOYED) return;
-    try { localStorage.setItem("instinctfi_votes", JSON.stringify(votes)); } catch { }
-  }, [votes]);
-  useEffect(() => {
-    if (PROGRAM_DEPLOYED) return;
-    try { localStorage.setItem("instinctfi_users", JSON.stringify(users)); } catch { }
-  }, [users]);
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem("instinctfi_polls", JSON.stringify(polls));
+        localStorage.setItem("instinctfi_votes", JSON.stringify(votes));
+        localStorage.setItem("instinctfi_users", JSON.stringify(users));
+      } catch { }
+    }, 500);
+    return () => { if (persistTimerRef.current) clearTimeout(persistTimerRef.current); };
+  }, [polls, votes, users]);
 
   // ── Mutation tracking (shared between fetcher and operations) ──
   // We use independent refs, then memoize the container object so 'tracker' is stable.
@@ -94,12 +114,15 @@ export function Providers({ children }: { children: ReactNode }) {
   }), []);
 
   // ── Wallet management ──
-  const { walletConnected, walletAddress, connectWallet, disconnectWallet } =
+  const { walletConnected, walletAddress, connectWallet, disconnectWallet, signTransaction } =
     useWalletManager(users, setUsers);
 
   // ── Data fetching ──
   const { initialFetchDone, usersRef, pollsRef, votesRef, updateUsersRef, updatePollsRef, updateVotesRef, recentlyVotedPollIds } =
     useDataFetcher(walletAddress, walletConnected, setPolls, setVotes, setUsers, setIsLoading, tracker);
+
+  // ── Real-time subscriptions ──
+  useRealtimePolls({ setPolls, setVotes });
 
   // Keep refs in sync with latest state
   useEffect(() => { updateUsersRef(users); }, [users, updateUsersRef]);
@@ -117,41 +140,53 @@ export function Providers({ children }: { children: ReactNode }) {
       walletAddress, polls, votes, users, userAccount,
       setPolls, setVotes, setUsers,
       tracker, usersRef, pollsRef, votesRef, initialFetchDone,
-      addNotification,
+      addNotification, signTransaction,
     });
 
   // ── Auto-signup / balance sync when connected ──
+  // #21: Mutex to prevent race condition from rapid wallet reconnects
+  const signupMutex = useRef(false);
   useEffect(() => {
     if (!initialFetchDone.current) return;
     if (walletConnected && walletAddress) {
-      signup();
+      if (signupMutex.current) return;
+      signupMutex.current = true;
+      Promise.resolve(signup()).finally(() => {
+        signupMutex.current = false;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletConnected, walletAddress]);
 
+  // #22: Memoize context value to prevent re-renders of all consumers
+  const contextValue = useMemo<AppContextType>(() => ({
+    walletConnected,
+    walletAddress,
+    connectWallet,
+    disconnectWallet,
+    userAccount,
+    signup,
+    claimDailyReward,
+    isLoading,
+    polls,
+    votes,
+    createPoll,
+    editPoll,
+    deletePoll,
+    castVote,
+    settlePoll,
+    claimReward,
+    allUsers: users,
+    recentlyVotedPollIds,
+  }), [
+    walletConnected, walletAddress, connectWallet, disconnectWallet,
+    userAccount, signup, claimDailyReward, isLoading, polls, votes,
+    createPoll, editPoll, deletePoll, castVote, settlePoll, claimReward,
+    users, recentlyVotedPollIds,
+  ]);
+
   return (
-    <AppContext.Provider
-      value={{
-        walletConnected,
-        walletAddress,
-        connectWallet,
-        disconnectWallet,
-        userAccount,
-        signup,
-        claimDailyReward,
-        isLoading,
-        polls,
-        votes,
-        createPoll,
-        editPoll,
-        deletePoll,
-        castVote,
-        settlePoll,
-        claimReward,
-        allUsers: users,
-        recentlyVotedPollIds,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

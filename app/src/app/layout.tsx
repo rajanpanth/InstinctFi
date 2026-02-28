@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
-import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
 import InstallPrompt from "@/components/InstallPrompt";
 import WebVitals from "@/components/WebVitals";
@@ -10,12 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PageTransition from "@/components/PageTransition";
 import LoadingScreen from "@/components/LoadingScreen";
 import AuroraBackground from "@/components/AuroraBackground";
-import WalletAdapterProvider from "@/components/WalletAdapterProvider";
-import { UserProfileProvider } from "@/lib/userProfiles";
-import { NotificationProvider } from "@/lib/notifications";
-import { BookmarkProvider } from "@/lib/bookmarks";
-import { ReferralGate } from "@/lib/referrals";
-import { LanguageProvider } from "@/lib/languageContext";
+import AppProviders from "@/components/AppProviders";
 import { Toaster } from "react-hot-toast";
 import Footer from "@/components/Footer";
 
@@ -59,30 +53,6 @@ export const metadata: Metadata = {
     apple: "/icon-192.png",
   },
 };
-
-/**
- * Composes all context providers into a single wrapper.
- * Order matters: outermost → innermost.
- */
-function AppProviders({ children }: { children: React.ReactNode }) {
-  return (
-    <LanguageProvider>
-      <WalletAdapterProvider>
-        <UserProfileProvider>
-          <NotificationProvider>
-            <BookmarkProvider>
-              <ReferralGate>
-                <Providers>
-                  {children}
-                </Providers>
-              </ReferralGate>
-            </BookmarkProvider>
-          </NotificationProvider>
-        </UserProfileProvider>
-      </WalletAdapterProvider>
-    </LanguageProvider>
-  );
-}
 
 export default function RootLayout({
   children,

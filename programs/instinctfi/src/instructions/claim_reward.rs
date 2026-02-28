@@ -9,6 +9,11 @@ use crate::errors::InstinctFiError;
 ///   reward = (user_winning_votes / total_winning_votes) × total_pool
 ///
 /// Real SOL is transferred from the treasury PDA to the claimer.
+///
+/// NOTE (#49): Integer division truncation causes dust (residual lamports)
+/// to accumulate in the treasury PDA. Use the `sweep_dust` instruction
+/// to transfer remaining lamports to the platform admin once all winners
+/// have claimed.
 pub fn handler(ctx: Context<ClaimReward>, _poll_id: u64) -> Result<()> {
     // ── Read data before any mutable borrows ──
     let poll_key = ctx.accounts.poll_account.key();

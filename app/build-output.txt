@@ -1,0 +1,82 @@
+﻿node.exe :  ΓÜá Warning: Next.js inferred your workspace root, but it 
+may not be correct.
+At C:\nvm4w\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( ΓÜá Warning: N...not be  
+   correct.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ We detected multiple lockfiles and selected the directory of 
+C:\Users\panth\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js 
+config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/
+output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\Users\panth\Music\votingproject\app\package-lock.json
+
+   Γû▓ Next.js 15.5.12
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully in 7.8s
+   Linting and checking validity of types ...
+
+./src/lib/hooks/usePollOperations.ts
+179:8  Warning: React Hook useCallback has a missing dependency: 'signTransaction'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+229:8  Warning: React Hook useCallback has a missing dependency: 'DAILY_REWARD_LAMPORTS'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+321:9  Warning: React Hook useCallback has missing dependencies: 'markMutation' and 'signTransaction'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+401:9  Warning: React Hook useCallback has missing dependencies: 'markMutation' and 'signTransaction'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+511:9  Warning: React Hook useCallback has missing dependencies: 'markMutation' and 'signTransaction'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+655:9  Warning: React Hook useCallback has missing dependencies: 'markMutation' and 'signTransaction'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+757:9  Warning: React Hook useCallback has missing dependencies: 'markMutation' and 'signTransaction'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+859:9  Warning: React Hook useCallback has a missing dependency: 'signTransaction'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+ ΓÜá Using edge runtime on a page currently disables static generation 
+for that page
+   Generating static pages (0/23) ...
+   Generating static pages (5/23) 
+   Generating static pages (11/23) 
+   Generating static pages (17/23) 
+ Γ£ô Generating static pages (23/23)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+Γöî Γùï /                                    3.13 kB         297 kB
+Γö£ Γùï /_not-found                            208 B         102 kB
+Γö£ Γùï /activity                            2.84 kB         252 kB
+Γö£ Γùï /admin                               5.16 kB         244 kB
+Γö£ ╞Æ /api/auth/verify                       208 B         102 kB
+Γö£ ╞Æ /api/health                            208 B         102 kB
+Γö£ ╞Æ /api/og                                208 B         102 kB
+Γö£ ╞Æ /api/og/[id]                           208 B         102 kB
+Γö£ ╞Æ /api/rpc/cast-vote                     208 B         102 kB
+Γö£ ╞Æ /api/rpc/claim-daily                   208 B         102 kB
+Γö£ ╞Æ /api/rpc/claim-reward                  208 B         102 kB
+Γö£ ╞Æ /api/rpc/comment                       208 B         102 kB
+Γö£ ╞Æ /api/rpc/create-poll                   208 B         102 kB
+Γö£ ╞Æ /api/rpc/credit-balance                208 B         102 kB
+Γö£ ╞Æ /api/rpc/delete-poll                   208 B         102 kB
+Γö£ ╞Æ /api/rpc/edit-poll                     208 B         102 kB
+Γö£ ╞Æ /api/rpc/settle-poll                   208 B         102 kB
+Γö£ ╞Æ /api/rpc/signup                        208 B         102 kB
+Γö£ Γùï /create                              5.77 kB         271 kB
+Γö£ ╞Æ /embed/[id]                          1.26 kB         244 kB
+Γö£ Γùï /leaderboard                         3.82 kB         258 kB
+Γö£ Γùï /polls                               2.73 kB         297 kB
+Γö£ ╞Æ /polls/[id]                          8.04 kB         292 kB
+Γö£ Γùï /portfolio                           3.95 kB         253 kB
+Γöö Γùï /profile                                8 kB         282 kB
++ First Load JS shared by all             102 kB
+  Γö£ chunks/1255-d97c5e3be406639e.js      45.8 kB
+  Γö£ chunks/4bd1b696-f6bedae49f0827a5.js  54.2 kB
+  Γöö other shared chunks (total)          2.06 kB
+
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

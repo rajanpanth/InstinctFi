@@ -25,7 +25,50 @@ export default function LeaderboardPage() {
   const [period, setPeriod] = useState<Period>("allTime");
   const [sortBy, setSortBy] = useState<"winnings" | "pollsWon" | "votes" | "creatorEarnings">("winnings");
   const [mounted, setMounted] = useState(false);
+  const [leaderboardUsers, setLeaderboardUsers] = useState<UserAccount[]>([]);
   useEffect(() => setMounted(true), []);
+
+  // Fetch all users from the server-side leaderboard API
+  // so we can show other players (context only has current user)
+  useEffect(() => {
+    fetch("/api/leaderboard")
+      .then(res => res.json())
+      .then(data => {
+        if (data.users && data.users.length > 0) {
+          const mapped: UserAccount[] = data.users.map((r: any) => ({
+            wallet: r.wallet,
+            balance: 0, // Not exposed for privacy
+            signupBonusClaimed: true,
+            lastWeeklyRewardTs: 0,
+            totalVotesCast: Number(r.total_votes_cast || 0),
+            totalPollsVoted: Number(r.total_polls_voted || 0),
+            pollsWon: Number(r.polls_won || 0),
+            pollsCreated: Number(r.polls_created || 0),
+            totalSpentCents: Number(r.total_spent_cents || 0),
+            totalWinningsCents: Number(r.total_winnings_cents || 0),
+            weeklyWinningsCents: Number(r.weekly_winnings_cents || 0),
+            monthlyWinningsCents: Number(r.monthly_winnings_cents || 0),
+            weeklySpentCents: Number(r.weekly_spent_cents || 0),
+            monthlySpentCents: Number(r.monthly_spent_cents || 0),
+            weeklyVotesCast: Number(r.weekly_votes_cast || 0),
+            monthlyVotesCast: Number(r.monthly_votes_cast || 0),
+            weeklyPollsWon: Number(r.weekly_polls_won || 0),
+            monthlyPollsWon: Number(r.monthly_polls_won || 0),
+            weeklyPollsVoted: Number(r.weekly_polls_voted || 0),
+            monthlyPollsVoted: Number(r.monthly_polls_voted || 0),
+            creatorEarningsCents: Number(r.creator_earnings_cents || 0),
+            weeklyResetTs: Number(r.weekly_reset_ts || 0),
+            monthlyResetTs: Number(r.monthly_reset_ts || 0),
+            createdAt: Number(r.created_at || 0),
+          }));
+          setLeaderboardUsers(mapped);
+        }
+      })
+      .catch(err => console.warn("[Leaderboard] API fetch failed, using context:", err));
+  }, []);
+
+  // Use server-fetched users if available, otherwise fall back to context
+  const usersToDisplay = leaderboardUsers.length > 0 ? leaderboardUsers : allUsers;
 
   const getWinnings = (u: UserAccount) => {
     if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyWinningsCents : 0;
@@ -72,7 +115,7 @@ export default function LeaderboardPage() {
     }
   };
 
-  const sorted = [...allUsers].sort(sortFn);
+  const sorted = [...usersToDisplay].sort(sortFn);
 
   const winRate = (u: UserAccount) => {
     const voted = period === "weekly"

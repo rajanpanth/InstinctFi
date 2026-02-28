@@ -5,7 +5,8 @@ import { z } from "zod";
 /** Validates a poll row from Supabase */
 export const PollRowSchema = z.object({
     id: z.string(),
-    poll_id: z.number(),
+    // #42: Accept both number and string for poll_id to prevent u64 precision loss
+    poll_id: z.union([z.number(), z.string()]).transform(v => String(v)),
     creator: z.string(),
     title: z.string(),
     description: z.string().nullable().default(""),
@@ -24,6 +25,15 @@ export const PollRowSchema = z.object({
     creator_reward_cents: z.number().default(0),
     total_voters: z.number().default(0),
     created_at: z.string().nullable(),
+}).transform(row => {
+    // #62: Ensure vote_counts.length matches options.length
+    // Pad with zeros if shorter, truncate if longer
+    const expectedLen = row.options.length;
+    if (row.vote_counts.length !== expectedLen) {
+        const padded = Array.from({ length: expectedLen }, (_, i) => row.vote_counts[i] ?? 0);
+        return { ...row, vote_counts: padded };
+    }
+    return row;
 });
 
 export type PollRow = z.infer<typeof PollRowSchema>;
@@ -32,7 +42,8 @@ export type PollRow = z.infer<typeof PollRowSchema>;
 export const VoteRowSchema = z.object({
     poll_id: z.string(),
     voter: z.string(),
-    votes_per_option: z.array(z.number()),
+    // #62: votes_per_option length is validated at usage site (needs poll context)
+    votes_per_option: z.array(z.number()).min(1, "Must have at least 1 option vote"),
     total_staked_cents: z.number(),
     claimed: z.boolean().default(false),
 });
@@ -52,6 +63,13 @@ export const UserRowSchema = z.object({
     total_winnings_cents: z.number().default(0),
     creator_earnings_cents: z.number().default(0),
     balance: z.number().default(0),
+    weekly_winnings_cents: z.number().default(0),
+    monthly_winnings_cents: z.number().default(0),
+    weekly_spent_cents: z.number().default(0),
+    monthly_spent_cents: z.number().default(0),
+    weekly_reset_ts: z.number().default(0),
+    monthly_reset_ts: z.number().default(0),
+    created_at: z.string().nullable().optional(),
 });
 
 export type UserRow = z.infer<typeof UserRowSchema>;

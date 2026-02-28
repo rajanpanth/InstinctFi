@@ -46,6 +46,15 @@ function getPollsByCategory(polls: DemoPoll[], category: string, limit = 4): Dem
     .slice(0, limit);
 }
 
+function getEndingSoon(polls: DemoPoll[], limit = 4): DemoPoll[] {
+  const now = Math.floor(Date.now() / 1000);
+  const in24h = now + 24 * 60 * 60;
+  return polls
+    .filter((p) => p.status === PollStatus.Active && p.endTime > now && p.endTime <= in24h)
+    .sort((a, b) => a.endTime - b.endTime)
+    .slice(0, limit);
+}
+
 export default function Home() {
   return (
     <Suspense
@@ -92,6 +101,8 @@ function HomeContent() {
     [polls]
   );
 
+  const endingSoon = useMemo(() => mounted ? getEndingSoon(polls) : [], [polls, mounted]);
+
   const totalVotes = useMemo(() => mounted ? polls.reduce((sum, p) => sum + p.voteCounts.reduce((a, b) => a + b, 0), 0) : 0, [polls, mounted]);
   const totalVolume = useMemo(() => mounted ? polls.reduce((sum, p) => sum + p.totalPoolCents, 0) : 0, [polls, mounted]);
 
@@ -104,10 +115,10 @@ function HomeContent() {
             {/* Left side — Text */}
             <div className="lg:col-span-3 flex flex-col justify-center">
               <p className="text-brand-500 text-xs font-semibold tracking-widest uppercase mb-4">
-                Prediction Markets on Solana
+                {t("heroTagline")}
               </p>
               <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-5 tracking-tight gradient-text">
-                Trust Your Instinct.
+                {t("heroTitle")}
               </h1>
               <p className="text-neutral-400 text-base sm:text-lg leading-relaxed mb-8 max-w-lg">
                 {t("heroDesc")}
@@ -117,29 +128,29 @@ function HomeContent() {
                   onClick={connectWallet}
                   className="px-6 py-3 bg-brand-500 hover:bg-brand-600 rounded-lg font-semibold text-sm text-white transition-colors active:scale-[0.97] flex items-center gap-2"
                 >
-                  Connect Wallet
+                  {t("connectPhantom")}
                   <ArrowRight size={16} />
                 </button>
                 <Link
                   href="/polls"
                   className="px-6 py-3 bg-surface-100 hover:bg-surface-200 border border-border rounded-lg font-semibold text-sm text-neutral-300 transition-colors active:scale-[0.97]"
                 >
-                  Browse Polls
+                  {t("browsePolls")}
                 </Link>
               </div>
               {/* Stats */}
               <div className="flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2 text-neutral-500">
                   <BarChart3 size={14} className="text-brand-500" />
-                  <span><span className="text-neutral-200 font-semibold">{mounted ? polls.length : 0}</span> polls</span>
+                  <span><span className="text-neutral-200 font-semibold">{mounted ? polls.length : 0}</span> {t("polls").toLowerCase()}</span>
                 </div>
                 <div className="flex items-center gap-2 text-neutral-500">
                   <Users size={14} className="text-brand-500" />
-                  <span><span className="text-neutral-200 font-semibold">{mounted ? totalVotes : 0}</span> votes</span>
+                  <span><span className="text-neutral-200 font-semibold">{mounted ? totalVotes : 0}</span> {t("votes").toLowerCase()}</span>
                 </div>
                 <div className="flex items-center gap-2 text-neutral-500">
                   <Zap size={14} className="text-brand-500" />
-                  <span><span className="text-neutral-200 font-semibold">{mounted ? formatDollars(totalVolume) : formatDollars(0)}</span> volume</span>
+                  <span><span className="text-neutral-200 font-semibold">{mounted ? formatDollars(totalVolume) : formatDollars(0)}</span> {t("totalVolume").toLowerCase()}</span>
                 </div>
               </div>
             </div>
@@ -221,7 +232,7 @@ function HomeContent() {
 
       {/* ── Content ── */}
       {filteredPolls ? (
-        <section>
+        <section role="tabpanel">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-heading text-lg font-semibold flex items-center gap-2 text-neutral-100">
               <span>{CATEGORY_META.find((c) => c.label === catFilter)?.icon}</span>
@@ -306,6 +317,29 @@ function HomeContent() {
               )}
             </section>
           ) : null}
+
+          {/* ── Ending Soon ── */}
+          {endingSoon.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-heading text-lg font-semibold flex items-center gap-2 text-neutral-100">
+                  <span>⏰</span>
+                  Ending Soon
+                </h2>
+                <Link
+                  href="/polls?sort=ending-soon"
+                  className="text-xs text-brand-500 hover:text-brand-400 font-medium transition-colors flex items-center gap-1"
+                >
+                  {t("seeAll")} <ArrowRight size={12} />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {endingSoon.map((poll) => (
+                  <PollCard key={poll.id} poll={poll} />
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* ── Category Sections ── */}
           {categorySections.map((cat) => (

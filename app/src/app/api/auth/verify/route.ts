@@ -23,7 +23,11 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Verify that the message contains the expected wallet address
+        // #37: Verify structured message format with domain binding
+        // Expected format includes: "Sign in to InstinctFi" header, wallet address, and timestamp
+        const expectedDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || "instinctfi.com";
+
+        // Check message contains wallet address
         if (!message.includes(walletAddress)) {
             return NextResponse.json(
                 { error: "Message does not match wallet address" },
@@ -31,18 +35,31 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Verify the timestamp is recent (within 5 minutes)
+        // Verify domain binding to prevent cross-site message replay
+        if (!message.includes("Sign in to InstinctFi") && !message.includes(expectedDomain)) {
+            return NextResponse.json(
+                { error: "Message must include application domain for security binding." },
+                { status: 400 }
+            );
+        }
+
+        // Verify the timestamp is present and recent (within 5 minutes).
+        // Messages without a timestamp are rejected to prevent replay attacks.
         const timestampMatch = message.match(/Timestamp: (\d+)/);
-        if (timestampMatch) {
-            const messageTimestamp = parseInt(timestampMatch[1], 10);
-            const now = Date.now();
-            const fiveMinutes = 5 * 60 * 1000;
-            if (Math.abs(now - messageTimestamp) > fiveMinutes) {
-                return NextResponse.json(
-                    { error: "Message timestamp has expired. Please sign a fresh message." },
-                    { status: 401 }
-                );
-            }
+        if (!timestampMatch) {
+            return NextResponse.json(
+                { error: "Message must include a Timestamp field for replay protection." },
+                { status: 400 }
+            );
+        }
+        const messageTimestamp = parseInt(timestampMatch[1], 10);
+        const now = Date.now();
+        const fiveMinutes = 5 * 60 * 1000;
+        if (Math.abs(now - messageTimestamp) > fiveMinutes) {
+            return NextResponse.json(
+                { error: "Message timestamp has expired. Please sign a fresh message." },
+                { status: 401 }
+            );
         }
 
         // Decode the signature and public key
@@ -72,14 +89,15 @@ export async function POST(req: NextRequest) {
         // ── Issue a proper HMAC-SHA256 JWT ──
         const secret = process.env.AUTH_JWT_SECRET;
         if (!secret) {
-            console.error("[Auth] AUTH_JWT_SECRET not configured. Available env keys:", Object.keys(process.env).filter(k => k.includes("AUTH") || k.includes("JWT") || k.includes("SECRET")).join(", ") || "(none matching)");
+            // #71: Don't log env key names — they could leak to third-party logging services
+            console.error("[Auth] AUTH_JWT_SECRET not configured");
             return NextResponse.json(
                 { error: "Server misconfiguration — auth secret missing" },
                 { status: 500 }
             );
         }
 
-        const token = await signJWT({ wallet: walletAddress }, secret, 86400); // 24h
+        const token = await signJWT({ wallet: walletAddress }, secret); // #43: uses 1h default
 
         return NextResponse.json({
             success: true,

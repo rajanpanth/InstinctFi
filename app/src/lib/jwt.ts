@@ -44,24 +44,37 @@ export interface JWTPayload {
     iat: number;
     /** Expiration timestamp (seconds) */
     exp: number;
+    /** JWT ID for revocation support (#43) */
+    jti?: string;
+    /** #65: Issuer claim */
+    iss?: string;
+    /** #65: Audience claim */
+    aud?: string;
 }
 
 /**
  * Create an HMAC-SHA256 signed JWT.
  * @param payload  Must include `wallet`. `iat` and `exp` are set automatically if missing.
  * @param secret   The `AUTH_JWT_SECRET` env var.
- * @param ttlSec   Token lifetime in seconds (default: 24 hours).
+ * @param ttlSec   Token lifetime in seconds (default: 1 hour).
+ *                 #43: Reduced from 24h to 1h to limit stolen token exposure.
+ *                 For full revocation, implement a Redis/DB-backed JTI blacklist.
  */
 export async function signJWT(
     payload: { wallet: string; iat?: number; exp?: number },
     secret: string,
-    ttlSec: number = 86400
+    ttlSec: number = 3600 // #43: Default to 1 hour instead of 24 hours
 ): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
+    // #43: Generate a JTI for potential token blacklisting
+    const jti = `${payload.wallet}-${now}-${Math.random().toString(36).slice(2, 10)}`;
     const fullPayload: JWTPayload = {
         wallet: payload.wallet,
         iat: payload.iat ?? now,
         exp: payload.exp ?? now + ttlSec,
+        jti,
+        iss: "instinctfi",      // #65: issuer claim
+        aud: "instinctfi-api",  // #65: audience claim
     };
 
     const header = base64url(new TextEncoder().encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
@@ -110,6 +123,14 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
 
     if (!payload.wallet) {
         throw new Error("JWT missing wallet claim");
+    }
+
+    // #65: Verify issuer and audience claims
+    if (payload.iss && payload.iss !== "instinctfi") {
+        throw new Error("JWT issuer mismatch");
+    }
+    if (payload.aud && payload.aud !== "instinctfi-api") {
+        throw new Error("JWT audience mismatch");
     }
 
     return payload;

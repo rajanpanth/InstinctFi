@@ -3,10 +3,15 @@
 
 // Admin wallets — used client-side for UI gating (showing edit/delete buttons).
 // ⚠ The AUTHORITATIVE admin check is in the `admin_wallets` Supabase table,
-//   which is queried by `edit_poll_atomic` and other RPCs. Keep these in sync.
-export const ADMIN_WALLETS = [
-  "62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS",
-];
+//   which is queried by `createAdminRpcHandler` on every admin API call.
+//   This client-side list is ONLY for UI gating — never for security decisions.
+const ADMIN_WALLETS_ENV = process.env.NEXT_PUBLIC_ADMIN_WALLETS;
+export const ADMIN_WALLETS: string[] = ADMIN_WALLETS_ENV
+  ? ADMIN_WALLETS_ENV.split(",").map(w => w.trim()).filter(Boolean)
+  : [
+    // Fallback for development only — in production, set NEXT_PUBLIC_ADMIN_WALLETS env var
+    "62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS",
+  ];
 
 export function isAdminWallet(wallet: string | null): boolean {
   return wallet ? ADMIN_WALLETS.includes(wallet) : false;
@@ -29,15 +34,23 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
-/** Category metadata for navbar/home page category bar */
+// #61: CategoryLabel includes CATEGORIES + UI-only filters like "Trending"
+type CategoryLabel = Category | "Trending";
+
+/**
+ * Category metadata for navbar/home page category bar.
+ * NOTE: "Trending" is a UI-only filter (not in CATEGORIES) — it shows
+ * recently active polls, not polls tagged as "Trending".
+ */
 export const CATEGORY_META: {
-  label: string;
+  label: CategoryLabel;
   icon: string;
   color: string;
   bgGradient?: string;  // gradient for poll card category banner
   borderColor?: string; // accent border for cards
+  isFilter?: boolean;   // true = UI filter only, not a valid poll category
 }[] = [
-    { label: "Trending", icon: "🔥", color: "text-orange-400", bgGradient: "from-orange-600/20 to-red-600/20", borderColor: "border-orange-500/30" },
+    { label: "Trending", icon: "🔥", color: "text-orange-400", bgGradient: "from-orange-600/20 to-red-600/20", borderColor: "border-orange-500/30", isFilter: true },
     { label: "Politics", icon: "🏛️", color: "text-blue-400", bgGradient: "from-blue-600/20 to-brand-600/20", borderColor: "border-blue-500/30" },
     { label: "Sports", icon: "⚽", color: "text-green-400", bgGradient: "from-green-600/20 to-emerald-600/20", borderColor: "border-green-500/30" },
     { label: "Culture", icon: "🎭", color: "text-pink-400", bgGradient: "from-pink-600/20 to-rose-600/20", borderColor: "border-pink-500/30" },
@@ -56,4 +69,14 @@ export const CATEGORY_META: {
 /** Helper to look up category meta by label */
 export function getCategoryMeta(label: string) {
   return CATEGORY_META.find((c) => c.label === label) ?? CATEGORY_META[CATEGORY_META.length - 1];
+}
+
+// #61: Dev-mode assertion — detect drift between CATEGORIES and CATEGORY_META
+if (process.env.NODE_ENV === "development") {
+  const metaLabels = new Set(CATEGORY_META.map(c => c.label));
+  for (const cat of CATEGORIES) {
+    if (!metaLabels.has(cat)) {
+      console.warn(`[constants] Category "${cat}" missing from CATEGORY_META`);
+    }
+  }
 }

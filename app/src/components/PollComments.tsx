@@ -23,6 +23,10 @@ type Props = {
   pollId: string;
 };
 
+const REACTION_EMOJIS = ["👍", "🔥", "🧠"] as const;
+type ReactionCounts = Record<string, Record<string, number>>; // commentId -> emoji -> count
+type UserReactions = Record<string, Set<string>>; // commentId -> Set of emoji user reacted with
+
 export default function PollComments({ pollId }: Props) {
   const { walletConnected, walletAddress, connectWallet } = useApp();
   const { getDisplayName, getAvatarUrl } = useUserProfiles();
@@ -33,12 +37,15 @@ export default function PollComments({ pollId }: Props) {
   const [cooldownEnd, setCooldownEnd] = useState(0);
   const { t } = useLanguage();
 
-  const COMMENT_COOLDOWN_MS = 30_000; // 30 seconds between comments
+  // Reaction state
+  const [reactionCounts, setReactionCounts] = useState<ReactionCounts>({});
+  const [userReactions, setUserReactions] = useState<UserReactions>({});
+
+  const COMMENT_COOLDOWN_MS = 30_000;
 
   // Load comments
   const fetchComments = useCallback(async () => {
     if (!isSupabaseConfigured) {
-      // Fallback to localStorage
       try {
         const saved = localStorage.getItem(`comments_${pollId}`);
         if (saved) setComments(JSON.parse(saved));
@@ -53,18 +60,49 @@ export default function PollComments({ pollId }: Props) {
         .select("*")
         .eq("poll_id", pollId)
         .order("created_at", { ascending: true });
-      if (data) setComments(data as Comment[]);
+      if (data) {
+        setComments(data as Comment[]);
+        // Fetch reaction counts
+        const ids = data.map((c: any) => c.id);
+        if (ids.length > 0) {
+          const { data: reactData } = await supabase.rpc("get_reaction_counts", { p_comment_ids: ids });
+          if (reactData) {
+            const counts: ReactionCounts = {};
+            reactData.forEach((r: any) => {
+              if (!counts[r.comment_id]) counts[r.comment_id] = {};
+              counts[r.comment_id][r.emoji] = Number(r.count);
+            });
+            setReactionCounts(counts);
+          }
+          // Fetch user's own reactions
+          if (walletAddress) {
+            const { data: userReactData } = await supabase
+              .from("comment_reactions")
+              .select("comment_id, emoji")
+              .in("comment_id", ids)
+              .eq("wallet", walletAddress);
+            if (userReactData) {
+              const userR: UserReactions = {};
+              userReactData.forEach((r: any) => {
+                if (!userR[r.comment_id]) userR[r.comment_id] = new Set();
+                userR[r.comment_id].add(r.emoji);
+              });
+              setUserReactions(userR);
+            }
+          }
+        }
+      }
     } catch (e) {
       console.warn("Failed to load comments:", e);
     }
     setLoading(false);
-  }, [pollId]);
+  }, [pollId, walletAddress]);
 
   useEffect(() => {
     fetchComments();
   }, [fetchComments]);
 
-  // Subscribe to realtime comments if Supabase is configured
+  // Subscribe to realtime comments
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
@@ -87,6 +125,53 @@ export default function PollComments({ pollId }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [pollId]);
 
+  const handleReaction = async (commentId: string, emoji: string) => {
+    if (!walletConnected || !walletAddress) {
+      connectWallet();
+      return;
+    }
+    // Optimistic update
+    const hadReaction = userReactions[commentId]?.has(emoji);
+    setUserReactions(prev => {
+      const copy = { ...prev };
+      if (!copy[commentId]) copy[commentId] = new Set();
+      const set = new Set(copy[commentId]);
+      if (hadReaction) set.delete(emoji);
+      else set.add(emoji);
+      copy[commentId] = set;
+      return copy;
+    });
+    setReactionCounts(prev => {
+      const copy = { ...prev };
+      if (!copy[commentId]) copy[commentId] = {};
+      const current = copy[commentId][emoji] || 0;
+      copy[commentId] = { ...copy[commentId], [emoji]: hadReaction ? Math.max(0, current - 1) : current + 1 };
+      return copy;
+    });
+
+    // Server call
+    if (isSupabaseConfigured) {
+      try {
+        await authenticatedFetch("/api/rpc/react-comment", {
+          p_comment_id: commentId,
+          p_wallet: walletAddress,
+          p_emoji: emoji,
+        });
+      } catch {
+        // Revert on error
+        setUserReactions(prev => {
+          const copy = { ...prev };
+          if (!copy[commentId]) copy[commentId] = new Set();
+          const set = new Set(copy[commentId]);
+          if (hadReaction) set.add(emoji);
+          else set.delete(emoji);
+          copy[commentId] = set;
+          return copy;
+        });
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!walletConnected || !walletAddress) {
@@ -99,7 +184,6 @@ export default function PollComments({ pollId }: Props) {
       return;
     }
 
-    // Rate limiting: 1 comment per 30s
     const now = Date.now();
     if (now < cooldownEnd) {
       const secsLeft = Math.ceil((cooldownEnd - now) / 1000);
@@ -124,7 +208,6 @@ export default function PollComments({ pollId }: Props) {
         });
         if (!result.success) throw new Error(result.error);
       } else {
-        // localStorage fallback
         const all = [...comments, comment];
         localStorage.setItem(`comments_${pollId}`, JSON.stringify(all));
       }
@@ -213,6 +296,26 @@ export default function PollComments({ pollId }: Props) {
                   <span className="text-xs text-gray-600">{timeAgo(c.created_at)}</span>
                 </div>
                 <p className="text-sm text-gray-300 break-words">{c.text}</p>
+                {/* Reaction buttons */}
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {REACTION_EMOJIS.map(emoji => {
+                    const count = reactionCounts[c.id]?.[emoji] || 0;
+                    const active = userReactions[c.id]?.has(emoji);
+                    return (
+                      <button
+                        key={emoji}
+                        onClick={() => handleReaction(c.id, emoji)}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all ${active
+                            ? "bg-brand-500/15 border border-brand-500/30 text-brand-400"
+                            : "bg-surface-50 border border-border text-gray-500 hover:border-gray-500 hover:text-gray-300"
+                          }`}
+                      >
+                        <span>{emoji}</span>
+                        {count > 0 && <span className="font-mono">{count}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           ))}
@@ -221,3 +324,4 @@ export default function PollComments({ pollId }: Props) {
     </div>
   );
 }
+

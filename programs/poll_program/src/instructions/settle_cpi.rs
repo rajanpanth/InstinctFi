@@ -9,7 +9,8 @@ mod settlement_program_id {
 }
 
 /// CPI-callable instruction: settles a poll by setting its winner.
-/// Only the settlement_program may call this — enforced by caller_program constraint.
+/// Only the settlement_program may call this — enforced by requiring a PDA
+/// signer that only the settlement_program can produce via invoke_signed.
 pub fn handler(
     ctx: Context<SettlePollCpi>,
     _poll_id: u64,
@@ -44,8 +45,14 @@ pub struct SettlePollCpi<'info> {
     )]
     pub poll_account: Account<'info, PollAccount>,
 
-    /// CHECK: The calling program — must be the settlement_program.
-    /// This prevents unauthorized programs or direct calls from settling polls.
-    #[account(address = settlement_program_id::ID)]
-    pub caller_program: AccountInfo<'info>,
+    /// CPI authority PDA from settlement_program — proves CPI origin.
+    /// Only settlement_program can sign for seeds [b"cpi_authority"] via invoke_signed.
+    /// CHECK: Verified by seeds constraint against settlement_program ID.
+    #[account(
+        seeds = [b"cpi_authority"],
+        bump,
+        seeds::program = settlement_program_id::ID,
+    )]
+    pub cpi_authority: Signer<'info>,
 }
+

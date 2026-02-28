@@ -31,7 +31,14 @@ export default function ShareButton({ pollId, pollTitle, compact = false }: Prop
 
   const handleCopyEmbed = async () => {
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-    const embedCode = `<iframe src="${baseUrl}/embed/${pollId}" width="420" height="340" frameborder="0" style="border-radius:16px;overflow:hidden;" title="${pollTitle}"></iframe>`;
+    // #38: Escape poll title to prevent XSS in HTML attributes
+    const escapedTitle = pollTitle
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const embedCode = `<iframe src="${baseUrl}/embed/${pollId}" width="420" height="340" frameborder="0" style="border-radius:16px;overflow:hidden;" title="${escapedTitle}"></iframe>`;
     const ok = await copyToClipboard(embedCode);
     if (ok) toast.success(t("embedCopied"));
     else toast.error(t("failedToCopy"));

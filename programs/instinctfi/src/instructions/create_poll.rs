@@ -11,6 +11,13 @@ use crate::errors::InstinctFiError;
 ///   Pool seed: 98% of investment (distributed to winners)
 ///
 /// The creator's SOL is transferred to the treasury PDA.
+///
+/// TODO (#48): Add a separate `withdraw_platform_fee` instruction so admin
+/// can withdraw accumulated platform fees from the treasury PDA. Currently
+/// these fees remain permanently locked. The instruction should:
+/// 1. Require admin signer
+/// 2. Calculate withdrawable amount (treasury balance - outstanding pool)
+/// 3. Transfer to admin wallet
 pub fn handler(
     ctx: Context<CreatePoll>,
     poll_id: u64,

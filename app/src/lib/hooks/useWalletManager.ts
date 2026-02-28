@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { PublicKey } from "@solana/web3.js";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import {
     getWalletBalance,
     PROGRAM_DEPLOYED,
@@ -10,50 +12,57 @@ import { createPlaceholderUser } from "@/lib/dataConverters";
 import { type UserAccount } from "@/lib/types";
 import { setAuthToken, clearAuthToken, isAuthTokenValid } from "@/lib/supabase";
 import toast from "react-hot-toast";
-import nacl from "tweetnacl";
-import bs58 from "bs58";
 
 /**
  * Manages wallet connection, disconnection, auto-reconnect, and signature verification.
+ * Uses @solana/wallet-adapter-react instead of raw window.solana for multi-wallet support.
  */
 export function useWalletManager(
     users: UserAccount[],
     setUsers: React.Dispatch<React.SetStateAction<UserAccount[]>>,
 ) {
+    const {
+        publicKey,
+        connected,
+        connect,
+        disconnect,
+        signMessage,
+        signTransaction,
+        wallet,
+        select,
+        connecting,
+    } = useWallet();
+    const { setVisible } = useWalletModal();
+
     const [walletConnected, setWalletConnected] = useState(false);
     const [walletAddress, setWalletAddress] = useState<string | null>(null);
+    // Track whether we've already attempted auth for the current public key
+    const authAttempted = useRef<string | null>(null);
 
     // ── Wallet signature verification + JWT acquisition ──
-    const verifyWalletOwnership = async (publicKey: any): Promise<boolean> => {
+    const verifyWalletOwnership = useCallback(async (pubkey: PublicKey): Promise<boolean> => {
         try {
-            const solana = (window as any).solana;
-            if (!solana?.signMessage) return true;
+            if (!signMessage) {
+                // Wallet doesn't support signMessage — skip verification
+                // This can happen with hardware wallets
+                console.warn("Wallet does not support signMessage — skipping verification");
+                return true;
+            }
 
             const nonce = crypto.getRandomValues(new Uint8Array(32));
             const timestamp = Date.now();
-            const message = `InstinctFi auth\nWallet: ${publicKey.toString()}\nNonce: ${Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')}\nTimestamp: ${timestamp}`;
+            const message = `Sign in to InstinctFi\nWallet: ${pubkey.toString()}\nNonce: ${Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')}\nTimestamp: ${timestamp}`;
             const encodedMessage = new TextEncoder().encode(message);
-            const signed = await solana.signMessage(encodedMessage, 'utf8');
-
-            const verified = nacl.sign.detached.verify(
-                encodedMessage,
-                signed.signature,
-                bs58.decode(publicKey.toString())
-            );
-
-            if (!verified) {
-                toast.error('Wallet verification failed');
-                return false;
-            }
+            const signatureBytes = await signMessage(encodedMessage);
 
             // ── Request a server-signed JWT ──
             try {
-                const signatureBase64 = Buffer.from(signed.signature).toString("base64");
+                const signatureBase64 = Buffer.from(signatureBytes).toString("base64");
                 const res = await fetch("/api/auth/verify", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        walletAddress: publicKey.toString(),
+                        walletAddress: pubkey.toString(),
                         signature: signatureBase64,
                         message,
                     }),
@@ -80,24 +89,27 @@ export function useWalletManager(
             console.error('Wallet verification error:', e);
             return false;
         }
-    };
+    }, [signMessage]);
 
     // ── Helper: add placeholder user and optionally fetch balance ──
+    // Uses functional setState to check existing users without depending on
+    // the users array (which changes on every state update) (#12).
     const ensureUserAndBalance = useCallback((
         addr: string,
-        publicKey: any,
+        pubkey: PublicKey,
         skipBalanceFetch: boolean = false,
     ) => {
-        const isNewUser = !users.find(u => u.wallet === addr);
+        let isNewUser = false;
         setUsers(prev => {
             if (prev.find(u => u.wallet === addr)) return prev;
+            isNewUser = true;
             return [...prev, createPlaceholderUser(addr)];
         });
 
         if (!skipBalanceFetch && (PROGRAM_DEPLOYED || isNewUser)) {
             const fetchBalWithRetry = async (attempt = 1): Promise<void> => {
                 try {
-                    const bal = await getWalletBalance(publicKey);
+                    const bal = await getWalletBalance(pubkey);
                     if (bal > 0 || attempt >= 3) {
                         setUsers(prev => prev.map(u => u.wallet === addr ? { ...u, balance: bal } : u));
                     } else if (attempt < 3) {
@@ -112,74 +124,90 @@ export function useWalletManager(
             };
             fetchBalWithRetry();
         }
-    }, [users, setUsers]);
+    }, [setUsers]);
 
-    // ── Auto-reconnect Phantom ──
+    // ── Sync wallet adapter state to our local state ──
     useEffect(() => {
-        const tryReconnect = async () => {
-            try {
-                const solana = (window as any).solana;
-                if (solana?.isPhantom) {
-                    const resp = await solana.connect({ onlyIfTrusted: true });
-                    const addr = resp.publicKey.toString();
+        // Guard: if the adapter says connected but publicKey is missing,
+        // it's a transient state — wait for the next render cycle.
+        if (connected && publicKey) {
+            const addr = publicKey.toString();
 
-                    // If the stored JWT is missing or expired, re-authenticate
-                    if (!isAuthTokenValid()) {
-                        const verified = await verifyWalletOwnership(resp.publicKey);
-                        if (!verified) {
-                            await solana.disconnect();
-                            return;
-                        }
-                    }
-
-                    setWalletAddress(addr);
-                    setWalletConnected(true);
-                    ensureUserAndBalance(addr, resp.publicKey);
-                }
-            } catch { }
-        };
-        tryReconnect();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // ── Connect wallet ──
-    const connectWallet = useCallback(async () => {
-        try {
-            const solana = (window as any).solana;
-            if (solana?.isPhantom) {
-                const resp = await solana.connect();
-                const verified = await verifyWalletOwnership(resp.publicKey);
-                if (!verified) {
-                    await solana.disconnect();
-                    return;
-                }
-                const addr = resp.publicKey.toString();
+            // If JWT is valid, just sync state immediately
+            if (isAuthTokenValid()) {
                 setWalletAddress(addr);
                 setWalletConnected(true);
-                ensureUserAndBalance(addr, resp.publicKey);
-            } else {
-                window.open("https://phantom.app/", "_blank");
+                ensureUserAndBalance(addr, publicKey);
+                authAttempted.current = addr;
+                return;
             }
-        } catch {
-            console.error("Wallet connection failed");
+
+            // Avoid re-attempting auth for the same key within one session
+            if (authAttempted.current === addr) {
+                // Auth was already attempted for this wallet.
+                // If we're here and not walletConnected, it means auth failed
+                // previously — don't retry automatically.
+                return;
+            }
+
+            // Need to acquire a JWT
+            (async () => {
+                authAttempted.current = addr;
+                const verified = await verifyWalletOwnership(publicKey);
+                if (verified) {
+                    setWalletAddress(addr);
+                    setWalletConnected(true);
+                    ensureUserAndBalance(addr, publicKey);
+                } else {
+                    // Auth failed — disconnect
+                    try { await disconnect(); } catch { }
+                    setWalletConnected(false);
+                    setWalletAddress(null);
+                }
+            })();
+        } else if (!connected && !connecting) {
+            // Wallet disconnected (and not in the middle of connecting)
+            if (walletConnected) {
+                clearAuthToken();
+                setWalletConnected(false);
+                setWalletAddress(null);
+                authAttempted.current = null;
+            }
         }
-    }, [ensureUserAndBalance]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [connected, publicKey, connecting]);
+
+    // ── Connect wallet (triggers the wallet adapter modal) ──
+    const connectWallet = useCallback(async () => {
+        // Reset any previous failed auth attempt so the sync effect will
+        // re-run verification after a new wallet is selected.
+        authAttempted.current = null;
+        // Open the wallet adapter modal — the most reliable path.
+        // The modal handles wallet selection, installation prompts, and
+        // connecting. autoConnect will then fire on subsequent page loads.
+        setVisible(true);
+    }, [setVisible]);
 
     // ── Disconnect wallet ──
     const disconnectWallet = useCallback(async () => {
         try {
-            const solana = (window as any).solana;
-            if (solana) await solana.disconnect();
+            await disconnect();
         } catch { }
+        // Clear stored auth token
         clearAuthToken();
+        // Clear the wallet adapter's stored wallet name so autoConnect
+        // doesn't try to reconnect to a stale wallet on next page load.
+        try { localStorage.removeItem("walletName"); } catch { }
         setWalletConnected(false);
         setWalletAddress(null);
-    }, []);
+        authAttempted.current = null;
+    }, [disconnect]);
 
     return {
         walletConnected,
         walletAddress,
         connectWallet,
         disconnectWallet,
+        signTransaction,
     };
 }

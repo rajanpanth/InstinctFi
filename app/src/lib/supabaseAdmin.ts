@@ -22,6 +22,15 @@ const effectiveKey = (serviceRoleKey && serviceRoleKey !== "your-service-role-ke
     ? serviceRoleKey
     : anonKey;
 
+// In production, refuse to start if the service role key is missing.
+// Silently falling back to anon key could give admin routes reduced permissions.
+if (process.env.NODE_ENV === "production" && (!serviceRoleKey || serviceRoleKey === "your-service-role-key-here")) {
+    throw new Error(
+        "[InstinctFi] SUPABASE_SERVICE_ROLE_KEY is required in production. " +
+        "Admin API routes will not function correctly with the anon key."
+    );
+}
+
 if (!effectiveKey) {
     console.warn(
         "[InstinctFi] No Supabase key available for server-side RPC calls."

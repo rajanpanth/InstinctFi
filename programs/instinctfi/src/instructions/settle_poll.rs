@@ -4,7 +4,13 @@ use crate::state::PollAccount;
 use crate::errors::InstinctFiError;
 
 /// Settle a poll after its end time.
-/// Determines the winning option by highest vote count (ties → lower index).
+/// Determines the winning option by highest vote count.
+///
+/// # Tie Resolution Policy
+/// When two or more options have equal vote counts, the option with the
+/// **lower index** (i.e., earlier in the `options` array) wins. This is
+/// deterministic and gas-efficient, but callers/UI should be aware of the
+/// implicit ordering advantage.
 ///
 /// If no votes: refunds entire treasury to creator.
 /// If votes: sends creator_reward to creator; pool stays for winners to claim.
