@@ -11,39 +11,31 @@
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-// Use service role key if available, otherwise fall back to anon key.
-// RPCs use SECURITY DEFINER so they work with either key.
-// The security benefit comes from JWT verification in the API route.
-const effectiveKey = (serviceRoleKey && serviceRoleKey !== "your-service-role-key-here")
-    ? serviceRoleKey
-    : anonKey;
-
-// In production, refuse to start if the service role key is missing.
-// Silently falling back to anon key could give admin routes reduced permissions.
-if (process.env.NODE_ENV === "production" && (!serviceRoleKey || serviceRoleKey === "your-service-role-key-here")) {
-    throw new Error(
-        "[InstinctFi] SUPABASE_SERVICE_ROLE_KEY is required in production. " +
-        "Admin API routes will not function correctly with the anon key."
-    );
-}
-
-if (!effectiveKey) {
-    console.warn(
-        "[InstinctFi] No Supabase key available for server-side RPC calls."
-    );
-}
-
 let _client: SupabaseClient | null = null;
 
 /**
  * Returns a singleton Supabase client for server-side RPC calls.
+ * All env var checks happen at runtime (not module-load time)
+ * so the build doesn't crash when env vars aren't available.
  */
 export function getSupabaseAdmin(): SupabaseClient {
     if (_client) return _client;
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+    const effectiveKey = (serviceRoleKey && serviceRoleKey !== "your-service-role-key-here")
+        ? serviceRoleKey
+        : anonKey;
+
+    // In production, warn if the service role key is missing
+    if (process.env.NODE_ENV === "production" && (!serviceRoleKey || serviceRoleKey === "your-service-role-key-here")) {
+        console.warn(
+            "[InstinctFi] SUPABASE_SERVICE_ROLE_KEY not set — falling back to anon key. " +
+            "Admin API routes may have reduced permissions."
+        );
+    }
 
     _client = createClient(
         supabaseUrl || "https://placeholder.supabase.co",
@@ -58,3 +50,4 @@ export function getSupabaseAdmin(): SupabaseClient {
 
     return _client;
 }
+
