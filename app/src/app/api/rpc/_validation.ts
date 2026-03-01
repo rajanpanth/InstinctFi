@@ -60,7 +60,12 @@ export const CommentInput = z.object({
     p_poll_id: uuidString,
     p_text: z.string().min(1, "Comment cannot be empty").max(500, "Comment too long (max 500 chars)"),
 });
+// ── React Comment (BUG-04 FIX) ─────────────────────────────────────────────────────
 
+export const ReactCommentInput = z.object({
+    p_comment_id: z.string().uuid("Invalid comment ID"),
+    p_emoji: z.string().min(1).max(10, "Emoji too long"),
+});
 // ── Helper: create a validator function from a Zod schema ───────────────
 
 export function zodValidator<T extends z.ZodTypeAny>(schema: T) {

@@ -142,7 +142,7 @@ export default function AdminPage() {
     return votes.filter(v => v.pollId === pollId);
   };
 
-  const totalPool = polls.reduce((s, p) => s + p.totalPoolCents, 0);
+  const totalPool = polls.reduce((s, p) => s + p.totalPoolLamports, 0);
   const totalVoters = polls.reduce((s, p) => s + p.totalVoters, 0);
   const endedUnsettled = polls.filter(p => p.status === PollStatus.Active && now >= p.endTime).length;
   const activeCount = polls.filter(p => p.status === PollStatus.Active && now < p.endTime).length;
@@ -284,7 +284,7 @@ export default function AdminPage() {
                     <span>•</span>
                     <span>{poll.totalVoters} voters</span>
                     <span>•</span>
-                    <span>Pool: {formatDollars(poll.totalPoolCents)}</span>
+                    <span>Pool: {formatDollars(poll.totalPoolLamports)}</span>
                     <span>•</span>
                     <span>
                       {isEnded
@@ -476,7 +476,7 @@ export default function AdminPage() {
                     🏆 {poll.winningOption < poll.options.length ? poll.options[poll.winningOption] : "None"}
                   </span>
                   <span className="text-xs text-gray-500">
-                    {poll.winningOption < poll.options.length ? `${poll.voteCounts[poll.winningOption]} winning votes` : ""} • Pool: {formatDollars(poll.totalPoolCents)}
+                    {poll.winningOption < poll.options.length ? `${poll.voteCounts[poll.winningOption]} winning votes` : ""} • Pool: {formatDollars(poll.totalPoolLamports)}
                   </span>
                   <div className="flex items-center gap-2 ml-auto">
                     <button
@@ -522,7 +522,7 @@ export default function AdminPage() {
                               </span>
                             )
                           ))}
-                          <span className="text-brand-400">{formatDollars(v.totalStakedCents)}</span>
+                          <span className="text-brand-400">{formatDollars(v.totalStakedLamports)}</span>
                           {v.claimed && <span className="text-green-500">✓ claimed</span>}
                         </div>
                       </div>

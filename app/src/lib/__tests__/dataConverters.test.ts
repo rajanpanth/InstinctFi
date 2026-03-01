@@ -46,9 +46,9 @@ describe("rowToDemoPoll", () => {
         expect(poll.optionImages).toEqual(["img1.png", "img2.png"]);
         expect(poll.options).toEqual(["Yes", "No"]);
         expect(poll.voteCounts).toEqual([10, 5]);
-        expect(poll.unitPriceCents).toBe(10000000);
+        expect(poll.unitPriceLamports).toBe(10000000);
         expect(poll.endTime).toBe(1700000000);
-        expect(poll.totalPoolCents).toBe(150000000);
+        expect(poll.totalPoolLamports).toBe(150000000);
         expect(poll.status).toBe(0);
         expect(poll.winningOption).toBe(255);
         expect(poll.totalVoters).toBe(15);
@@ -69,8 +69,8 @@ describe("rowToDemoPoll", () => {
         expect(poll.imageUrl).toBe("");
         expect(poll.optionImages).toEqual([]);
         expect(poll.voteCounts).toEqual([]);
-        expect(poll.unitPriceCents).toBe(0);
-        expect(poll.totalPoolCents).toBe(0);
+        expect(poll.unitPriceLamports).toBe(0);
+        expect(poll.totalPoolLamports).toBe(0);
     });
 
     it("converts vote_counts strings to numbers", () => {
@@ -93,7 +93,7 @@ describe("rowToDemoVote", () => {
         expect(vote.pollId).toBe("poll-1");
         expect(vote.voter).toBe("wallet-abc");
         expect(vote.votesPerOption).toEqual([5, 0, 3]);
-        expect(vote.totalStakedCents).toBe(80000000);
+        expect(vote.totalStakedLamports).toBe(80000000);
         expect(vote.claimed).toBe(false);
     });
 
@@ -137,8 +137,8 @@ describe("rowToUserAccount", () => {
         const user = rowToUserAccount(row);
         expect(user.balance).toBe(0);
         expect(user.totalVotesCast).toBe(0);
-        expect(user.totalSpentCents).toBe(0);
-        expect(user.totalWinningsCents).toBe(0);
+        expect(user.totalSpentLamports).toBe(0);
+        expect(user.totalWinningsLamports).toBe(0);
     });
 });
 

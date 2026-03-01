@@ -26,34 +26,36 @@ import {
 // ─── Borsh Serialization Helpers ───────────────────────────────────────────
 
 class BorshWriter {
-    private buffers: Buffer[] = [];
+    private buffers: Uint8Array[] = [];
 
     writeU8(val: number) {
-        const buf = Buffer.alloc(1);
-        buf.writeUInt8(val);
-        this.buffers.push(buf);
+        this.buffers.push(new Uint8Array([val & 0xff]));
     }
 
     writeU32(val: number) {
-        const buf = Buffer.alloc(4);
-        buf.writeUInt32LE(val);
-        this.buffers.push(buf);
+        const buf = new ArrayBuffer(4);
+        new DataView(buf).setUint32(0, val, true);
+        this.buffers.push(new Uint8Array(buf));
     }
 
     writeU64(val: bigint | number) {
-        const buf = Buffer.alloc(8);
-        buf.writeBigUInt64LE(BigInt(val));
-        this.buffers.push(buf);
+        const big = BigInt(val);
+        const buf = new ArrayBuffer(8);
+        const view = new DataView(buf);
+        view.setBigUint64(0, big, true);
+        this.buffers.push(new Uint8Array(buf));
     }
 
     writeI64(val: bigint | number) {
-        const buf = Buffer.alloc(8);
-        buf.writeBigInt64LE(BigInt(val));
-        this.buffers.push(buf);
+        const big = BigInt(val);
+        const buf = new ArrayBuffer(8);
+        const view = new DataView(buf);
+        view.setBigInt64(0, big, true);
+        this.buffers.push(new Uint8Array(buf));
     }
 
     writeString(val: string) {
-        const encoded = Buffer.from(val, "utf-8");
+        const encoded = new TextEncoder().encode(val);
         this.writeU32(encoded.length);
         this.buffers.push(encoded);
     }
@@ -70,36 +72,49 @@ class BorshWriter {
     }
 
     writePubkey(val: PublicKey) {
-        this.buffers.push(val.toBuffer());
+        this.buffers.push(val.toBytes());
     }
 
     toBuffer(): Buffer {
-        return Buffer.concat(this.buffers);
+        const totalLen = this.buffers.reduce((sum, b) => sum + b.length, 0);
+        const out = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const b of this.buffers) {
+            out.set(b, offset);
+            offset += b.length;
+        }
+        return Buffer.from(out);
     }
 }
 
 class BorshReader {
     private offset = 0;
-    constructor(private data: Buffer) { }
+    private view: DataView;
+    constructor(private data: Buffer) {
+        // Create a DataView over the underlying ArrayBuffer for BigInt support
+        // in browser polyfill environments where Buffer lacks readBigUInt64LE.
+        const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        this.view = new DataView(ab);
+    }
 
     get remaining(): number {
         return this.data.length - this.offset;
     }
 
     readU8(): number {
-        const val = this.data.readUInt8(this.offset);
+        const val = this.view.getUint8(this.offset);
         this.offset += 1;
         return val;
     }
 
     readU32(): number {
-        const val = this.data.readUInt32LE(this.offset);
+        const val = this.view.getUint32(this.offset, true);
         this.offset += 4;
         return val;
     }
 
     readU64(): bigint {
-        const val = this.data.readBigUInt64LE(this.offset);
+        const val = this.view.getBigUint64(this.offset, true);
         this.offset += 8;
         return val;
     }
@@ -109,7 +124,7 @@ class BorshReader {
     }
 
     readI64(): bigint {
-        const val = this.data.readBigInt64LE(this.offset);
+        const val = this.view.getBigInt64(this.offset, true);
         this.offset += 8;
         return val;
     }
@@ -120,9 +135,9 @@ class BorshReader {
 
     readString(): string {
         const len = this.readU32();
-        const val = this.data.slice(this.offset, this.offset + len).toString("utf-8");
+        const bytes = this.data.slice(this.offset, this.offset + len);
         this.offset += len;
-        return val;
+        return new TextDecoder().decode(bytes);
     }
 
     readVecString(): string[] {
@@ -552,8 +567,10 @@ export async function buildMintVoteTokenIx(
 /** Fetch all PollAccounts from the program */
 export async function fetchAllPolls(): Promise<OnChainPoll[]> {
     const disc = await accountDiscriminator("PollAccount");
+    // HIGH-03 FIX: Use base58 encoding for memcmp (getProgramAccounts default)
+    const bs58 = await import("bs58");
     const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
-        filters: [{ memcmp: { offset: 0, bytes: Buffer.from(disc).toString("base64") } }],
+        filters: [{ memcmp: { offset: 0, bytes: bs58.default.encode(Buffer.from(disc)) } }],
         commitment: "confirmed",
     });
     return accounts
@@ -572,11 +589,13 @@ export async function fetchAllPolls(): Promise<OnChainPoll[]> {
 /** Fetch all VoteAccounts for a specific voter */
 export async function fetchVotesForUser(voter: PublicKey): Promise<OnChainVote[]> {
     const disc = await accountDiscriminator("VoteAccount");
+    // HIGH-03 FIX: Use base58 encoding for memcmp discriminator filter
+    const bs58 = await import("bs58");
     // VoteAccount layout: [8 disc][32 poll][32 voter]
     // Filter by voter at offset 8 + 32 = 40
     const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
         filters: [
-            { memcmp: { offset: 0, bytes: Buffer.from(disc).toString("base64") } },
+            { memcmp: { offset: 0, bytes: bs58.default.encode(Buffer.from(disc)) } },
             { memcmp: { offset: 40, bytes: voter.toBase58() } },
         ],
         commitment: "confirmed",
@@ -596,11 +615,13 @@ export async function fetchVotesForUser(voter: PublicKey): Promise<OnChainVote[]
 /** Fetch all VoteAccounts for a specific poll */
 export async function fetchVotesForPoll(pollPDA: PublicKey): Promise<OnChainVote[]> {
     const disc = await accountDiscriminator("VoteAccount");
+    // HIGH-03 FIX: Use base58 encoding for memcmp discriminator filter
+    const bs58 = await import("bs58");
     // VoteAccount layout: [8 disc][32 poll][32 voter]
     // Filter by poll at offset 8
     const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
         filters: [
-            { memcmp: { offset: 0, bytes: Buffer.from(disc).toString("base64") } },
+            { memcmp: { offset: 0, bytes: bs58.default.encode(Buffer.from(disc)) } },
             { memcmp: { offset: 8, bytes: pollPDA.toBase58() } },
         ],
         commitment: "confirmed",
@@ -628,8 +649,10 @@ export async function fetchUserAccount(authority: PublicKey): Promise<OnChainUse
 /** Fetch all UserAccounts (for leaderboard) */
 export async function fetchAllUsers(): Promise<OnChainUser[]> {
     const disc = await accountDiscriminator("UserAccount");
+    // HIGH-03 FIX: Use base58 encoding for memcmp discriminator filter
+    const bs58 = await import("bs58");
     const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
-        filters: [{ memcmp: { offset: 0, bytes: Buffer.from(disc).toString("base64") } }],
+        filters: [{ memcmp: { offset: 0, bytes: bs58.default.encode(Buffer.from(disc)) } }],
         commitment: "confirmed",
     });
     return accounts

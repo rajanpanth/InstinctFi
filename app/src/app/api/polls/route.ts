@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { log } from "@/lib/logger";
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;
@@ -48,7 +49,12 @@ export async function GET(req: NextRequest) {
             query = query.eq("status", 1);
         }
         if (search) {
-            query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+            // BUG-03 FIX: Sanitize search input — strip PostgREST filter chars
+            // and backslash (PostgreSQL LIKE escape) to prevent injection.
+            const safeSearch = search.replace(/[%_,().!*\\]/g, "").slice(0, 100);
+            if (safeSearch) {
+                query = query.or(`title.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
+            }
         }
 
         // Sort
@@ -79,7 +85,7 @@ export async function GET(req: NextRequest) {
         const { data, error, count } = await query;
 
         if (error) {
-            console.error("[API/polls] Query error:", error);
+            log.error("polls_query_failed", { error: error.message, code: error.code });
             return NextResponse.json(
                 { error: "Failed to fetch polls" },
                 { status: 500 }
@@ -97,9 +103,9 @@ export async function GET(req: NextRequest) {
             totalPages,
         });
     } catch (e) {
-        console.error("[API/polls] Unexpected error:", e);
+        log.error("polls_unexpected", { error: (e as Error).message });
         return NextResponse.json(
-            { error: "Internal server error", details: String(e) },
+            { error: "Internal server error" },
             { status: 500 }
         );
     }

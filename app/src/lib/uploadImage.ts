@@ -80,11 +80,12 @@ export async function uploadPollImage(file: File): Promise<string> {
   return urlData.publicUrl;
 }
 
-/** Sanitize image URL — only allow https and data URIs */
+/** Sanitize image URL — only allow https, http (local dev), and data URIs */
 export function sanitizeImageUrl(url: string): string {
   if (!url) return "";
   const trimmed = url.trim();
   if (trimmed.startsWith("data:image/")) return trimmed;
   if (trimmed.startsWith("https://")) return trimmed;
+  if (trimmed.startsWith("http://localhost") || trimmed.startsWith("http://127.0.0.1")) return trimmed;
   return ""; // reject anything else
 }

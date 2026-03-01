@@ -70,7 +70,7 @@ export default function EmbedPollPage() {
         {/* Footer */}
         <div className="px-4 py-3 border-t border-border flex items-center justify-between">
           <div className="flex items-center gap-3 text-[10px] text-gray-500">
-            <span>Pool: {formatDollarsShort(poll.totalPoolCents)}</span>
+            <span>Pool: {formatDollarsShort(poll.totalPoolLamports)}</span>
             <span>{totalVotes} votes</span>
             <span>{poll.totalVoters} voters</span>
           </div>

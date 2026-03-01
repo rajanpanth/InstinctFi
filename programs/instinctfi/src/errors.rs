@@ -56,4 +56,12 @@ pub enum InstinctFiError {
     TreasuryInsufficient,
     #[msg("Unauthorized: caller does not have permission")]
     Unauthorized,
+    #[msg("Sweep too early — wait 7 days after settlement for all winners to claim")]
+    SweepTooEarly,
+    #[msg("Tied vote — no clear winner")]
+    TiedVote,
+    #[msg("Poll is not tied — cannot use tie-refund")]
+    NotATie,
+    #[msg("Admin grace period active — only platform admin can settle within 7 days of poll end")]
+    AdminGracePeriodActive,
 }

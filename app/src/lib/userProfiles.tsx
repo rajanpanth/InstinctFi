@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { shortAddr } from "@/lib/utils";
 
@@ -32,8 +32,11 @@ export function useUserProfiles() {
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
+  // Track which wallets are already being fetched to avoid duplicate requests
+  const pendingRef = useRef<Set<string>>(new Set());
 
-  // Load all profiles at mount
+  // MED-09 FIX: Load profiles on-demand instead of fetching ALL at mount.
+  // Previously did SELECT * from user_profiles with no limit, which degrades at scale.
   useEffect(() => {
     if (!isSupabaseConfigured) {
       // Try localStorage fallback
@@ -43,27 +46,8 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       } catch { }
       return;
     }
-
-    const loadAll = async () => {
-      try {
-        const { data } = await supabase.from("user_profiles").select("*");
-        if (data) {
-          const map: Record<string, UserProfile> = {};
-          for (const row of data) {
-            map[row.wallet] = {
-              wallet: row.wallet,
-              displayName: row.display_name || "",
-              avatarUrl: row.avatar_url || "",
-              createdAt: row.created_at || Date.now(),
-            };
-          }
-          setProfiles(map);
-        }
-      } catch (e) {
-        console.warn("Failed to load user profiles:", e);
-      }
-    };
-    loadAll();
+    // No longer loading all profiles at mount.
+    // Profiles are loaded on-demand via loadProfile().
   }, []);
 
   // Persist to localStorage as fallback
@@ -74,9 +58,11 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   }, [profiles]);
 
   const loadProfile = useCallback(async (wallet: string) => {
-    if (profiles[wallet]) return;
-    if (!isSupabaseConfigured) return;
+    if (!wallet || !isSupabaseConfigured) return;
+    // Skip if already loaded or currently fetching
+    if (pendingRef.current.has(wallet)) return;
 
+    pendingRef.current.add(wallet);
     try {
       const { data } = await supabase.from("user_profiles").select("*").eq("wallet", wallet).single();
       if (data) {
@@ -89,8 +75,43 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
             createdAt: data.created_at || Date.now(),
           },
         }));
+      } else {
+        // Mark as loaded (empty profile) so we don't keep re-fetching
+        setProfiles(prev => ({
+          ...prev,
+          [wallet]: { wallet, displayName: "", avatarUrl: "", createdAt: 0 },
+        }));
       }
-    } catch { }
+    } catch {
+      // On error, don't block future retries
+      pendingRef.current.delete(wallet);
+    }
+  }, []);
+
+  /** Batch-load multiple profiles at once (e.g. for all creators on the current page) */
+  const loadProfiles = useCallback(async (wallets: string[]) => {
+    if (!isSupabaseConfigured) return;
+    const toFetch = wallets.filter(w => w && !profiles[w] && !pendingRef.current.has(w));
+    if (toFetch.length === 0) return;
+
+    toFetch.forEach(w => pendingRef.current.add(w));
+    try {
+      const { data } = await supabase.from("user_profiles").select("*").in("wallet", toFetch);
+      const fetchedMap = new Map((data || []).map(d => [d.wallet, d]));
+
+      setProfiles(prev => {
+        const next = { ...prev };
+        for (const w of toFetch) {
+          const d = fetchedMap.get(w);
+          next[w] = d
+            ? { wallet: d.wallet, displayName: d.display_name || "", avatarUrl: d.avatar_url || "", createdAt: d.created_at || 0 }
+            : { wallet: w, displayName: "", avatarUrl: "", createdAt: 0 };
+        }
+        return next;
+      });
+    } catch {
+      toFetch.forEach(w => pendingRef.current.delete(w));
+    }
   }, [profiles]);
 
   const getProfile = useCallback((wallet: string): UserProfile | null => {
@@ -99,12 +120,21 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
   const getDisplayName = useCallback((wallet: string): string => {
     const p = profiles[wallet];
+    // Auto-trigger load if not yet fetched
+    if (!p && wallet) {
+      loadProfile(wallet);
+    }
     return p?.displayName || shortAddr(wallet);
-  }, [profiles]);
+  }, [profiles, loadProfile]);
 
   const getAvatarUrl = useCallback((wallet: string): string => {
-    return profiles[wallet]?.avatarUrl || "";
-  }, [profiles]);
+    const p = profiles[wallet];
+    // Auto-trigger load if not yet fetched
+    if (!p && wallet) {
+      loadProfile(wallet);
+    }
+    return p?.avatarUrl || "";
+  }, [profiles, loadProfile]);
 
   const updateProfile = useCallback(async (wallet: string, displayName: string, avatarUrl: string): Promise<boolean> => {
     const profile: UserProfile = {

@@ -61,11 +61,19 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
   }, [isOpen, poll]);
 
   const handleImageSelect = async (file: File) => {
+    // L-04 FIX: Revoke the old blob URL to prevent memory leak.
+    if (imagePreview && imagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
   };
 
   const handleImageRemove = () => {
+    // L-04 FIX: Revoke blob URL on removal too.
+    if (imagePreview && imagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
     setImageFile(null);
     setImagePreview(null);
     setImageUrl("");
@@ -110,22 +118,29 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
     const cleanDesc = sanitizeDescription(description);
     const cleanOptions = sanitizeOptions(options);
 
-    const success = await editPoll(poll.id, {
-      title: cleanTitle,
-      description: cleanDesc,
-      category: category.trim(),
-      imageUrl: finalImageUrl,
-      options: cleanOptions,
-      endTime,
-    });
+    // L-09 FIX: Wrap editPoll in try/catch to prevent stuck saving state.
+    try {
+      const success = await editPoll(poll.id, {
+        title: cleanTitle,
+        description: cleanDesc,
+        category: category.trim(),
+        imageUrl: finalImageUrl,
+        options: cleanOptions,
+        endTime,
+      });
 
-    setSaving(false);
+      setSaving(false);
 
-    if (success) {
-      toast.success("Poll updated successfully!");
-      onClose();
-    } else {
-      toast.error("Failed to update poll. Check permissions and try again.");
+      if (success) {
+        toast.success("Poll updated successfully!");
+        onClose();
+      } else {
+        toast.error("Failed to update poll. Check permissions and try again.");
+      }
+    } catch (e) {
+      setSaving(false);
+      console.error("Edit poll error:", e);
+      toast.error("An unexpected error occurred while editing.");
     }
   };
 

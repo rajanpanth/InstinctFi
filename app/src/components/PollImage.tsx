@@ -80,6 +80,7 @@ export default function PollImage({
           src={sanitized}
           alt={alt}
           fill
+          unoptimized
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className={`object-cover transition-opacity duration-300 ${
             loaded ? "opacity-100" : "opacity-0"

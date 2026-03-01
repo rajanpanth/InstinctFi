@@ -29,10 +29,11 @@ export const formatDollarsShort = formatSOLShort;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 /**
- * NAMING CONVENTION — "*Cents" fields
- * ------------------------------------
- * For backward compatibility the type fields still use the "*Cents" suffix,
- * but every value is stored in **lamports** (1 SOL = 1 000 000 000 lamports).
+ * NAMING CONVENTION — "*Lamports" fields
+ * ----------------------------------------
+ * Every monetary value is stored in **lamports** (1 SOL = 1 000 000 000 lamports).
+ * The Supabase SQL columns still use the legacy "_cents" suffix for backward
+ * compatibility; the data converters handle the mapping.
  * Use `formatDollars()` / `formatDollarsShort()` (aliases for `formatSOL`)
  * to display them as human-readable SOL strings.
  */
@@ -49,12 +50,12 @@ export type DemoPoll = {
   options: string[];
   /** Vote counts per option — length MUST equal options.length */
   voteCounts: number[];
-  unitPriceCents: number;        // LAMPORTS per option-coin
+  unitPriceLamports: number;        // LAMPORTS per option-coin
   endTime: number;               // Unix timestamp
-  totalPoolCents: number;        // LAMPORTS in distributable pool
-  creatorInvestmentCents: number; // LAMPORTS invested by creator
-  platformFeeCents: number;      // LAMPORTS platform fee
-  creatorRewardCents: number;    // LAMPORTS creator reward
+  totalPoolLamports: number;        // LAMPORTS in distributable pool
+  creatorInvestmentLamports: number; // LAMPORTS invested by creator
+  platformFeeLamports: number;      // LAMPORTS platform fee
+  creatorRewardLamports: number;    // LAMPORTS creator reward
   status: number;                // 0 = Active, 1 = Settled
   winningOption: number;         // 255 = unset
   totalVoters: number;
@@ -66,7 +67,7 @@ export type DemoVote = {
   voter: string;                 // Voter wallet address
   /** Votes placed per option — length MUST equal poll's options.length */
   votesPerOption: number[];
-  totalStakedCents: number;      // LAMPORTS total staked
+  totalStakedLamports: number;      // LAMPORTS total staked
   claimed: boolean;
 };
 
@@ -79,19 +80,19 @@ export type UserAccount = {
   totalPollsVoted: number;
   pollsWon: number;
   pollsCreated: number;
-  totalSpentCents: number;       // LAMPORTS
-  totalWinningsCents: number;    // LAMPORTS
-  weeklyWinningsCents: number;
-  monthlyWinningsCents: number;
-  weeklySpentCents: number;
-  monthlySpentCents: number;
+  totalSpentLamports: number;       // LAMPORTS
+  totalWinningsLamports: number;    // LAMPORTS
+  weeklyWinningsLamports: number;
+  monthlyWinningsLamports: number;
+  weeklySpentLamports: number;
+  monthlySpentLamports: number;
   weeklyVotesCast: number;
   monthlyVotesCast: number;
   weeklyPollsWon: number;
   monthlyPollsWon: number;
   weeklyPollsVoted: number;
   monthlyPollsVoted: number;
-  creatorEarningsCents: number;
+  creatorEarningsLamports: number;
   weeklyResetTs: number;
   monthlyResetTs: number;
   createdAt: number;

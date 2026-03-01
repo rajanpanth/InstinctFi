@@ -23,7 +23,10 @@ export const RPC_URL =
         ? "http://localhost:8899"
         : clusterApiUrl(CLUSTER);
 
-export const connection = new Connection(RPC_URL, "confirmed");
+export const connection = new Connection(RPC_URL, {
+    commitment: "confirmed",
+    confirmTransactionInitialTimeout: 120_000, // 120s — devnet is slow
+});
 
 // ─── PDA Derivation ────────────────────────────────────────────────────────
 

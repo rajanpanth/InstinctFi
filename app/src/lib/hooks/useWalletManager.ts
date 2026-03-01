@@ -10,7 +10,7 @@ import {
 } from "@/lib/program";
 import { createPlaceholderUser } from "@/lib/dataConverters";
 import { type UserAccount } from "@/lib/types";
-import { setAuthToken, clearAuthToken, isAuthTokenValid } from "@/lib/supabase";
+import { setAuthToken, clearAuthToken, getAuthToken, isAuthTokenValid } from "@/lib/supabase";
 import { setReauthenticateCallback, clearReauthenticateCallback } from "@/lib/apiClient";
 import toast from "react-hot-toast";
 
@@ -40,14 +40,30 @@ export function useWalletManager(
     // Track whether we've already attempted auth for the current public key
     const authAttempted = useRef<string | null>(null);
 
+    // ── S-08: Revoke JWT server-side on logout ──
+    const revokeCurrentToken = useCallback(async () => {
+        const token = getAuthToken();
+        if (!token) return;
+        try {
+            await fetch("/api/auth/logout", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+        } catch {
+            // Best-effort — if the server is unreachable, the token
+            // expires in 1 hour anyway. Don't block the disconnect flow.
+        }
+    }, []);
+
     // ── Wallet signature verification + JWT acquisition ──
     const verifyWalletOwnership = useCallback(async (pubkey: PublicKey): Promise<boolean> => {
         try {
             if (!signMessage) {
-                // Wallet doesn't support signMessage — skip verification
-                // This can happen with hardware wallets
-                console.warn("Wallet does not support signMessage — skipping verification");
-                return true;
+                // CRIT-02 FIX: Reject wallets that don't support signMessage.
+                // Previously returned true, allowing full auth bypass.
+                console.error("Wallet does not support signMessage — cannot verify ownership");
+                toast.error("This wallet doesn't support message signing. Please use Phantom or Solflare.");
+                return false;
             }
 
             const nonce = crypto.getRandomValues(new Uint8Array(32));
@@ -184,6 +200,8 @@ export function useWalletManager(
         } else if (!connected && !connecting) {
             // Wallet disconnected (and not in the middle of connecting)
             if (walletConnected) {
+                // S-08: Revoke JWT server-side (best-effort, non-blocking)
+                revokeCurrentToken();
                 clearAuthToken();
                 setWalletConnected(false);
                 setWalletAddress(null);
@@ -206,6 +224,8 @@ export function useWalletManager(
 
     // ── Disconnect wallet ──
     const disconnectWallet = useCallback(async () => {
+        // S-08: Revoke JWT server-side before clearing locally
+        await revokeCurrentToken();
         try {
             await disconnect();
         } catch { }
@@ -217,7 +237,7 @@ export function useWalletManager(
         setWalletConnected(false);
         setWalletAddress(null);
         authAttempted.current = null;
-    }, [disconnect]);
+    }, [disconnect, revokeCurrentToken]);
 
     return {
         walletConnected,

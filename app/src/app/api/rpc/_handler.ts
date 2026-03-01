@@ -6,47 +6,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWalletFromAuth } from "@/lib/jwt";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { sanitizeText, sanitizeUrl } from "@/lib/sanitize";
+import { log } from "@/lib/logger";
+import { isRateLimited } from "@/lib/rateLimit";
 
-// #34: TODO — In production with serverless/multi-instance deployments,
-// replace this in-memory rate limiter with Redis (e.g. @upstash/ratelimit).
-// This resets on cold starts and is per-instance only.
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 30; // max requests per wallet per minute
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-// #35: Track last prune time for lazy cleanup instead of setInterval
-let lastPruneTime = Date.now();
-const PRUNE_INTERVAL_MS = 5 * 60_000;
-
-function pruneStaleEntries() {
-    const now = Date.now();
-    if (now - lastPruneTime < PRUNE_INTERVAL_MS) return;
-    lastPruneTime = now;
-    Array.from(rateLimitMap.entries()).forEach(([wallet, entry]) => {
-        if (now >= entry.resetAt) {
-            rateLimitMap.delete(wallet);
+// BUG-11 FIX: Sanitize all string parameters server-side before they reach the
+// Supabase RPC. This prevents stored XSS — even if a non-React consumer (email,
+// embed, export) renders the data, it's already clean.
+function sanitizeParams(params: Record<string, any>): Record<string, any> {
+    const sanitized: Record<string, any> = {};
+    for (const [key, value] of Object.entries(params)) {
+        if (typeof value === "string") {
+            // URL fields get URL-specific sanitization; all others get text sanitization
+            if (key.includes("url") || key.includes("image")) {
+                sanitized[key] = sanitizeUrl(value);
+            } else if (key === "p_wallet" || key === "p_id" || key === "p_poll_id" || key === "p_comment_id") {
+                // Don't sanitize IDs/wallets — they're validated by Zod or DB constraints
+                sanitized[key] = value;
+            } else {
+                sanitized[key] = sanitizeText(value);
+            }
+        } else if (Array.isArray(value)) {
+            sanitized[key] = value.map((item: any) => {
+                if (typeof item === "string") {
+                    if (key.includes("image")) return item ? sanitizeUrl(item) : item;
+                    return sanitizeText(item);
+                }
+                return item;
+            });
+        } else {
+            sanitized[key] = value;
         }
-    });
-}
-
-function isRateLimited(wallet: string): boolean {
-    // #35: Lazy pruning on each check instead of module-scope setInterval
-    pruneStaleEntries();
-
-    const now = Date.now();
-    const entry = rateLimitMap.get(wallet);
-
-    if (!entry || now >= entry.resetAt) {
-        rateLimitMap.set(wallet, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-        return false;
     }
-
-    entry.count++;
-    if (entry.count > RATE_LIMIT_MAX) {
-        return true;
-    }
-    return false;
+    return sanitized;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -77,7 +69,7 @@ export function createRpcHandler(
             }
 
             // ── Rate limit ──
-            if (isRateLimited(wallet)) {
+            if (await isRateLimited(wallet)) {
                 return NextResponse.json(
                     { success: false, error: "rate_limited" },
                     { status: 429 }
@@ -106,13 +98,14 @@ export function createRpcHandler(
 
             // ── Call Supabase RPC with service role ──
             const supabase = getSupabaseAdmin();
-            const params = buildParams(wallet, body);
+            const params = sanitizeParams(buildParams(wallet, body));
             const { data, error } = await supabase.rpc(rpcName, params);
 
             if (error) {
-                console.error(`[RPC] ${rpcName} error:`, error);
+                log.error("rpc_failed", { rpc: rpcName, error: error.message, code: error.code });
+                // MED-02 FIX: Don't leak raw DB error messages to client.
                 return NextResponse.json(
-                    { success: false, error: error.message },
+                    { success: false, error: "operation_failed" },
                     { status: 500 }
                 );
             }
@@ -124,7 +117,7 @@ export function createRpcHandler(
 
             return NextResponse.json({ success: true, data });
         } catch (e) {
-            console.error(`[RPC] ${rpcName} unexpected error:`, e);
+            log.error("rpc_unexpected", { rpc: rpcName, error: (e as Error).message });
             return NextResponse.json(
                 { success: false, error: "internal_error" },
                 { status: 500 }
@@ -161,7 +154,7 @@ export function createAdminRpcHandler(
             }
 
             // ── Rate limit ──
-            if (isRateLimited(wallet)) {
+            if (await isRateLimited(wallet)) {
                 return NextResponse.json(
                     { success: false, error: "rate_limited" },
                     { status: 429 }
@@ -177,7 +170,7 @@ export function createAdminRpcHandler(
                 .single();
 
             if (!adminRow) {
-                console.warn(`[RPC] ${rpcName}: non-admin wallet ${wallet} attempted admin action`);
+                log.warn("admin_rejected", { rpc: rpcName, wallet });
                 return NextResponse.json(
                     { success: false, error: "not_admin" },
                     { status: 403 }
@@ -216,12 +209,13 @@ export function createAdminRpcHandler(
             }
 
             // ── Call Supabase RPC with service role ──
-            const { data, error } = await adminSupabase.rpc(rpcName, params);
+            const { data, error } = await adminSupabase.rpc(rpcName, sanitizeParams(params));
 
             if (error) {
-                console.error(`[RPC] ${rpcName} error:`, error);
+                log.error("rpc_failed", { rpc: rpcName, error: error.message, code: error.code });
+                // MED-02 FIX: Don't leak raw DB error messages to client.
                 return NextResponse.json(
-                    { success: false, error: error.message },
+                    { success: false, error: "operation_failed" },
                     { status: 500 }
                 );
             }
@@ -232,7 +226,7 @@ export function createAdminRpcHandler(
 
             return NextResponse.json({ success: true, data });
         } catch (e) {
-            console.error(`[RPC] ${rpcName} unexpected error:`, e);
+            log.error("rpc_unexpected", { rpc: rpcName, error: (e as Error).message });
             return NextResponse.json(
                 { success: false, error: "internal_error" },
                 { status: 500 }

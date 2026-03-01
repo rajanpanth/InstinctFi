@@ -1,16 +1,21 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
-use crate::state::PollAccount;
+use crate::state::{PollAccount, ADMIN_SETTLE_GRACE_SECONDS};
 use crate::errors::InstinctFiError;
 
-/// Settle a poll after its end time.
-/// Determines the winning option by highest vote count.
+/// Settle a poll after its end time using vote-count based resolution.
+///
+/// IMPORTANT: This instruction is BLOCKED during the first 7 days after
+/// poll end_time (the "admin grace period"). During that window, only
+/// `admin_settle_poll` can be used — giving the platform admin time to
+/// declare the real-world outcome for prediction markets.
+///
+/// After the 7-day grace period expires, this becomes available as a
+/// fallback so funds are never permanently locked.
 ///
 /// # Tie Resolution Policy
-/// When two or more options have equal vote counts, the option with the
-/// **lower index** (i.e., earlier in the `options` array) wins. This is
-/// deterministic and gas-efficient, but callers/UI should be aware of the
-/// implicit ordering advantage.
+/// When two or more options have equal vote counts, settlement is rejected
+/// (TiedVote error). Voters can use `refund_tied_poll` instead.
 ///
 /// If no votes: refunds entire treasury to creator.
 /// If votes: sends creator_reward to creator; pool stays for winners to claim.
@@ -30,6 +35,15 @@ pub fn handler(ctx: Context<SettlePoll>, _poll_id: u64) -> Result<()> {
     // ── Guards ──
     require!(status == PollAccount::STATUS_ACTIVE, InstinctFiError::AlreadySettled);
     require!(clock.unix_timestamp >= end_time, InstinctFiError::PollNotEnded);
+
+    // ── Admin grace period: block vote-count settlement for 7 days ──
+    // This gives the platform admin time to use admin_settle_poll for
+    // prediction markets. After 7 days, this fallback unlocks.
+    let grace_deadline = end_time.checked_add(ADMIN_SETTLE_GRACE_SECONDS).unwrap_or(i64::MAX);
+    require!(
+        clock.unix_timestamp >= grace_deadline,
+        InstinctFiError::AdminGracePeriodActive
+    );
 
     // ── PDA signer seeds for treasury ──
     let seeds: &[&[u8]] = &[b"treasury", poll_key.as_ref(), &[treasury_bump]];
@@ -73,8 +87,23 @@ pub fn handler(ctx: Context<SettlePoll>, _poll_id: u64) -> Result<()> {
         return Ok(());
     }
 
-    // ── Send creator reward from treasury → creator ──
+    // BUG-09 FIX: Detect ties — if multiple options share the max vote count,
+    // refuse to settle to prevent unfair outcomes.
+    let tied_count = vote_counts.iter().filter(|&&c| c == max_votes).count();
+    require!(tied_count == 1, InstinctFiError::TiedVote);
+
+    // BUG-08 FIX: Check treasury has enough lamports for creator_reward
+    // while preserving rent-exempt minimum.
     if creator_reward > 0 {
+        let rent = Rent::get()?;
+        let rent_exempt_min = rent.minimum_balance(0);
+        let treasury_available = ctx.accounts.treasury.lamports()
+            .saturating_sub(rent_exempt_min);
+        require!(
+            treasury_available >= creator_reward,
+            InstinctFiError::TreasuryInsufficient
+        );
+
         system_program::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),

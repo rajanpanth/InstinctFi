@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
-use crate::state::PollAccount;
+use crate::state::{PollAccount, PLATFORM_ADMIN};
 use crate::errors::InstinctFiError;
 
 /// Sweep residual dust (platform fees + rounding residual) from a settled
@@ -13,12 +13,22 @@ use crate::errors::InstinctFiError;
 /// Can be called by anyone (permissionless crank) once a poll is settled.
 /// The treasury keeps its rent-exempt minimum; everything above that is swept.
 pub fn handler(ctx: Context<SweepDust>, _poll_id: u64) -> Result<()> {
+    let clock = Clock::get()?;
     let poll_key = ctx.accounts.poll_account.key();
     let treasury_bump = ctx.accounts.poll_account.treasury_bump;
     let status = ctx.accounts.poll_account.status;
+    let end_time = ctx.accounts.poll_account.end_time;
 
     // ── Guards ──
     require!(status == PollAccount::STATUS_SETTLED, InstinctFiError::NotSettled);
+
+    // BUG-01 FIX: Enforce a 7-day grace period after poll end_time
+    // so all winners have time to claim before dust is swept.
+    let grace_period: i64 = 7 * 24 * 60 * 60; // 7 days in seconds
+    require!(
+        clock.unix_timestamp >= end_time.checked_add(grace_period).unwrap_or(i64::MAX),
+        InstinctFiError::SweepTooEarly
+    );
 
     // Calculate available dust (everything above rent-exempt minimum)
     let rent = Rent::get()?;
@@ -65,12 +75,12 @@ pub struct SweepDust<'info> {
     #[account(mut)]
     pub sweeper: Signer<'info>,
 
-    /// CHECK: Platform admin wallet — receives dust. For now this is the poll
-    /// creator; in production, constrain this to a known platform wallet PDA
-    /// or a governance-controlled multisig.
+    /// CHECK: Platform admin wallet — receives dust.
+    /// CRIT-04 FIX: Constrained to the declared PLATFORM_ADMIN constant
+    /// instead of poll_account.creator to prevent creators from stealing platform fees.
     #[account(
         mut,
-        constraint = platform_admin.key() == poll_account.creator @ InstinctFiError::UnauthorizedNotCreator,
+        constraint = platform_admin.key() == PLATFORM_ADMIN @ InstinctFiError::Unauthorized,
     )]
     pub platform_admin: UncheckedAccount<'info>,
 

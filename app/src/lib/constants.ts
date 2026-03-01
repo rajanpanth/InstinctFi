@@ -8,10 +8,13 @@
 const ADMIN_WALLETS_ENV = process.env.NEXT_PUBLIC_ADMIN_WALLETS;
 export const ADMIN_WALLETS: string[] = ADMIN_WALLETS_ENV
   ? ADMIN_WALLETS_ENV.split(",").map(w => w.trim()).filter(Boolean)
-  : [
-    // Fallback for development only — in production, set NEXT_PUBLIC_ADMIN_WALLETS env var
-    "62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS",
-  ];
+  : process.env.NODE_ENV === "development"
+    ? [
+        // BUG-15 FIX: Fallback only in development — in production
+        // NEXT_PUBLIC_ADMIN_WALLETS env var MUST be set.
+        "62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS",
+      ]
+    : [];
 
 export function isAdminWallet(wallet: string | null): boolean {
   return wallet ? ADMIN_WALLETS.includes(wallet) : false;

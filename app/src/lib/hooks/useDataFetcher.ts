@@ -127,7 +127,41 @@ export function useDataFetcher(
                         : demoPolls;
 
                     if (onChainFiltered.length > 0 && gen === tracker.mutationGeneration.current) {
+                        // Supplement on-chain polls with Supabase data (option_images, etc.)
+                        // Option images are only stored in Supabase, not on-chain.
+                        if (isSupabaseConfigured) {
+                            try {
+                                const ids = onChainFiltered.map(p => p.id);
+                                const { data: sbRows } = await supabase
+                                    .from("polls")
+                                    .select("id, image_url, option_images")
+                                    .in("id", ids);
+                                if (sbRows && sbRows.length > 0) {
+                                    const sbMap = new Map(sbRows.map(r => [r.id, r]));
+                                    for (const p of onChainFiltered) {
+                                        const row = sbMap.get(p.id);
+                                        if (row) {
+                                            // Use Supabase image_url if on-chain is empty
+                                            if (!p.imageUrl && row.image_url) {
+                                                p.imageUrl = row.image_url;
+                                            }
+                                            // Always prefer Supabase option_images (not on-chain)
+                                            if (row.option_images && row.option_images.length > 0) {
+                                                p.optionImages = row.option_images.map((s: string | null) => s ?? "");
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn("Failed to supplement on-chain polls with Supabase images:", e);
+                            }
+                        }
+
                         setPolls(onChainFiltered);
+
+                        // On-chain wallet balance is the source of truth.
+                        // Real SOL balance reflects all on-chain transactions
+                        // (create poll, vote, settle, claim).
                         setUsers(usersWithBalances);
                         onChainPollsLoaded = true;
                     }
@@ -150,50 +184,9 @@ export function useDataFetcher(
                 if (!onChainPollsLoaded && isSupabaseConfigured) {
                     try {
                         const [pollsRes, votesRes] = await Promise.all([
-                            supabase.from("polls").select("*").order("created_at", { ascending: false }),
-                            supabase.from("votes").select("*"),
-                        ]);
-
-                        if (pollsRes.data) {
-                            const fetched = pollsRes.data.map(rowToDemoPoll);
-                            const filtered = tracker.deletedPollIds.current.size > 0
-                                ? fetched.filter((p: DemoPoll) => !tracker.deletedPollIds.current.has(p.id))
-                                : fetched;
-
-                            if (gen === tracker.mutationGeneration.current) {
-                                setPolls(filtered);
-                            }
-                        }
-                        if (votesRes.data && gen === tracker.mutationGeneration.current) {
-                            setVotes(votesRes.data.map(rowToDemoVote));
-                        }
-
-                        if (walletAddress && gen === tracker.mutationGeneration.current) {
-                            const usersRes = await supabase
-                                .from("users")
-                                .select("*")
-                                .eq("wallet", walletAddress)
-                                .single();
-                            if (usersRes.data) {
-                                const currentUser = rowToUserAccount(usersRes.data);
-                                setUsers(prev => {
-                                    const others = prev.filter(u => u.wallet !== walletAddress);
-                                    return [...others, currentUser];
-                                });
-                            }
-                        }
-                    } catch (e) {
-                        console.warn("Supabase fallback also failed:", e);
-                    }
-                }
-            } else {
-                // Demo mode
-                if (isSupabaseConfigured) {
-                    try {
-                        // Fetch polls and votes
-                        const [pollsRes, votesRes] = await Promise.all([
-                            supabase.from("polls").select("*").order("created_at", { ascending: false }),
-                            supabase.from("votes").select("*"),
+                            // P-02 FIX: Limit initial load instead of unbounded SELECT *
+                            supabase.from("polls").select("*").order("created_at", { ascending: false }).limit(500),
+                            supabase.from("votes").select("*").limit(5000),
                         ]);
 
                         if (pollsRes.data) {
@@ -220,6 +213,13 @@ export function useDataFetcher(
                                 .single();
                             if (usersRes.data) {
                                 const currentUser = rowToUserAccount(usersRes.data);
+                                // Fetch real on-chain balance — Supabase balance is not trusted
+                                try {
+                                    const realBal = await getWalletBalance(new PublicKey(walletAddress));
+                                    currentUser.balance = realBal;
+                                } catch (e) {
+                                    console.warn("Failed to fetch on-chain balance for Supabase fallback user:", e);
+                                }
                                 setUsers(prev => {
                                     const others = prev.filter(u => u.wallet !== walletAddress);
                                     return [...others, currentUser];
@@ -231,18 +231,58 @@ export function useDataFetcher(
                     }
                 }
 
-                // Fetch wallet balance for current user if balance is 0
-                if (walletAddress) {
-                    const currentUser = usersRef.current.find(u => u.wallet === walletAddress);
-                    if (currentUser && currentUser.balance === 0) {
-                        try {
-                            const bal = await getWalletBalance(new PublicKey(walletAddress));
-                            if (bal > 0) {
-                                setUsers(prev => prev.map(u => u.wallet === walletAddress ? { ...u, balance: bal } : u));
+            } else {
+                // Demo mode (PROGRAM_DEPLOYED = false)
+                if (isSupabaseConfigured) {
+                    try {
+                        // P-02 FIX: Limit initial load to prevent loading thousands of rows
+                        const [pollsRes, votesRes] = await Promise.all([
+                            supabase.from("polls").select("*").order("created_at", { ascending: false }).limit(500),
+                            supabase.from("votes").select("*").limit(5000),
+                        ]);
+
+                        if (pollsRes.data) {
+                            const fetched = pollsRes.data.map(rowToDemoPoll);
+                            const filtered = tracker.deletedPollIds.current.size > 0
+                                ? fetched.filter((p: DemoPoll) => !tracker.deletedPollIds.current.has(p.id))
+                                : fetched;
+
+                            if (gen === tracker.mutationGeneration.current) {
+                                setPolls(filtered);
                             }
-                        } catch { }
+                        }
+                        if (votesRes.data && gen === tracker.mutationGeneration.current) {
+                            setVotes(votesRes.data.map(rowToDemoVote));
+                        }
+
+                        // Only fetch the current user's row (not all users) to prevent
+                        // financial data leakage via browser devtools (#14).
+                        if (walletAddress && gen === tracker.mutationGeneration.current) {
+                            const usersRes = await supabase
+                                .from("users")
+                                .select("*")
+                                .eq("wallet", walletAddress)
+                                .single();
+                            if (usersRes.data) {
+                                const currentUser = rowToUserAccount(usersRes.data);
+                                // Fetch real on-chain balance — Supabase balance is not trusted
+                                try {
+                                    const realBal = await getWalletBalance(new PublicKey(walletAddress));
+                                    currentUser.balance = realBal;
+                                } catch (e) {
+                                    console.warn("Failed to fetch on-chain balance for demo-mode user:", e);
+                                }
+                                setUsers(prev => {
+                                    const others = prev.filter(u => u.wallet !== walletAddress);
+                                    return [...others, currentUser];
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Failed to load from Supabase:", e);
                     }
                 }
+
             }
         } catch (e) {
             console.error("Failed to fetch data:", e);

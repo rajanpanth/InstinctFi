@@ -104,7 +104,7 @@ function HomeContent() {
   const endingSoon = useMemo(() => mounted ? getEndingSoon(polls) : [], [polls, mounted]);
 
   const totalVotes = useMemo(() => mounted ? polls.reduce((sum, p) => sum + p.voteCounts.reduce((a, b) => a + b, 0), 0) : 0, [polls, mounted]);
-  const totalVolume = useMemo(() => mounted ? polls.reduce((sum, p) => sum + p.totalPoolCents, 0) : 0, [polls, mounted]);
+  const totalVolume = useMemo(() => mounted ? polls.reduce((sum, p) => sum + p.totalPoolLamports, 0) : 0, [polls, mounted]);
 
   return (
     <div className="space-y-10">

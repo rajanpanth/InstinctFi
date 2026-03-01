@@ -116,7 +116,16 @@ export default function PollComments({ pollId }: Props) {
       }, (payload: { new: Comment }) => {
         const newC = payload.new as Comment;
         setComments(prev => {
+          // MED-05 FIX: Deduplicate by matching on poll_id + wallet + text + approximate time.
+          // Client-generated IDs won't match server IDs, so we check content instead.
           if (prev.find(c => c.id === newC.id)) return prev;
+          const isDuplicate = prev.some(c =>
+            c.poll_id === newC.poll_id &&
+            c.wallet === newC.wallet &&
+            c.text === newC.text &&
+            Math.abs((c.created_at || 0) - (newC.created_at || 0)) < 5
+          );
+          if (isDuplicate) return prev;
           return [...prev, newC];
         });
       })
@@ -158,7 +167,8 @@ export default function PollComments({ pollId }: Props) {
           p_emoji: emoji,
         });
       } catch {
-        // Revert on error
+        // BUG-20 FIX: Revert BOTH userReactions AND reactionCounts on error.
+        // Previously only userReactions was reverted, leaving counts desynced.
         setUserReactions(prev => {
           const copy = { ...prev };
           if (!copy[commentId]) copy[commentId] = new Set();
@@ -166,6 +176,16 @@ export default function PollComments({ pollId }: Props) {
           if (hadReaction) set.add(emoji);
           else set.delete(emoji);
           copy[commentId] = set;
+          return copy;
+        });
+        setReactionCounts(prev => {
+          const copy = { ...prev };
+          if (!copy[commentId]) copy[commentId] = {};
+          const current = copy[commentId][emoji] || 0;
+          copy[commentId] = {
+            ...copy[commentId],
+            [emoji]: hadReaction ? current + 1 : Math.max(0, current - 1),
+          };
           return copy;
         });
       }
@@ -283,7 +303,7 @@ export default function PollComments({ pollId }: Props) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={getAvatarUrl(c.wallet)} alt="" className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
                 ) : (
-                  <Image src={getAvatarUrl(c.wallet)} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
+                  <Image src={getAvatarUrl(c.wallet)} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" unoptimized />
                 )
               ) : (
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-600/30 to-brand-500/20 flex items-center justify-center text-xs font-bold text-brand-400 shrink-0 border border-border">

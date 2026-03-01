@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import nacl from "tweetnacl";
 import { signJWT } from "@/lib/jwt";
+import { isRateLimited } from "@/lib/rateLimit";
+import { log } from "@/lib/logger";
 
 /**
  * POST /api/auth/verify
@@ -14,6 +16,14 @@ import { signJWT } from "@/lib/jwt";
  */
 export async function POST(req: NextRequest) {
     try {
+        // HIGH-04 FIX: Rate limit auth endpoints by IP to prevent DoS/probing.
+        const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+        if (await isRateLimited(`auth:${ip}`)) {
+            return NextResponse.json(
+                { error: "Too many auth attempts. Please wait." },
+                { status: 429 }
+            );
+        }
         const { walletAddress, signature, message } = await req.json();
 
         if (!walletAddress || !signature || !message) {
@@ -90,7 +100,7 @@ export async function POST(req: NextRequest) {
         const secret = process.env.AUTH_JWT_SECRET;
         if (!secret) {
             // #71: Don't log env key names — they could leak to third-party logging services
-            console.error("[Auth] AUTH_JWT_SECRET not configured");
+            log.error("auth_secret_missing");
             return NextResponse.json(
                 { error: "Server misconfiguration — auth secret missing" },
                 { status: 500 }
@@ -105,7 +115,7 @@ export async function POST(req: NextRequest) {
             token,
         });
     } catch (error: any) {
-        console.error("Auth verification error:", error);
+        log.error("auth_verify_failed", { error: error?.message });
         return NextResponse.json(
             { error: "Internal server error during authentication" },
             { status: 500 }

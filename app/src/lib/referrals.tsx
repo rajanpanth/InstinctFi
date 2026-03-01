@@ -177,10 +177,16 @@ async function resolveAndSaveReferral(
 
   if (isSupabaseConfigured) {
     try {
-      const { data } = await supabase.from("users").select("wallet").limit(200);
-      if (data) {
-        const match = data.find((u: any) => walletToCode(u.wallet) === code);
-        if (match) referrerWallet = match.wallet;
+      // BUG-07 FIX: Use a server-side API to resolve referral codes instead of
+      // fetching wallet addresses to the client, which would leak user wallets.
+      const res = await fetch("/api/referral/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.wallet) referrerWallet = data.wallet;
       }
     } catch {}
   }

@@ -2,6 +2,10 @@
  * Server-side JWT utilities for InstinctFi wallet authentication.
  * Uses Web Crypto API (HMAC-SHA256) — zero dependencies.
  *
+ * Features:
+ * - S-08 FIX: JTI-based token revocation via Supabase `revoked_tokens` table
+ * - S-10 FIX: Dual-key secret rotation (AUTH_JWT_SECRET + AUTH_JWT_SECRET_PREV)
+ *
  * ⚠️  This module runs on the server only (Next.js API routes).
  *     Do NOT import from client components.
  */
@@ -55,10 +59,8 @@ export interface JWTPayload {
 /**
  * Create an HMAC-SHA256 signed JWT.
  * @param payload  Must include `wallet`. `iat` and `exp` are set automatically if missing.
- * @param secret   The `AUTH_JWT_SECRET` env var.
+ * @param secret   The `AUTH_JWT_SECRET` env var (always signs with the CURRENT key).
  * @param ttlSec   Token lifetime in seconds (default: 1 hour).
- *                 #43: Reduced from 24h to 1h to limit stolen token exposure.
- *                 For full revocation, implement a Redis/DB-backed JTI blacklist.
  */
 export async function signJWT(
     payload: { wallet: string; iat?: number; exp?: number },
@@ -90,24 +92,41 @@ export async function signJWT(
 
 /**
  * Verify an HMAC-SHA256 JWT and return its payload.
+ * S-10 FIX: Supports dual-key rotation — tries `secret` first, then `prevSecret`.
  * Throws if the signature is invalid or the token is expired.
  */
-export async function verifyJWT(token: string, secret: string): Promise<JWTPayload> {
+export async function verifyJWT(
+    token: string,
+    secret: string,
+    prevSecret?: string
+): Promise<JWTPayload> {
     const parts = token.split(".");
     if (parts.length !== 3) throw new Error("Malformed JWT");
 
     const [header, body, signature] = parts;
     const signingInput = `${header}.${body}`;
 
+    // Try current secret first
     const key = await getKey(secret);
     const sigBytes = base64urlDecode(signature);
     const verifyData = new TextEncoder().encode(signingInput);
-    const valid = await crypto.subtle.verify(
+    let valid = await crypto.subtle.verify(
         "HMAC",
         key,
         sigBytes.buffer as ArrayBuffer,
         verifyData.buffer as ArrayBuffer
     );
+
+    // S-10: If current key fails and a previous key is configured, try that
+    if (!valid && prevSecret) {
+        const prevKey = await getKey(prevSecret);
+        valid = await crypto.subtle.verify(
+            "HMAC",
+            prevKey,
+            sigBytes.buffer as ArrayBuffer,
+            verifyData.buffer as ArrayBuffer
+        );
+    }
 
     if (!valid) throw new Error("Invalid JWT signature");
 
@@ -137,7 +156,47 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
 }
 
 /**
+ * Check if a JTI has been revoked.
+ * Uses the Supabase `revoked_tokens` table (S-08 FIX).
+ * Returns false (not revoked) if Supabase is unavailable — fail-open
+ * to avoid locking out all users during a DB outage.
+ */
+async function isTokenRevoked(jti: string): Promise<boolean> {
+    try {
+        // Dynamic import to avoid circular dependency
+        const { getSupabaseAdmin } = await import("@/lib/supabaseAdmin");
+        const supabase = getSupabaseAdmin();
+        const { data } = await supabase
+            .from("revoked_tokens")
+            .select("jti")
+            .eq("jti", jti)
+            .maybeSingle();
+        return data !== null;
+    } catch {
+        // Fail-open: if the DB is down, don't block all requests
+        return false;
+    }
+}
+
+/**
+ * Revoke a JWT by its JTI. Called on logout.
+ * Stores the JTI in the `revoked_tokens` table with an
+ * `expires_at` matching the token's natural expiration for auto-cleanup.
+ */
+export async function revokeToken(jti: string, wallet: string, expiresAt: number): Promise<void> {
+    const { getSupabaseAdmin } = await import("@/lib/supabaseAdmin");
+    const supabase = getSupabaseAdmin();
+    await supabase.from("revoked_tokens").upsert({
+        jti,
+        wallet,
+        expires_at: new Date(expiresAt * 1000).toISOString(),
+    });
+}
+
+/**
  * Extract and verify wallet from an Authorization header.
+ * S-08: Checks token revocation via Supabase.
+ * S-10: Supports dual-key rotation (AUTH_JWT_SECRET + AUTH_JWT_SECRET_PREV).
  * Returns the wallet address string, or null if auth fails.
  */
 export async function getWalletFromAuth(
@@ -153,10 +212,43 @@ export async function getWalletFromAuth(
 
     try {
         const token = authHeader.slice(7);
-        const payload = await verifyJWT(token, secret);
+        // S-10: Pass previous secret for rotation support
+        const prevSecret = process.env.AUTH_JWT_SECRET_PREV || undefined;
+        const payload = await verifyJWT(token, secret, prevSecret);
+
+        // S-08: Check if this token has been revoked (e.g. user logged out)
+        if (payload.jti) {
+            const revoked = await isTokenRevoked(payload.jti);
+            if (revoked) {
+                console.warn("[JWT] Token revoked:", payload.jti);
+                return null;
+            }
+        }
+
         return payload.wallet;
     } catch (e) {
         console.warn("[JWT] Verification failed:", (e as Error).message);
+        return null;
+    }
+}
+
+/**
+ * Extract the full JWT payload from an Authorization header.
+ * Used by the logout endpoint to get the JTI and expiration for revocation.
+ */
+export async function getPayloadFromAuth(
+    authHeader: string | null
+): Promise<JWTPayload | null> {
+    if (!authHeader?.startsWith("Bearer ")) return null;
+
+    const secret = process.env.AUTH_JWT_SECRET;
+    if (!secret) return null;
+
+    try {
+        const token = authHeader.slice(7);
+        const prevSecret = process.env.AUTH_JWT_SECRET_PREV || undefined;
+        return await verifyJWT(token, secret, prevSecret);
+    } catch {
         return null;
     }
 }

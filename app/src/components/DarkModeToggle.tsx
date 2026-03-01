@@ -6,11 +6,16 @@ export default function DarkModeToggle() {
   const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem("instinctfi_theme");
-    if (saved === "light") {
-      setIsDark(false);
-      document.documentElement.classList.remove("dark");
-    } else {
+    // L-07 FIX: Guard localStorage access with try/catch for Safari Private / sandboxed iframes
+    try {
+      const saved = localStorage.getItem("instinctfi_theme");
+      if (saved === "light") {
+        setIsDark(false);
+        document.documentElement.classList.remove("dark");
+      } else {
+        document.documentElement.classList.add("dark");
+      }
+    } catch {
       document.documentElement.classList.add("dark");
     }
   }, []);

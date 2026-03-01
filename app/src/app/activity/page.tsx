@@ -83,7 +83,7 @@ function buildActivities(polls: DemoPoll[], votes: DemoVote[]): ActivityItem[] {
       pollTitle: poll.title,
       category: poll.category,
       actor: vote.voter,
-      detail: `Voted ${votedOptions} • Staked ${formatDollarsShort(vote.totalStakedCents)}`,
+      detail: `Voted ${votedOptions} • Staked ${formatDollarsShort(vote.totalStakedLamports)}`,
     });
   }
 

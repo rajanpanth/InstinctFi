@@ -92,17 +92,62 @@ export async function sendTransaction(
 
   const signed = await signTransaction(tx);
   const rawTx = signed.serialize();
+
+  // Skip preflight — the wallet already simulates. This avoids a redundant
+  // RPC round-trip and double-rate-limit hits on public devnet endpoints.
   const sig = await connection.sendRawTransaction(rawTx, {
-    skipPreflight: false,
-    preflightCommitment: "confirmed",
+    skipPreflight: true,
+    maxRetries: 3,
   });
 
-  await connection.confirmTransaction(
-    { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed"
-  );
-
+  // Return immediately after sendRawTransaction succeeds — the tx is now
+  // in the leader pipeline. Confirmation is done in the background.
+  // This cuts 5-30s of blocking wait on devnet.
   return sig;
+}
+
+/**
+ * Confirm a transaction in the background. Does NOT throw on timeout —
+ * logs a warning instead. Throws only if the tx actually failed on-chain.
+ */
+export async function confirmTransactionBg(sig: string): Promise<boolean> {
+  try {
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash("confirmed");
+    await connection.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    return true;
+  } catch (confirmErr: any) {
+    // Websocket timed out — poll getSignatureStatuses as fallback
+    console.warn("confirmTransaction failed, polling status as fallback:", confirmErr?.message);
+    const POLL_INTERVAL = 2_000;
+    const POLL_TIMEOUT = 30_000;
+    const deadline = Date.now() + POLL_TIMEOUT;
+
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, POLL_INTERVAL));
+      try {
+        const { value } = await connection.getSignatureStatuses([sig]);
+        const status = value?.[0];
+        if (status) {
+          if (status.err) {
+            console.error("Transaction failed on-chain:", sig, status.err);
+            return false;
+          }
+          if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") {
+            console.log("Transaction confirmed via polling:", sig);
+            return true;
+          }
+        }
+      } catch {
+        // polling error — keep trying until deadline
+      }
+    }
+    console.warn("Transaction confirmation timed out (bg):", sig);
+    return false;
+  }
 }
 
 /** Get wallet SOL balance in lamports */

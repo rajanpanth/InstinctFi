@@ -50,10 +50,10 @@ export default function PollDetailClient() {
     const emptyPoll: DemoPoll = {
         id: "", pollId: 0, title: "", description: "", category: "",
         creator: "", options: [], optionImages: [], voteCounts: [],
-        totalPoolCents: 0, unitPriceCents: 0, totalVoters: 0,
+        totalPoolLamports: 0, unitPriceLamports: 0, totalVoters: 0,
         endTime: 0, status: 0, winningOption: 255, imageUrl: "",
-        createdAt: 0, creatorInvestmentCents: 0, platformFeeCents: 0,
-        creatorRewardCents: 0,
+        createdAt: 0, creatorInvestmentLamports: 0, platformFeeLamports: 0,
+        creatorRewardLamports: 0,
     };
 
     const {
@@ -176,7 +176,7 @@ export default function PollDetailClient() {
         if (denominator === 0) return 0;
         return Math.floor(
             (vote.votesPerOption[poll.winningOption] / denominator) *
-            poll.totalPoolCents
+            poll.totalPoolLamports
         );
     })();
 
@@ -238,7 +238,7 @@ export default function PollDetailClient() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-center p-3 sm:p-4 bg-surface-50 border border-border rounded-xl">
                         <div>
                             <div className="text-lg font-bold text-brand-400">
-                                {formatDollars(poll.totalPoolCents)}
+                                {formatDollars(poll.totalPoolLamports)}
                             </div>
                             <div className="text-xs text-gray-500">Pool</div>
                         </div>
@@ -252,7 +252,7 @@ export default function PollDetailClient() {
                         </div>
                         <div>
                             <div className="text-lg font-bold">
-                                {formatDollars(poll.unitPriceCents)}
+                                {formatDollars(poll.unitPriceLamports)}
                             </div>
                             <div className="text-xs text-gray-500">Price/Coin</div>
                         </div>
@@ -260,9 +260,9 @@ export default function PollDetailClient() {
 
                     {/* Fee transparency */}
                     <div className="mt-3 flex flex-wrap gap-3 sm:gap-4 text-xs text-gray-500">
-                        <span>Platform fee: {formatDollars(poll.platformFeeCents)}</span>
-                        <span>Creator reward: {formatDollars(poll.creatorRewardCents)}</span>
-                        <span>Seed investment: {formatDollars(poll.creatorInvestmentCents)}</span>
+                        <span>Platform fee: {formatDollars(poll.platformFeeLamports)}</span>
+                        <span>Creator reward: {formatDollars(poll.creatorRewardLamports)}</span>
+                        <span>Seed investment: {formatDollars(poll.creatorInvestmentLamports)}</span>
                     </div>
 
                     {/* Resolution proof */}
@@ -343,7 +343,7 @@ export default function PollDetailClient() {
                                 </div>
                                 {userVotes > 0 && (
                                     <div className="mt-2 text-xs text-brand-400">
-                                        Your votes: {userVotes} ({formatDollars(userVotes * poll.unitPriceCents)})
+                                        Your votes: {userVotes} ({formatDollars(userVotes * poll.unitPriceLamports)})
                                     </div>
                                 )}
                             </button>

@@ -4,6 +4,20 @@
  */
 import type { DemoPoll, DemoVote, UserAccount } from "./types";
 import type { OnChainPoll, OnChainUser, OnChainVote } from "./program";
+import type { PollRow, VoteRow, UserRow } from "./schemas";
+
+// ─── Supabase Row Types (for converters that don't use Zod parsing) ─────────
+// These mirror the Zod-inferred types but accept nullable/missing fields
+// for backward compatibility with older rows that may lack new columns.
+
+/** Loose poll row — superset of PollRow allowing null/missing fields */
+export type PollRowLike = Partial<PollRow> & Pick<PollRow, "id" | "creator" | "options" | "title">;
+
+/** Loose vote row — superset of VoteRow allowing null/missing fields */
+export type VoteRowLike = Partial<VoteRow> & Pick<VoteRow, "poll_id" | "voter" | "votes_per_option">;
+
+/** Loose user row — superset of UserRow allowing null/missing fields */
+export type UserRowLike = Partial<UserRow> & Pick<UserRow, "wallet">;
 
 // ─── On-chain → Frontend ────────────────────────────────────────────────────
 
@@ -19,12 +33,12 @@ export function onChainPollToDemo(p: OnChainPoll, optionImages?: string[]): Demo
     optionImages: optionImages || p.options.map(() => ""),
     options: p.options,
     voteCounts: p.voteCounts,
-    unitPriceCents: p.unitPrice,
+    unitPriceLamports: p.unitPrice,
     endTime: p.endTime,
-    totalPoolCents: p.totalPool,
-    creatorInvestmentCents: p.creatorInvestment,
-    platformFeeCents: p.platformFee,
-    creatorRewardCents: p.creatorReward,
+    totalPoolLamports: p.totalPool,
+    creatorInvestmentLamports: p.creatorInvestment,
+    platformFeeLamports: p.platformFee,
+    creatorRewardLamports: p.creatorReward,
     status: p.status,
     winningOption: p.winningOption,
     totalVoters: p.totalVoters,
@@ -37,7 +51,7 @@ export function onChainVoteToDemo(v: OnChainVote): DemoVote {
     pollId: v.poll.toString(),
     voter: v.voter.toString(),
     votesPerOption: v.votesPerOption,
-    totalStakedCents: v.totalStaked,
+    totalStakedLamports: v.totalStaked,
     claimed: v.claimed,
   };
 }
@@ -53,21 +67,21 @@ export function onChainUserToAccount(u: OnChainUser, balance: number): UserAccou
     totalPollsVoted: 0,
     pollsWon: u.pollsWon,
     pollsCreated: u.totalPollsCreated,
-    totalSpentCents: u.totalStaked,
-    totalWinningsCents: u.totalWinnings,
+    totalSpentLamports: u.totalStaked,
+    totalWinningsLamports: u.totalWinnings,
     // Weekly/monthly counters are not tracked on-chain — initialize to 0
     // and let the frontend or Supabase track them separately.
-    weeklyWinningsCents: 0,
-    monthlyWinningsCents: 0,
-    weeklySpentCents: 0,
-    monthlySpentCents: 0,
+    weeklyWinningsLamports: 0,
+    monthlyWinningsLamports: 0,
+    weeklySpentLamports: 0,
+    monthlySpentLamports: 0,
     weeklyVotesCast: 0,
     monthlyVotesCast: 0,
     weeklyPollsWon: 0,
     monthlyPollsWon: 0,
     weeklyPollsVoted: 0,
     monthlyPollsVoted: 0,
-    creatorEarningsCents: 0,
+    creatorEarningsLamports: 0,
     weeklyResetTs: now,
     monthlyResetTs: now,
     createdAt: u.createdAt * 1000,
@@ -82,16 +96,16 @@ export function withFreshPeriods(user: UserAccount): UserAccount {
   const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
   let u = { ...user };
   if (now - u.weeklyResetTs > WEEK_MS) {
-    u.weeklyWinningsCents = 0;
-    u.weeklySpentCents = 0;
+    u.weeklyWinningsLamports = 0;
+    u.weeklySpentLamports = 0;
     u.weeklyVotesCast = 0;
     u.weeklyPollsWon = 0;
     u.weeklyPollsVoted = 0;
     u.weeklyResetTs = now;
   }
   if (now - u.monthlyResetTs > MONTH_MS) {
-    u.monthlyWinningsCents = 0;
-    u.monthlySpentCents = 0;
+    u.monthlyWinningsLamports = 0;
+    u.monthlySpentLamports = 0;
     u.monthlyVotesCast = 0;
     u.monthlyPollsWon = 0;
     u.monthlyPollsVoted = 0;
@@ -114,12 +128,12 @@ export function demoPollToRow(p: DemoPoll) {
     option_images: p.optionImages,
     options: p.options,
     vote_counts: p.voteCounts,
-    unit_price_cents: p.unitPriceCents,
+    unit_price_cents: p.unitPriceLamports,
     end_time: p.endTime,
-    total_pool_cents: p.totalPoolCents,
-    creator_investment_cents: p.creatorInvestmentCents,
-    platform_fee_cents: p.platformFeeCents,
-    creator_reward_cents: p.creatorRewardCents,
+    total_pool_cents: p.totalPoolLamports,
+    creator_investment_cents: p.creatorInvestmentLamports,
+    platform_fee_cents: p.platformFeeLamports,
+    creator_reward_cents: p.creatorRewardLamports,
     status: p.status,
     winning_option: p.winningOption,
     total_voters: p.totalVoters,
@@ -127,7 +141,7 @@ export function demoPollToRow(p: DemoPoll) {
   };
 }
 
-export function rowToDemoPoll(r: any): DemoPoll {
+export function rowToDemoPoll(r: PollRowLike): DemoPoll {
   return {
     id: r.id,
     pollId: Number(r.poll_id),
@@ -136,56 +150,57 @@ export function rowToDemoPoll(r: any): DemoPoll {
     description: r.description || "",
     category: r.category || "",
     imageUrl: r.image_url || "",
-    optionImages: r.option_images || [],
+    optionImages: (r.option_images || []).map(s => s ?? ""),
     options: r.options,
     voteCounts: (r.vote_counts || []).map(Number),
-    unitPriceCents: Number(r.unit_price_cents ?? 0),
-    endTime: Number(r.end_time),
-    totalPoolCents: Number(r.total_pool_cents ?? 0),
-    creatorInvestmentCents: Number(r.creator_investment_cents),
-    platformFeeCents: Number(r.platform_fee_cents),
-    creatorRewardCents: Number(r.creator_reward_cents),
-    status: r.status,
-    winningOption: r.winning_option,
-    totalVoters: Number(r.total_voters),
-    createdAt: Number(r.created_at),
+    unitPriceLamports: Number(r.unit_price_cents ?? 0),
+    endTime: Number(r.end_time ?? 0),
+    totalPoolLamports: Number(r.total_pool_cents ?? 0),
+    creatorInvestmentLamports: Number(r.creator_investment_cents ?? 0),
+    platformFeeLamports: Number(r.platform_fee_cents ?? 0),
+    creatorRewardLamports: Number(r.creator_reward_cents ?? 0),
+    status: r.status ?? 0,
+    winningOption: r.winning_option ?? 255,
+    totalVoters: Number(r.total_voters ?? 0),
+    createdAt: Number(r.created_at ?? 0),
   };
 }
 
-export function rowToDemoVote(r: any): DemoVote {
+export function rowToDemoVote(r: VoteRowLike): DemoVote {
   return {
     pollId: r.poll_id,
     voter: r.voter,
     votesPerOption: (r.votes_per_option || []).map(Number),
-    totalStakedCents: Number(r.total_staked_cents),
-    claimed: r.claimed,
+    totalStakedLamports: Number(r.total_staked_cents ?? 0),
+    claimed: r.claimed ?? false,
   };
 }
 
-/** Convert a Supabase `users` row to a frontend UserAccount */
-export function rowToUserAccount(r: any): UserAccount {
+/** Convert a Supabase `users` row to a frontend UserAccount.
+ *  Balance is ALWAYS 0 here — real balance comes from on-chain only. */
+export function rowToUserAccount(r: UserRowLike): UserAccount {
   return {
     wallet: r.wallet,
-    balance: Number(r.balance || 0),
+    balance: 0, // Never trust Supabase balance — on-chain is source of truth
     signupBonusClaimed: r.signup_bonus_claimed ?? false,
     lastWeeklyRewardTs: Number(r.last_weekly_reward_ts || 0),
     totalVotesCast: Number(r.total_votes_cast || 0),
     totalPollsVoted: Number(r.total_polls_voted || 0),
     pollsWon: Number(r.polls_won || 0),
     pollsCreated: Number(r.polls_created || 0),
-    totalSpentCents: Number(r.total_spent_cents || 0),
-    totalWinningsCents: Number(r.total_winnings_cents || 0),
-    weeklyWinningsCents: Number(r.weekly_winnings_cents || 0),
-    monthlyWinningsCents: Number(r.monthly_winnings_cents || 0),
-    weeklySpentCents: Number(r.weekly_spent_cents || 0),
-    monthlySpentCents: Number(r.monthly_spent_cents || 0),
+    totalSpentLamports: Number(r.total_spent_cents || 0),
+    totalWinningsLamports: Number(r.total_winnings_cents || 0),
+    weeklyWinningsLamports: Number(r.weekly_winnings_cents || 0),
+    monthlyWinningsLamports: Number(r.monthly_winnings_cents || 0),
+    weeklySpentLamports: Number(r.weekly_spent_cents || 0),
+    monthlySpentLamports: Number(r.monthly_spent_cents || 0),
     weeklyVotesCast: Number(r.weekly_votes_cast || 0),
     monthlyVotesCast: Number(r.monthly_votes_cast || 0),
     weeklyPollsWon: Number(r.weekly_polls_won || 0),
     monthlyPollsWon: Number(r.monthly_polls_won || 0),
     weeklyPollsVoted: Number(r.weekly_polls_voted || 0),
     monthlyPollsVoted: Number(r.monthly_polls_voted || 0),
-    creatorEarningsCents: Number(r.creator_earnings_cents || 0),
+    creatorEarningsLamports: Number(r.creator_earnings_cents || 0),
     weeklyResetTs: Number(r.weekly_reset_ts || 0),
     monthlyResetTs: Number(r.monthly_reset_ts || 0),
     createdAt: Number(r.created_at || 0),
@@ -204,19 +219,19 @@ export function createPlaceholderUser(wallet: string): UserAccount {
     totalPollsVoted: 0,
     pollsWon: 0,
     pollsCreated: 0,
-    totalSpentCents: 0,
-    totalWinningsCents: 0,
-    weeklyWinningsCents: 0,
-    monthlyWinningsCents: 0,
-    weeklySpentCents: 0,
-    monthlySpentCents: 0,
+    totalSpentLamports: 0,
+    totalWinningsLamports: 0,
+    weeklyWinningsLamports: 0,
+    monthlyWinningsLamports: 0,
+    weeklySpentLamports: 0,
+    monthlySpentLamports: 0,
     weeklyVotesCast: 0,
     monthlyVotesCast: 0,
     weeklyPollsWon: 0,
     monthlyPollsWon: 0,
     weeklyPollsVoted: 0,
     monthlyPollsVoted: 0,
-    creatorEarningsCents: 0,
+    creatorEarningsLamports: 0,
     weeklyResetTs: Date.now(),
     monthlyResetTs: Date.now(),
     createdAt: Date.now(),

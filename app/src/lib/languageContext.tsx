@@ -24,13 +24,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   // Hydrate from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "ne") setLangState("ne");
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved === "ne") setLangState("ne");
+    } catch { /* localStorage unavailable (e.g. Safari Private) */ }
   }, []);
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
-    localStorage.setItem(STORAGE_KEY, l);
+    try { localStorage.setItem(STORAGE_KEY, l); } catch { }
     // Update html lang attribute for accessibility
     document.documentElement.lang = l === "ne" ? "ne" : "en";
   }, []);

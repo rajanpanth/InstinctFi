@@ -151,14 +151,14 @@ export default function CreatePollPage() {
     if (parseFloat(unitPrice) <= 0) return toast.error("Invalid unit price");
     if (parseFloat(investment) <= 0) return toast.error("Invalid investment");
 
-    const unitPriceCents = Math.floor(parseFloat(unitPrice) * SOL_UNIT);
+    const unitPriceLamports = Math.floor(parseFloat(unitPrice) * SOL_UNIT);
     const investmentCents = Math.floor(parseFloat(investment) * SOL_UNIT);
     const endTime = Math.floor(Date.now() / 1000) + parseInt(durationHours) * 3600;
 
     if (userAccount && investmentCents > userAccount.balance) {
       return toast.error("Insufficient SOL balance");
     }
-    if (investmentCents < unitPriceCents) {
+    if (investmentCents < unitPriceLamports) {
       return toast.error("Investment must be >= unit price");
     }
 
@@ -210,12 +210,12 @@ export default function CreatePollPage() {
         optionImages: optionImageUrls,
         options: cleanOptions,
         voteCounts: [],
-        unitPriceCents,
+        unitPriceLamports,
         endTime,
-        totalPoolCents: 0,
-        creatorInvestmentCents: investmentCents,
-        platformFeeCents: 0,
-        creatorRewardCents: 0,
+        totalPoolLamports: 0,
+        creatorInvestmentLamports: investmentCents,
+        platformFeeLamports: 0,
+        creatorRewardLamports: 0,
         status: 0,
         winningOption: 255,
         totalVoters: 0,

@@ -37,9 +37,20 @@ export function getSupabaseAdmin(): SupabaseClient {
         );
     }
 
+    // MED-06 FIX: Fail-fast if Supabase URL or key is missing in production.
+    // Previously fell back to "placeholder.supabase.co" which could leak credentials.
+    if (!supabaseUrl || !effectiveKey) {
+        if (process.env.NODE_ENV === "production") {
+            throw new Error(
+                "[InstinctFi] NEXT_PUBLIC_SUPABASE_URL and a Supabase key are required in production."
+            );
+        }
+        console.warn("[InstinctFi] Supabase not configured — API routes will fail.");
+    }
+
     _client = createClient(
-        supabaseUrl || "https://placeholder.supabase.co",
-        effectiveKey || "placeholder-key",
+        supabaseUrl || "https://localhost.invalid",
+        effectiveKey || "missing-key",
         {
             auth: {
                 autoRefreshToken: false,

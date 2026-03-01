@@ -68,11 +68,11 @@ export default function PortfolioPage() {
                     const totalWinning = poll.voteCounts[poll.winningOption] || 0;
                     if (totalWinning > 0) {
                         const share = mainCoins / totalWinning;
-                        const reward = Math.floor(share * poll.totalPoolCents);
-                        pnl = reward - v.totalStakedCents;
+                        const reward = Math.floor(share * poll.totalPoolLamports);
+                        pnl = reward - v.totalStakedLamports;
                     }
                 } else if (isSettled && isLoser) {
-                    pnl = -v.totalStakedCents;
+                    pnl = -v.totalStakedLamports;
                 }
 
                 let status: PositionStatus = "active";
@@ -84,7 +84,7 @@ export default function PortfolioPage() {
                     poll,
                     optionIndex: mainOption,
                     coins: totalCoins,
-                    staked: v.totalStakedCents,
+                    staked: v.totalStakedLamports,
                     status,
                     pnl,
                 } as Position;

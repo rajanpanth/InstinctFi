@@ -1,7 +1,7 @@
 "use client";
 
 import { useApp, formatDollars, UserAccount } from "@/components/Providers";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { shortAddr } from "@/lib/utils";
@@ -9,120 +9,132 @@ import { useLanguage } from "@/lib/languageContext";
 import { useUserProfiles } from "@/lib/userProfiles";
 
 type Period = "weekly" | "monthly" | "allTime";
+type SortKey = "profit" | "pollsWon" | "votes" | "creatorEarnings";
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-
-/** Check if the period counter is still valid (not expired) */
-function isPeriodFresh(resetTs: number, periodMs: number): boolean {
-  return Date.now() - resetTs <= periodMs;
-}
+// Map frontend sort keys to API param values
+const SORT_MAP: Record<"winnings" | "pollsWon" | "votes" | "creatorEarnings", SortKey> = {
+  winnings: "profit",
+  pollsWon: "pollsWon",
+  votes: "votes",
+  creatorEarnings: "creatorEarnings",
+};
 
 export default function LeaderboardPage() {
-  const { allUsers, walletAddress } = useApp();
+  const { walletAddress } = useApp();
   const { t } = useLanguage();
   const { getDisplayName, getAvatarUrl } = useUserProfiles();
   const [period, setPeriod] = useState<Period>("allTime");
   const [sortBy, setSortBy] = useState<"winnings" | "pollsWon" | "votes" | "creatorEarnings">("winnings");
   const [mounted, setMounted] = useState(false);
   const [leaderboardUsers, setLeaderboardUsers] = useState<UserAccount[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // Fetch all users from the server-side leaderboard API
-  // so we can show other players (context only has current user)
+  const PAGE_SIZE = 50;
+
+  /** Fetch leaderboard from API with current filters */
+  const fetchLeaderboard = useCallback(async (p: number, append = false) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        period,
+        sortBy: SORT_MAP[sortBy],
+        page: String(p),
+      });
+      const res = await fetch(`/api/leaderboard?${params}`);
+      const data = await res.json();
+      if (data.users) {
+        const mapped: UserAccount[] = data.users.map((r: any) => ({
+          wallet: r.wallet,
+          balance: 0,
+          signupBonusClaimed: true,
+          lastWeeklyRewardTs: 0,
+          totalVotesCast: Number(r.total_votes_cast || 0),
+          totalPollsVoted: Number(r.total_polls_voted || 0),
+          pollsWon: Number(r.polls_won || 0),
+          pollsCreated: Number(r.polls_created || 0),
+          totalSpentLamports: Number(r.total_spent_cents || 0),
+          totalWinningsLamports: Number(r.total_winnings_cents || 0),
+          weeklyWinningsLamports: Number(r.weekly_winnings_cents || 0),
+          monthlyWinningsLamports: Number(r.monthly_winnings_cents || 0),
+          weeklySpentLamports: Number(r.weekly_spent_cents || 0),
+          monthlySpentLamports: Number(r.monthly_spent_cents || 0),
+          weeklyVotesCast: Number(r.weekly_votes_cast || 0),
+          monthlyVotesCast: Number(r.monthly_votes_cast || 0),
+          weeklyPollsWon: Number(r.weekly_polls_won || 0),
+          monthlyPollsWon: Number(r.monthly_polls_won || 0),
+          weeklyPollsVoted: Number(r.weekly_polls_voted || 0),
+          monthlyPollsVoted: Number(r.monthly_polls_voted || 0),
+          creatorEarningsLamports: Number(r.creator_earnings_cents || 0),
+          weeklyResetTs: Number(r.weekly_reset_ts || 0),
+          monthlyResetTs: Number(r.monthly_reset_ts || 0),
+          createdAt: Number(r.created_at || 0),
+          loginStreak: Number(r.login_streak || 0),
+        }));
+        setLeaderboardUsers(prev => append ? [...prev, ...mapped] : mapped);
+        setHasMore(mapped.length >= PAGE_SIZE);
+      }
+    } catch (err) {
+      console.warn("[Leaderboard] API fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [period, sortBy]);
+
+  // Re-fetch when period or sort changes
   useEffect(() => {
-    fetch("/api/leaderboard")
-      .then(res => res.json())
-      .then(data => {
-        if (data.users && data.users.length > 0) {
-          const mapped: UserAccount[] = data.users.map((r: any) => ({
-            wallet: r.wallet,
-            balance: 0, // Not exposed for privacy
-            signupBonusClaimed: true,
-            lastWeeklyRewardTs: 0,
-            totalVotesCast: Number(r.total_votes_cast || 0),
-            totalPollsVoted: Number(r.total_polls_voted || 0),
-            pollsWon: Number(r.polls_won || 0),
-            pollsCreated: Number(r.polls_created || 0),
-            totalSpentCents: Number(r.total_spent_cents || 0),
-            totalWinningsCents: Number(r.total_winnings_cents || 0),
-            weeklyWinningsCents: Number(r.weekly_winnings_cents || 0),
-            monthlyWinningsCents: Number(r.monthly_winnings_cents || 0),
-            weeklySpentCents: Number(r.weekly_spent_cents || 0),
-            monthlySpentCents: Number(r.monthly_spent_cents || 0),
-            weeklyVotesCast: Number(r.weekly_votes_cast || 0),
-            monthlyVotesCast: Number(r.monthly_votes_cast || 0),
-            weeklyPollsWon: Number(r.weekly_polls_won || 0),
-            monthlyPollsWon: Number(r.monthly_polls_won || 0),
-            weeklyPollsVoted: Number(r.weekly_polls_voted || 0),
-            monthlyPollsVoted: Number(r.monthly_polls_voted || 0),
-            creatorEarningsCents: Number(r.creator_earnings_cents || 0),
-            weeklyResetTs: Number(r.weekly_reset_ts || 0),
-            monthlyResetTs: Number(r.monthly_reset_ts || 0),
-            createdAt: Number(r.created_at || 0),
-          }));
-          setLeaderboardUsers(mapped);
-        }
-      })
-      .catch(err => console.warn("[Leaderboard] API fetch failed, using context:", err));
-  }, []);
+    setPage(1);
+    setHasMore(true);
+    fetchLeaderboard(1, false);
+  }, [fetchLeaderboard]);
 
-  // Use server-fetched users if available, otherwise fall back to context
-  const usersToDisplay = leaderboardUsers.length > 0 ? leaderboardUsers : allUsers;
+  const loadMore = () => {
+    const next = page + 1;
+    setPage(next);
+    fetchLeaderboard(next, true);
+  };
 
+  // Period-aware stat getters — API already filters by period,
+  // so weekly/monthly users returned have fresh counters.
   const getWinnings = (u: UserAccount) => {
-    if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyWinningsCents : 0;
-    if (period === "monthly") return isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlyWinningsCents : 0;
-    return u.totalWinningsCents;
+    if (period === "weekly") return u.weeklyWinningsLamports;
+    if (period === "monthly") return u.monthlyWinningsLamports;
+    return u.totalWinningsLamports;
   };
 
   const getSpent = (u: UserAccount) => {
-    if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklySpentCents : 0;
-    if (period === "monthly") return isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlySpentCents : 0;
-    return u.totalSpentCents;
+    if (period === "weekly") return u.weeklySpentLamports;
+    if (period === "monthly") return u.monthlySpentLamports;
+    return u.totalSpentLamports;
   };
 
   const getVotes = (u: UserAccount) => {
-    if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyVotesCast : 0;
-    if (period === "monthly") return isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlyVotesCast : 0;
+    if (period === "weekly") return u.weeklyVotesCast;
+    if (period === "monthly") return u.monthlyVotesCast;
     return u.totalVotesCast;
   };
 
   const getPollsWon = (u: UserAccount) => {
-    if (period === "weekly") return isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyPollsWon : 0;
-    if (period === "monthly") return isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlyPollsWon : 0;
+    if (period === "weekly") return u.weeklyPollsWon;
+    if (period === "monthly") return u.monthlyPollsWon;
     return u.pollsWon;
   };
 
-  const getCreatorEarnings = (u: UserAccount) => {
-    // Creator earnings use all-time since no period breakdown exists yet
-    // TODO: Add weekly/monthly creator earnings to UserAccount when available
-    return u.creatorEarningsCents;
+  const getCreatorEarnings = (u: UserAccount) => u.creatorEarningsLamports;
+
+  const getPollsVoted = (u: UserAccount) => {
+    if (period === "weekly") return u.weeklyPollsVoted;
+    if (period === "monthly") return u.monthlyPollsVoted;
+    return u.totalPollsVoted;
   };
 
-  const sortFn = (a: UserAccount, b: UserAccount) => {
-    switch (sortBy) {
-      case "winnings":
-        return getWinnings(b) - getWinnings(a);
-      case "pollsWon":
-        return getPollsWon(b) - getPollsWon(a);
-      case "votes":
-        return getVotes(b) - getVotes(a);
-      case "creatorEarnings":
-        return getCreatorEarnings(b) - getCreatorEarnings(a);
-      default:
-        return 0;
-    }
-  };
-
-  const sorted = [...usersToDisplay].sort(sortFn);
+  // Data is already sorted by the API — no client-side sort needed
+  const sorted = leaderboardUsers;
 
   const winRate = (u: UserAccount) => {
-    const voted = period === "weekly"
-      ? (isPeriodFresh(u.weeklyResetTs, WEEK_MS) ? u.weeklyPollsVoted : 0)
-      : period === "monthly"
-        ? (isPeriodFresh(u.monthlyResetTs, MONTH_MS) ? u.monthlyPollsVoted : 0)
-        : u.totalPollsVoted;
+    const voted = getPollsVoted(u);
     const won = getPollsWon(u);
     if (voted === 0) return "0.0";
     return ((won / voted) * 100).toFixed(1);
@@ -238,7 +250,7 @@ export default function LeaderboardPage() {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={getAvatarUrl(u.wallet)} alt="" className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
                             ) : (
-                              <Image src={getAvatarUrl(u.wallet)} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
+                              <Image src={getAvatarUrl(u.wallet)} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" unoptimized />
                             )
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500/60 to-brand-700/60 flex items-center justify-center text-xs font-bold text-white shrink-0">
@@ -290,7 +302,7 @@ export default function LeaderboardPage() {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={getAvatarUrl(u.wallet)} alt="" className="w-7 h-7 rounded-full object-cover border border-border shrink-0" />
                         ) : (
-                          <Image src={getAvatarUrl(u.wallet)} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover border border-border shrink-0" />
+                          <Image src={getAvatarUrl(u.wallet)} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover border border-border shrink-0" unoptimized />
                         )
                       ) : (
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500/60 to-brand-700/60 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
@@ -319,6 +331,19 @@ export default function LeaderboardPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Pagination — Load More */}
+      {sorted.length > 0 && hasMore && (
+        <div className="flex justify-center mt-6">
+          <button
+            onClick={loadMore}
+            disabled={loading}
+            className="px-6 py-2.5 bg-surface-100 hover:bg-surface-50 border border-border text-gray-300 rounded-xl text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Loading..." : "Load More"}
+          </button>
         </div>
       )}
     </div>

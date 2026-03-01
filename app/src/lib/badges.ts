@@ -16,8 +16,8 @@ type BadgeInput = {
     pollsCreated: number;
     pollsWon: number;
     totalPollsVoted: number;
-    totalWinningsCents: number;
-    totalSpentCents: number;
+    totalWinningsLamports: number;
+    totalSpentLamports: number;
     createdAt: number; // unix timestamp
     loginStreak?: number;
 };
@@ -92,8 +92,10 @@ const BADGE_DEFINITIONS: Omit<Badge, "earned">[] = [
 ];
 
 // Platform launch date — adjust to your actual launch
-const LAUNCH_DATE = new Date("2025-01-01").getTime() / 1000;
-const THIRTY_DAYS = 30 * 24 * 60 * 60;
+// BUG-05/06 FIX: Use milliseconds consistently (Date.getTime() returns ms,
+// and createdAt from Supabase is also in ms after conversion in dataConverters).
+const LAUNCH_DATE = new Date("2025-01-01").getTime();
+const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
 // 10 SOL in lamports (SOL_UNIT = 1_000_000_000)
 const TEN_SOL = 10_000_000_000;
@@ -104,8 +106,8 @@ export function computeBadges(input: BadgeInput): Badge[] {
         pollsCreated,
         pollsWon,
         totalPollsVoted,
-        totalWinningsCents,
-        totalSpentCents,
+        totalWinningsLamports,
+        totalSpentLamports,
         createdAt,
         loginStreak = 0,
     } = input;
@@ -117,8 +119,8 @@ export function computeBadges(input: BadgeInput): Badge[] {
         "ten-votes": totalPollsVoted >= 10,
         "first-win": pollsWon >= 1,
         "five-wins": pollsWon >= 5,
-        "high-roller": totalSpentCents >= TEN_SOL,
-        "profitable": totalWinningsCents > totalSpentCents && totalWinningsCents > 0,
+        "high-roller": totalSpentLamports >= TEN_SOL,
+        "profitable": totalWinningsLamports > totalSpentLamports && totalWinningsLamports > 0,
         "early-adopter": createdAt > 0 && createdAt <= LAUNCH_DATE + THIRTY_DAYS,
         "streak-3": loginStreak >= 3,
         "streak-7": loginStreak >= 7,

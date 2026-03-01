@@ -119,7 +119,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
     if (denominator === 0) return 0;
     return Math.floor(
       (vote.votesPerOption[poll.winningOption] / denominator) *
-      poll.totalPoolCents
+      poll.totalPoolLamports
     );
   })();
 
@@ -133,23 +133,35 @@ const PollCard = memo(function PollCard({ poll }: Props) {
 
   const handleSettle = async () => {
     setShowSettleConfirm(false);
-    if (await settlePoll(poll.id)) {
-      playSuccess();
-      toast.success(t("pollSettled"));
-    } else {
+    try {
+      if (await settlePoll(poll.id)) {
+        playSuccess();
+        toast.success(t("pollSettled"));
+      } else {
+        playError();
+        toast.error(t("settlementFailed"));
+      }
+    } catch (e) {
+      console.error("Settlement error:", e);
       playError();
       toast.error(t("settlementFailed"));
     }
   };
 
   const handleClaim = async () => {
-    const reward = await claimReward(poll.id);
-    if (reward > 0) {
-      fireConfetti();
-      playReward();
-      hapticFeedback("heavy");
-      toast.success(`Claimed ${formatDollars(reward)}!`);
-    } else {
+    try {
+      const reward = await claimReward(poll.id);
+      if (reward > 0) {
+        fireConfetti();
+        playReward();
+        hapticFeedback("heavy");
+        toast.success(`Claimed ${formatDollars(reward)}!`);
+      } else {
+        playError();
+        toast.error(t("noRewardToClaim"));
+      }
+    } catch (e) {
+      console.error("Claim error:", e);
       playError();
       toast.error(t("noRewardToClaim"));
     }
@@ -188,7 +200,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={mainImage} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border" />
               ) : (
-                <Image src={mainImage} alt="" width={48} height={48} className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border" />
+                <Image src={mainImage} alt="" width={48} height={48} className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border" unoptimized />
               )
             ) : (
               <div className="w-12 h-12 rounded-lg bg-surface-200 shrink-0 flex items-center justify-center border border-border">
@@ -262,13 +274,13 @@ const PollCard = memo(function PollCard({ poll }: Props) {
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 text-[10px] text-neutral-500 bg-surface-50 px-2 py-0.5 rounded border border-border">
                 <Zap size={10} className="text-brand-500" />
-                {formatDollarsShort(poll.totalPoolCents)}
+                {formatDollarsShort(poll.totalPoolLamports)}
               </span>
               <span className="inline-flex items-center gap-1 text-[10px] text-neutral-500 bg-surface-50 px-2 py-0.5 rounded border border-border">
                 {totalVotes} {t("votesLabel")}
               </span>
               <span className="inline-flex items-center gap-1 text-[10px] text-neutral-500 bg-surface-50 px-2 py-0.5 rounded border border-border">
-                {formatDollars(poll.unitPriceCents)}{t("perCoin")}
+                {formatDollars(poll.unitPriceLamports)}{t("perCoin")}
               </span>
             </div>
             <div className="flex items-center gap-2">

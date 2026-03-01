@@ -39,7 +39,7 @@ function sortPolls(polls: DemoPoll[], sort: SortOption): DemoPoll[] {
       case "oldest":
         return a.createdAt - b.createdAt;
       case "highest-pool":
-        return b.totalPoolCents - a.totalPoolCents;
+        return b.totalPoolLamports - a.totalPoolLamports;
       case "ending-soon": {
         // Active polls ending soonest first; expired/settled go to the bottom
         const aActive = a.status === 0 && a.endTime > now ? 0 : 1;

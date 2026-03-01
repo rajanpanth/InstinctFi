@@ -15,7 +15,6 @@ import { useNotifications } from "@/lib/notifications";
 import { useWalletManager } from "@/lib/hooks/useWalletManager";
 import { useDataFetcher, type MutationTracker } from "@/lib/hooks/useDataFetcher";
 import { usePollOperations } from "@/lib/hooks/usePollOperations";
-import { useRealtimePolls } from "@/lib/hooks/useRealtimePolls";
 import { SEED_POLLS } from "@/lib/seedPolls";
 
 // ── Re-export types & constants from shared modules ──────────────────────
@@ -35,12 +34,74 @@ export {
 
 import type { DemoPoll, DemoVote, UserAccount, AppContextType } from "@/lib/types";
 
-const AppContext = createContext<AppContextType | null>(null);
+// ── P-01 FIX: Split monolithic context into 3 focused contexts ──────────
+// This prevents app-wide re-renders when only one domain changes.
+// Components that only need wallet info won't re-render when polls change, etc.
+// The legacy `useApp()` hook still works for backward compatibility.
 
-export function useApp() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error("useApp must be inside <Providers>");
+type WalletContextType = {
+  walletConnected: boolean;
+  walletAddress: string | null;
+  connectWallet: () => Promise<void>;
+  disconnectWallet: () => void;
+};
+
+type DataContextType = {
+  isLoading: boolean;
+  polls: DemoPoll[];
+  votes: DemoVote[];
+  userAccount: UserAccount | null;
+  allUsers: UserAccount[];
+  recentlyVotedPollIds: Set<string>;
+};
+
+type OpsContextType = {
+  signup: () => void;
+  claimDailyReward: () => Promise<boolean>;
+  createPoll: (poll: Omit<DemoPoll, "id">) => Promise<DemoPoll | null>;
+  editPoll: (pollId: string, updates: Partial<Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">>) => Promise<boolean>;
+  deletePoll: (pollId: string) => Promise<boolean>;
+  castVote: (pollId: string, optionIndex: number, numCoins: number) => Promise<boolean>;
+  settlePoll: (pollId: string, winningOption?: number) => Promise<boolean>;
+  claimReward: (pollId: string) => Promise<number>;
+};
+
+const WalletCtx = createContext<WalletContextType | null>(null);
+const DataCtx = createContext<DataContextType | null>(null);
+const OpsCtx = createContext<OpsContextType | null>(null);
+
+/**
+ * Fine-grained hooks — use these for optimized components.
+ * Components using `useWalletCtx()` won't re-render when polls change.
+ * Components using `usePollData()` won't re-render when wallet connects.
+ */
+export function useWalletCtx() {
+  const ctx = useContext(WalletCtx);
+  if (!ctx) throw new Error("useWalletCtx must be inside <Providers>");
   return ctx;
+}
+
+export function usePollData() {
+  const ctx = useContext(DataCtx);
+  if (!ctx) throw new Error("usePollData must be inside <Providers>");
+  return ctx;
+}
+
+export function usePollOps() {
+  const ctx = useContext(OpsCtx);
+  if (!ctx) throw new Error("usePollOps must be inside <Providers>");
+  return ctx;
+}
+
+/**
+ * Legacy combined hook — backward compatible. Subscribes to ALL three contexts,
+ * so it re-renders on any change. New components should prefer the fine-grained hooks above.
+ */
+export function useApp(): AppContextType {
+  const wallet = useWalletCtx();
+  const data = usePollData();
+  const ops = usePollOps();
+  return { ...wallet, ...data, ...ops };
 }
 
 // ─── Provider ───────────────────────────────────────────────────────────────
@@ -122,9 +183,6 @@ export function Providers({ children }: { children: ReactNode }) {
   const { initialFetchDone, usersRef, pollsRef, votesRef, updateUsersRef, updatePollsRef, updateVotesRef, recentlyVotedPollIds } =
     useDataFetcher(walletAddress, walletConnected, setPolls, setVotes, setUsers, setIsLoading, tracker);
 
-  // ── Real-time subscriptions ──
-  useRealtimePolls({ setPolls, setVotes });
-
   // Keep refs in sync with latest state
   useEffect(() => { updateUsersRef(users); }, [users, updateUsersRef]);
   useEffect(() => { updatePollsRef(polls); }, [polls, updatePollsRef]);
@@ -152,9 +210,13 @@ export function Providers({ children }: { children: ReactNode }) {
     if (walletConnected && walletAddress) {
       if (signupMutex.current) return;
       signupMutex.current = true;
-      Promise.resolve(signup()).finally(() => {
-        signupMutex.current = false;
-      });
+      // BUG-22 FIX: Add .catch() to prevent unhandled promise rejection
+      // if signup throws (e.g., network error, corrupted state).
+      Promise.resolve(signup())
+        .catch((e) => console.error("Auto-signup failed:", e))
+        .finally(() => {
+          signupMutex.current = false;
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletConnected, walletAddress]);
@@ -171,36 +233,43 @@ export function Providers({ children }: { children: ReactNode }) {
     return SEED_POLLS;
   }, [polls, isLoading]);
 
-  // #22: Memoize context value to prevent re-renders of all consumers
-  const contextValue = useMemo<AppContextType>(() => ({
+  // P-01 FIX: Three focused context values instead of one 17-dep monolith.
+  // Each only re-triggers consumers that care about its specific domain.
+
+  const walletValue = useMemo<WalletContextType>(() => ({
     walletConnected,
     walletAddress,
     connectWallet,
     disconnectWallet,
-    userAccount,
-    signup,
-    claimDailyReward,
+  }), [walletConnected, walletAddress, connectWallet, disconnectWallet]);
+
+  const dataValue = useMemo<DataContextType>(() => ({
     isLoading,
     polls: displayPolls,
     votes,
+    userAccount,
+    allUsers: users,
+    recentlyVotedPollIds,
+  }), [isLoading, displayPolls, votes, userAccount, users, recentlyVotedPollIds]);
+
+  const opsValue = useMemo<OpsContextType>(() => ({
+    signup,
+    claimDailyReward,
     createPoll,
     editPoll,
     deletePoll,
     castVote,
     settlePoll,
     claimReward,
-    allUsers: users,
-    recentlyVotedPollIds,
-  }), [
-    walletConnected, walletAddress, connectWallet, disconnectWallet,
-    userAccount, signup, claimDailyReward, isLoading, displayPolls, votes,
-    createPoll, editPoll, deletePoll, castVote, settlePoll, claimReward,
-    users, recentlyVotedPollIds,
-  ]);
+  }), [signup, claimDailyReward, createPoll, editPoll, deletePoll, castVote, settlePoll, claimReward]);
 
   return (
-    <AppContext.Provider value={contextValue}>
-      {children}
-    </AppContext.Provider>
+    <WalletCtx.Provider value={walletValue}>
+      <DataCtx.Provider value={dataValue}>
+        <OpsCtx.Provider value={opsValue}>
+          {children}
+        </OpsCtx.Provider>
+      </DataCtx.Provider>
+    </WalletCtx.Provider>
   );
 }

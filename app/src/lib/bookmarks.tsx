@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 
 type BookmarkContextType = {
   bookmarks: Set<string>;
@@ -27,9 +27,21 @@ function loadBookmarks(): Set<string> {
 }
 
 export function BookmarkProvider({ children }: { children: ReactNode }) {
-  const [bookmarks, setBookmarks] = useState<Set<string>>(loadBookmarks);
+  // BUG-16 FIX: Initialize with empty Set to match SSR output,
+  // then hydrate from localStorage in useEffect to avoid hydration mismatch.
+  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
+  const hydrated = useRef(false);
 
+  // Hydrate from localStorage on mount (client only)
   useEffect(() => {
+    const loaded = loadBookmarks();
+    if (loaded.size > 0) setBookmarks(loaded);
+    hydrated.current = true;
+  }, []);
+
+  // Persist to localStorage — skip until hydration is complete
+  useEffect(() => {
+    if (!hydrated.current) return;
     try {
       localStorage.setItem("instinctfi_bookmarks", JSON.stringify(Array.from(bookmarks)));
     } catch {}

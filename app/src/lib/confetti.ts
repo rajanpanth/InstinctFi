@@ -1,13 +1,21 @@
 // Dynamic import — canvas-confetti (~40kB) is only loaded when confetti fires,
 // not included in every page's initial bundle.
-let _confetti: any = null;
+// BUG-18 FIX: Cache the Promise (not the result) to prevent race conditions
+// when multiple concurrent calls trigger parallel dynamic imports.
+let _confettiPromise: Promise<any> | null = null;
 
 async function getConfetti() {
-  if (!_confetti) {
-    const mod = await import("canvas-confetti");
-    _confetti = mod.default;
+  if (!_confettiPromise) {
+    _confettiPromise = import("canvas-confetti")
+      .then(mod => mod.default)
+      .catch(err => {
+        // Reset cache so next call retries
+        _confettiPromise = null;
+        console.warn("Failed to load canvas-confetti:", err);
+        return null;
+      });
   }
-  return _confetti!;
+  return _confettiPromise;
 }
 
 /**
@@ -15,6 +23,7 @@ async function getConfetti() {
  */
 export async function fireConfetti() {
   const confetti = await getConfetti();
+  if (!confetti) return;
 
   // First burst from center
   confetti({
@@ -48,6 +57,7 @@ export async function fireConfetti() {
  */
 export async function fireSmallConfetti() {
   const confetti = await getConfetti();
+  if (!confetti) return;
 
   confetti({
     particleCount: 40,

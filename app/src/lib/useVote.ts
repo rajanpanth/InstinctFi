@@ -23,7 +23,7 @@ export function useVote(poll: DemoPoll) {
   const isSettled = poll.status === PollStatus.Settled;
   const isCreator = walletAddress === poll.creator;
   const canVote = !isEnded && !isSettled && !isCreator && walletConnected;
-  const cost = numCoins * poll.unitPriceCents;
+  const cost = numCoins * poll.unitPriceLamports;
   const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
 
   const vote = votes.find(v => v.pollId === poll.id && v.voter === walletAddress);

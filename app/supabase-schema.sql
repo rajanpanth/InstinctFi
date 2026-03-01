@@ -119,17 +119,23 @@ alter publication supabase_realtime add table votes;
 -- 6. RPC Functions — atomic balance & claim operations
 -- ============================================================
 
--- 6a. Atomic signup: insert-if-not-exists, always returns the user record
-create or replace function signup_user(p_wallet text)
+-- 6a. Atomic signup: insert-if-not-exists, always returns the user record.
+-- p_initial_balance: Optional starting balance in lamports (e.g. the user's
+-- devnet wallet balance). Defaults to 5 SOL (5000000000) if not provided or 0.
+-- Only affects NEW users — existing users keep their current balance (ON CONFLICT DO NOTHING).
+create or replace function signup_user(p_wallet text, p_initial_balance bigint default 5000000000)
 returns json as $$
 declare
   v_user record;
   v_now bigint;
+  v_balance bigint;
 begin
   v_now := (extract(epoch from now()) * 1000)::bigint;
+  -- Use the provided initial balance, but floor at 0
+  v_balance := greatest(coalesce(p_initial_balance, 5000000000), 0);
 
   insert into users (wallet, balance, signup_bonus_claimed, last_weekly_reward_ts, created_at, weekly_reset_ts, monthly_reset_ts)
-  values (p_wallet, 5000000000, true, v_now, v_now, v_now, v_now)
+  values (p_wallet, v_balance, true, v_now, v_now, v_now, v_now)
   on conflict (wallet) do nothing;
 
   select * into v_user from users where wallet = p_wallet;
@@ -236,6 +242,9 @@ declare
   v_is_first_vote boolean := false;
   v_pg_idx int;          -- 1-based for Postgres arrays
   i int;
+  v_now_ms bigint;       -- current time in ms for period resets
+  v_week_ms bigint := 604800000;  -- 7 days in ms
+  v_month_ms bigint := 2592000000; -- 30 days in ms
 begin
   v_pg_idx := p_option_index + 1;
 
@@ -302,6 +311,27 @@ begin
         total_pool_cents = total_pool_cents + v_cost,
         total_voters = total_voters + (case when v_is_first_vote then 1 else 0 end)
     where id = p_poll_id;
+
+  -- ── Inline period reset before incrementing weekly/monthly counters ──
+  -- If the user's weekly/monthly reset_ts is expired, zero out those counters first.
+  -- This ensures leaderboard data stays fresh without needing a cron job.
+  v_now_ms := (extract(epoch from now()) * 1000)::bigint;
+
+  if v_user.weekly_reset_ts < (v_now_ms - v_week_ms) then
+    update users
+      set weekly_winnings_cents = 0, weekly_spent_cents = 0,
+          weekly_votes_cast = 0, weekly_polls_won = 0, weekly_polls_voted = 0,
+          weekly_reset_ts = v_now_ms
+      where wallet = p_wallet;
+  end if;
+
+  if v_user.monthly_reset_ts < (v_now_ms - v_month_ms) then
+    update users
+      set monthly_winnings_cents = 0, monthly_spent_cents = 0,
+          monthly_votes_cast = 0, monthly_polls_won = 0, monthly_polls_voted = 0,
+          monthly_reset_ts = v_now_ms
+      where wallet = p_wallet;
+  end if;
 
   update users
     set total_votes_cast  = total_votes_cast + p_num_coins,
@@ -402,9 +432,13 @@ returns json as $$
 declare
   v_poll record;
   v_vote record;
+  v_user record;
   v_user_winning_votes bigint;
   v_total_winning_votes bigint;
   v_reward bigint;
+  v_now_ms bigint;
+  v_week_ms bigint := 604800000;
+  v_month_ms bigint := 2592000000;
 begin
   select * into v_poll from polls where id = p_poll_id;
   if not found then
@@ -437,6 +471,26 @@ begin
   v_total_winning_votes := v_poll.vote_counts[v_poll.winning_option + 1];
   -- Use NUMERIC division + FLOOR to prevent rounding loss/leak
   v_reward := floor((v_user_winning_votes::numeric * v_poll.total_pool_cents::numeric) / v_total_winning_votes::numeric)::bigint;
+
+  -- ── Inline period reset before incrementing weekly/monthly counters ──
+  select * into v_user from users where wallet = p_wallet;
+  v_now_ms := (extract(epoch from now()) * 1000)::bigint;
+
+  if v_user.weekly_reset_ts < (v_now_ms - v_week_ms) then
+    update users
+      set weekly_winnings_cents = 0, weekly_spent_cents = 0,
+          weekly_votes_cast = 0, weekly_polls_won = 0, weekly_polls_voted = 0,
+          weekly_reset_ts = v_now_ms
+      where wallet = p_wallet;
+  end if;
+
+  if v_user.monthly_reset_ts < (v_now_ms - v_month_ms) then
+    update users
+      set monthly_winnings_cents = 0, monthly_spent_cents = 0,
+          monthly_votes_cast = 0, monthly_polls_won = 0, monthly_polls_voted = 0,
+          monthly_reset_ts = v_now_ms
+      where wallet = p_wallet;
+  end if;
 
   update users
     set balance = balance + v_reward,
@@ -891,6 +945,14 @@ create index if not exists idx_polls_status on polls(status);
 create index if not exists idx_polls_created_at on polls(created_at desc);
 create index if not exists idx_comments_poll_id on comments(poll_id);
 
+-- Leaderboard indexes for fast ORDER BY queries
+create index if not exists idx_users_total_winnings on users(total_winnings_cents desc);
+create index if not exists idx_users_weekly_winnings on users(weekly_winnings_cents desc);
+create index if not exists idx_users_monthly_winnings on users(monthly_winnings_cents desc);
+create index if not exists idx_users_polls_won on users(polls_won desc);
+create index if not exists idx_users_total_votes on users(total_votes_cast desc);
+create index if not exists idx_users_creator_earnings on users(creator_earnings_cents desc);
+
 -- ============================================================
 -- TODO: Weekly/Monthly Reset Cron Job
 -- ============================================================
@@ -909,4 +971,3 @@ create index if not exists idx_comments_poll_id on comments(poll_id);
 --   UPDATE users SET monthly_winnings_cents = 0, monthly_spent_cents = 0,
 --     monthly_reset_ts = (extract(epoch from now()) * 1000)::bigint
 --     WHERE monthly_reset_ts < (extract(epoch from now()) * 1000)::bigint - 2592000000;
-

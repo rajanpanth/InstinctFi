@@ -23,15 +23,22 @@ export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Pr
 
   const handleDelete = async () => {
     setDeleting(true);
-    const success = await deletePoll(poll.id);
-    setDeleting(false);
+    // L-09 FIX: Wrap async call in try/catch to prevent stuck loading state.
+    try {
+      const success = await deletePoll(poll.id);
+      setDeleting(false);
 
-    if (success) {
-      toast.success("Poll deleted. SOL refunded to your wallet.");
-      onClose();
-      onDeleted();
-    } else {
-      toast.error("Failed to delete poll. Check permissions and try again.");
+      if (success) {
+        toast.success("Poll deleted. SOL refunded to your wallet.");
+        onClose();
+        onDeleted();
+      } else {
+        toast.error("Failed to delete poll. Check permissions and try again.");
+      }
+    } catch (e) {
+      setDeleting(false);
+      console.error("Delete poll error:", e);
+      toast.error("An unexpected error occurred while deleting.");
     }
   };
 
@@ -74,7 +81,7 @@ export default function DeletePollModal({ isOpen, onClose, poll, onDeleted }: Pr
                 <span className="text-green-400 mt-0.5">+</span>
                 <span>
                   Your investment of{" "}
-                  <span className="text-green-400 font-medium">{formatDollars(poll.creatorInvestmentCents)}</span>{" "}
+                  <span className="text-green-400 font-medium">{formatDollars(poll.creatorInvestmentLamports)}</span>{" "}
                   will be refunded to your wallet.
                 </span>
               </li>

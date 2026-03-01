@@ -1,5 +1,16 @@
 use anchor_lang::prelude::*;
 
+/// CRIT-04 FIX: Platform admin pubkey for receiving sweep_dust fees.
+/// Wallet: 62PFLSvnG4Zp8jYS9AFymETvV5e8xBA2JBW2UhjqyNmS
+pub const PLATFORM_ADMIN: Pubkey = Pubkey::new_from_array([
+    74,165,43,158,91,189,190,113,41,134,75,0,110,157,151,8,
+    192,58,184,92,42,146,252,113,22,211,49,209,118,16,62,133,
+]);
+
+/// Grace period (7 days) during which only PLATFORM_ADMIN can settle a poll.
+/// After this window, anyone can fall back to vote-count based settlement.
+pub const ADMIN_SETTLE_GRACE_SECONDS: i64 = 7 * 24 * 60 * 60;
+
 // ─── User Account ───────────────────────────────────────────────────────────
 // PDA seeds: ["user", authority.key]
 // Tracks user stats. No "demo balance" — all value is real SOL.

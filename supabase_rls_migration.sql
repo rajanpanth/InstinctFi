@@ -23,9 +23,13 @@ ALTER TABLE IF EXISTS poll_images ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "polls_select_all" ON polls
   FOR SELECT USING (true);
 
--- Any authenticated user can create polls
+-- BUG-14 FIX: Require authenticated JWT with wallet claim for inserts.
+-- All production writes go through SECURITY DEFINER RPCs (which bypass RLS),
+-- so these policies are defense-in-depth against direct anon table access.
 CREATE POLICY "polls_insert_auth" ON polls
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (
+    current_setting('request.jwt.claims', true)::json->>'wallet' IS NOT NULL
+  );
 
 -- Only the poll creator or admin can update their polls
 CREATE POLICY "polls_update_owner" ON polls
@@ -51,9 +55,11 @@ CREATE POLICY "polls_delete_owner" ON polls
 CREATE POLICY "votes_select_all" ON votes
   FOR SELECT USING (true);
 
--- Authenticated users can insert their own votes
+-- BUG-14 FIX: Require authenticated JWT with wallet claim.
 CREATE POLICY "votes_insert_own" ON votes
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (
+    current_setting('request.jwt.claims', true)::json->>'wallet' IS NOT NULL
+  );
 
 -- Only the voter can update their own vote record (for claiming)
 CREATE POLICY "votes_update_own" ON votes
@@ -67,9 +73,11 @@ CREATE POLICY "votes_update_own" ON votes
 CREATE POLICY "comments_select_all" ON comments
   FOR SELECT USING (true);
 
--- Authenticated users can insert comments
+-- BUG-14 FIX: Require authenticated JWT with wallet claim.
 CREATE POLICY "comments_insert_auth" ON comments
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (
+    current_setting('request.jwt.claims', true)::json->>'wallet' IS NOT NULL
+  );
 
 -- Only the comment author can delete their own comments
 CREATE POLICY "comments_delete_own" ON comments
@@ -83,9 +91,11 @@ CREATE POLICY "comments_delete_own" ON comments
 CREATE POLICY "users_select_all" ON users
   FOR SELECT USING (true);
 
--- Authenticated users can insert their own profile
+-- BUG-14 FIX: Require authenticated JWT with wallet claim.
 CREATE POLICY "users_insert_own" ON users
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (
+    current_setting('request.jwt.claims', true)::json->>'wallet' IS NOT NULL
+  );
 
 -- Only the user can update their own profile
 CREATE POLICY "users_update_own" ON users
@@ -101,9 +111,11 @@ CREATE POLICY "push_subs_select_own" ON push_subscriptions
     wallet = current_setting('request.jwt.claims', true)::json->>'wallet'
   );
 
--- Users can insert their own push subscriptions
+-- BUG-14 FIX: Require authenticated JWT with wallet claim.
 CREATE POLICY "push_subs_insert_own" ON push_subscriptions
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (
+    current_setting('request.jwt.claims', true)::json->>'wallet' IS NOT NULL
+  );
 
 -- Users can delete their own push subscriptions
 CREATE POLICY "push_subs_delete_own" ON push_subscriptions
@@ -117,6 +129,8 @@ CREATE POLICY "push_subs_delete_own" ON push_subscriptions
 CREATE POLICY "poll_images_select_all" ON poll_images
   FOR SELECT USING (true);
 
--- Authenticated users can insert poll images
+-- BUG-14 FIX: Require authenticated JWT with wallet claim.
 CREATE POLICY "poll_images_insert_auth" ON poll_images
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (
+    current_setting('request.jwt.claims', true)::json->>'wallet' IS NOT NULL
+  );

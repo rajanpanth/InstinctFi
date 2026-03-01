@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { DemoPoll, PollStatus } from "@/components/Providers";
 import { useLanguage } from "@/lib/languageContext";
 
@@ -9,7 +10,9 @@ type Props = {
 
 const BAR_COLORS = ["#5c7cfa", "#f03e3e", "#ae3ec9", "#fd7e14", "#40c057", "#e64980"];
 
-export default function VoteChart({ poll }: Props) {
+// BUG-19 FIX: Wrap in React.memo to prevent unnecessary re-renders
+// when parent state changes but poll data hasn't changed.
+const VoteChart = React.memo(function VoteChart({ poll }: Props) {
   const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
   const { t } = useLanguage();
   if (totalVotes === 0) return null;
@@ -128,4 +131,6 @@ export default function VoteChart({ poll }: Props) {
       </div>
     </div>
   );
-}
+});
+
+export default VoteChart;

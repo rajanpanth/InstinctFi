@@ -69,7 +69,7 @@ export default function ProfilePage() {
   const myVotes = votes.filter((v) => v.voter === addr);
   const u = userAccount;
 
-  const netProfit = u ? u.totalWinningsCents - u.totalSpentCents : 0;
+  const netProfit = u ? u.totalWinningsLamports - u.totalSpentLamports : 0;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -88,7 +88,7 @@ export default function ProfilePage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={getAvatarUrl(addr)} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-brand-500/25" />
               ) : (
-                <Image src={getAvatarUrl(addr)} alt="Avatar" width={56} height={56} className="w-14 h-14 rounded-full object-cover border-2 border-brand-500/25" />
+                <Image src={getAvatarUrl(addr)} alt="Avatar" width={56} height={56} className="w-14 h-14 rounded-full object-cover border-2 border-brand-500/25" unoptimized />
               )
             ) : (
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-500 to-brand-500 flex items-center justify-center text-xl font-bold text-white">
@@ -236,14 +236,14 @@ export default function ProfilePage() {
             <Stat label={t("pollsVoted")} value={u.totalPollsVoted.toString()} />
             <Stat label={t("totalVotes")} value={u.totalVotesCast.toString()} />
             <Stat label={t("pollsWon")} value={u.pollsWon.toString()} />
-            <Stat label={t("totalSpent")} value={formatDollars(u.totalSpentCents)} />
-            <Stat label={t("totalWon")} value={formatDollars(u.totalWinningsCents)} highlight />
+            <Stat label={t("totalSpent")} value={formatDollars(u.totalSpentLamports)} />
+            <Stat label={t("totalWon")} value={formatDollars(u.totalWinningsLamports)} highlight />
             <Stat
               label={t("netProfit")}
               value={`${netProfit >= 0 ? "+" : ""}${formatDollars(netProfit)}`}
               highlight
             />
-            <Stat label={t("creatorEarnings")} value={formatDollars(u.creatorEarningsCents)} />
+            <Stat label={t("creatorEarnings")} value={formatDollars(u.creatorEarningsLamports)} />
           </div>
         )}
       </div>
@@ -255,8 +255,8 @@ export default function ProfilePage() {
           pollsCreated: u.pollsCreated,
           pollsWon: u.pollsWon,
           totalPollsVoted: u.totalPollsVoted,
-          totalWinningsCents: u.totalWinningsCents,
-          totalSpentCents: u.totalSpentCents,
+          totalWinningsLamports: u.totalWinningsLamports,
+          totalSpentLamports: u.totalSpentLamports,
           createdAt: u.createdAt,
           loginStreak: u.loginStreak,
         });
@@ -395,7 +395,7 @@ export default function ProfilePage() {
                   <div>
                     <div className="font-medium">{p.title}</div>
                     <div className="text-xs text-gray-500">
-                      {p.options.length} options · {p.voteCounts.reduce((a: number, b: number) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolCents)}
+                      {p.options.length} options · {p.voteCounts.reduce((a: number, b: number) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolLamports)}
                     </div>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === PollStatus.Settled ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
@@ -420,7 +420,7 @@ export default function ProfilePage() {
                 <div>
                   <div className="font-medium">{p.title}</div>
                   <div className="text-xs text-gray-500">
-                    {p.options.length} options · {p.voteCounts.reduce((a, b) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolCents)}
+                    {p.options.length} options · {p.voteCounts.reduce((a, b) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolLamports)}
                   </div>
                 </div>
                 <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === PollStatus.Settled ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"
@@ -450,13 +450,13 @@ export default function ProfilePage() {
             </div>
             <div className="text-center p-3 bg-surface-50 rounded-xl">
               <div className="text-lg font-bold text-green-400">
-                {formatDollars(myPolls.reduce((s, p) => s + p.creatorRewardCents, 0))}
+                {formatDollars(myPolls.reduce((s, p) => s + p.creatorRewardLamports, 0))}
               </div>
               <div className="text-xs text-gray-500 mt-1">{t("creatorRevenue")}</div>
             </div>
             <div className="text-center p-3 bg-surface-50 rounded-xl">
               <div className="text-lg font-bold">
-                {formatDollars(myPolls.reduce((s, p) => s + p.totalPoolCents, 0))}
+                {formatDollars(myPolls.reduce((s, p) => s + p.totalPoolLamports, 0))}
               </div>
               <div className="text-xs text-gray-500 mt-1">{t("totalVolume")}</div>
             </div>
@@ -474,11 +474,11 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
                       <span>{totalVotes} votes</span>
                       <span>{p.totalVoters} voters</span>
-                      <span>Pool: {formatDollars(p.totalPoolCents)}</span>
+                      <span>Pool: {formatDollars(p.totalPoolLamports)}</span>
                     </div>
                   </div>
                   <div className="text-right shrink-0 ml-3">
-                    <div className="text-green-400 font-mono text-xs">{formatDollars(p.creatorRewardCents)}</div>
+                    <div className="text-green-400 font-mono text-xs">{formatDollars(p.creatorRewardLamports)}</div>
                     <div className="text-[10px] text-gray-500">reward</div>
                   </div>
                 </div>
@@ -510,7 +510,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-mono">{formatDollars(v.totalStakedCents)}</div>
+                    <div className="text-sm font-mono">{formatDollars(v.totalStakedLamports)}</div>
                     {v.claimed && <span className="text-xs text-green-400">Claimed</span>}
                   </div>
                 </Link>

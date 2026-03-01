@@ -31,13 +31,20 @@ export function useNotifications() {
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    if (typeof window === "undefined") return [];
+  // HIGH-06 FIX: Initialize with empty array to avoid SSR hydration mismatch.
+  // Load from localStorage in useEffect instead.
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Load saved notifications on client mount (avoids SSR/hydration mismatch)
+  useEffect(() => {
     try {
       const saved = localStorage.getItem("instinctfi_notifications");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setNotifications(parsed);
+      }
+    } catch { /* localStorage unavailable */ }
+  }, []);
 
   // Persist to localStorage
   useEffect(() => {

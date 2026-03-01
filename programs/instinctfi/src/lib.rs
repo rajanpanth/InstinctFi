@@ -82,4 +82,19 @@ pub mod instinctfi {
     pub fn sweep_dust(ctx: Context<SweepDust>, poll_id: u64) -> Result<()> {
         instructions::sweep_dust::handler(ctx, poll_id)
     }
+
+    /// CRIT-03 FIX: Refund a voter their stake when a poll ended in a tie.
+    pub fn refund_tied_poll(ctx: Context<RefundTiedPoll>, poll_id: u64) -> Result<()> {
+        instructions::refund_tied_poll::handler(ctx, poll_id)
+    }
+
+    /// Admin-settle a prediction market poll by declaring the real-world outcome.
+    /// Only PLATFORM_ADMIN can call this. Sets winning_option to the actual result.
+    pub fn admin_settle_poll(
+        ctx: Context<AdminSettlePoll>,
+        poll_id: u64,
+        winning_option: u8,
+    ) -> Result<()> {
+        instructions::admin_settle_poll::handler(ctx, poll_id, winning_option)
+    }
 }

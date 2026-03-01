@@ -231,12 +231,12 @@ export function PollVotePanel({
 
 type PositionsProps = {
     poll: DemoPoll;
-    vote: { votesPerOption: number[]; totalStakedCents: number; claimed: boolean } | null | undefined;
+    vote: { votesPerOption: number[]; totalStakedLamports: number; claimed: boolean } | null | undefined;
 };
 
 export function PollPositions({ poll, vote }: PositionsProps) {
     const { t } = useLanguage();
-    if (!vote || vote.totalStakedCents <= 0) return null;
+    if (!vote || vote.totalStakedLamports <= 0) return null;
 
     return (
         <div className="bg-surface-50 border border-border rounded-lg p-3 mt-3">
@@ -248,7 +248,7 @@ export function PollPositions({ poll, vote }: PositionsProps) {
                             <div key={i} className="flex items-center justify-between text-sm">
                                 <span className="text-neutral-300">{poll.options[i]}</span>
                                 <span className="text-brand-400 font-medium text-xs">
-                                    {v} coin{v > 1 ? "s" : ""} ({formatDollars(v * poll.unitPriceCents)})
+                                    {v} coin{v > 1 ? "s" : ""} ({formatDollars(v * poll.unitPriceLamports)})
                                 </span>
                             </div>
                         )
@@ -410,7 +410,7 @@ export function PollCreatorBadge({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover border border-border" />
                     ) : (
-                        <Image src={avatarUrl} alt="" width={20} height={20} className="w-5 h-5 rounded-full object-cover border border-border" />
+                        <Image src={avatarUrl} alt="" width={20} height={20} className="w-5 h-5 rounded-full object-cover border border-border" unoptimized />
                     )
                 ) : (
                     <div className="w-5 h-5 rounded-full bg-brand-500/20 flex items-center justify-center text-[8px] font-bold text-brand-400 shrink-0">

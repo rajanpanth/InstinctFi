@@ -28,8 +28,8 @@ export default function PublicProfilePage() {
             pollsCreated: userAccount.pollsCreated,
             pollsWon: userAccount.pollsWon,
             totalPollsVoted: userAccount.totalPollsVoted,
-            totalWinningsCents: userAccount.totalWinningsCents,
-            totalSpentCents: userAccount.totalSpentCents,
+            totalWinningsLamports: userAccount.totalWinningsLamports,
+            totalSpentLamports: userAccount.totalSpentLamports,
             createdAt: userAccount.createdAt,
             loginStreak: userAccount.loginStreak,
         });
@@ -54,7 +54,7 @@ export default function PublicProfilePage() {
         );
     }
 
-    const netProfit = userAccount.totalWinningsCents - userAccount.totalSpentCents;
+    const netProfit = userAccount.totalWinningsLamports - userAccount.totalSpentLamports;
     const displayName = getDisplayName(wallet);
     const avatarUrl = getAvatarUrl(wallet);
 
@@ -73,7 +73,7 @@ export default function PublicProfilePage() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={avatarUrl} alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-brand-500/25" />
                         ) : (
-                            <Image src={avatarUrl} alt="Avatar" width={64} height={64} className="w-16 h-16 rounded-full object-cover border-2 border-brand-500/25" />
+                            <Image src={avatarUrl} alt="Avatar" width={64} height={64} className="w-16 h-16 rounded-full object-cover border-2 border-brand-500/25" unoptimized />
                         )
                     ) : (
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-2xl font-bold text-white">
@@ -126,7 +126,7 @@ export default function PublicProfilePage() {
                                 <div>
                                     <div className="font-medium text-sm">{p.title}</div>
                                     <div className="text-xs text-gray-500">
-                                        {p.voteCounts.reduce((a, b) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolCents)}
+                                        {p.voteCounts.reduce((a, b) => a + b, 0)} votes · Pool: {formatDollars(p.totalPoolLamports)}
                                     </div>
                                 </div>
                                 <span className={`text-xs font-semibold px-2 py-1 rounded ${p.status === PollStatus.Settled ? "bg-green-600/20 text-green-400" : "bg-brand-500/20 text-brand-400"}`}>
@@ -160,7 +160,7 @@ export default function PublicProfilePage() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-sm font-mono">{formatDollars(v.totalStakedCents)}</div>
+                                        <div className="text-sm font-mono">{formatDollars(v.totalStakedLamports)}</div>
                                         {v.claimed && <span className="text-xs text-green-400">Claimed</span>}
                                     </div>
                                 </Link>

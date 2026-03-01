@@ -38,8 +38,8 @@ export function clearReauthenticateCallback() {
  * @param body   Request body (will be JSON-serialized)
  * @returns      Parsed JSON response
  */
-// #31: Default request timeout (ms)
-const REQUEST_TIMEOUT_MS = 15_000;
+// #31: Default request timeout (ms) — 30s to tolerate devnet / Supabase latency
+const REQUEST_TIMEOUT_MS = 30_000;
 
 // #32: Retry config for transient errors
 const MAX_RETRIES = 2;
