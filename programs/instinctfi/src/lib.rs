@@ -7,7 +7,7 @@ pub mod instructions;
 use instructions::*;
 
 // Deployed to Solana devnet on 2026-03-01
-declare_id!("3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En");
+declare_id!("J9AqrLZWDXaQfDwtFpC2GG9hBb7SAPxRwVpGs753EgWV");
 
 #[program]
 pub mod instinctfi {

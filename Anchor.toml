@@ -3,10 +3,10 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-instinctfi = "3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En"
+instinctfi = "J9AqrLZWDXaQfDwtFpC2GG9hBb7SAPxRwVpGs753EgWV"
 
 [programs.devnet]
-instinctfi = "3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En"
+instinctfi = "J9AqrLZWDXaQfDwtFpC2GG9hBb7SAPxRwVpGs753EgWV"
 
 [registry]
 url = "https://api.apr.dev"

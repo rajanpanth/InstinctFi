@@ -2,6 +2,12 @@
 members = [
     "programs/instinctfi",
 ]
+exclude = [
+    "programs/poll_program",
+    "programs/settlement_program",
+    "programs/user_program",
+    "programs/vote_program",
+]
 resolver = "2"
 
 [profile.release]
