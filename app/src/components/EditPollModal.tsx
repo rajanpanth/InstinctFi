@@ -134,13 +134,13 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
       if (success) {
         toast.success("Poll updated successfully!");
         onClose();
-      } else {
-        toast.error("Failed to update poll. Check permissions and try again.");
       }
+      // Note: editPoll already shows its own error toast on failure,
+      // so we don't show a duplicate here.
     } catch (e) {
       setSaving(false);
       console.error("Edit poll error:", e);
-      toast.error("An unexpected error occurred while editing.");
+      // editPoll handles its own error toasts; only log here.
     }
   };
 

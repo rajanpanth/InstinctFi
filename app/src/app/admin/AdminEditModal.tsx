@@ -23,8 +23,14 @@ export default function AdminEditModal({
   const [imageUrl, setImageUrl] = useState(poll.imageUrl);
   const [options, setOptions] = useState([...poll.options]);
   const [endDate, setEndDate] = useState(() => {
+    // Convert unix seconds → local datetime string for <input type="datetime-local">
     const d = new Date(poll.endTime * 1000);
-    return d.toISOString().slice(0, 16);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const da = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${y}-${mo}-${da}T${h}:${mi}`;
   });
   const [saving, setSaving] = useState(false);
 
@@ -47,12 +53,11 @@ export default function AdminEditModal({
         options: options.map((o) => o.trim()),
         endTime: Math.floor(new Date(endDate).getTime() / 1000),
       });
-      if (!ok) {
-        toast.error("Failed to save changes");
-      }
+      // Note: editPoll already shows its own error toast on failure,
+      // so we don't show a duplicate here.
     } catch (e) {
       console.error("Admin edit save error:", e);
-      toast.error("Failed to save changes");
+      // editPoll handles its own error toasts; only log here.
     } finally {
       setSaving(false);
     }

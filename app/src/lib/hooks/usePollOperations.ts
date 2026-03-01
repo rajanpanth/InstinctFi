@@ -11,6 +11,7 @@ import {
     buildInitializeUserIx,
     buildCreatePollIx,
     buildEditPollIx,
+    buildAdminEditPollIx,
     buildDeletePollIx,
     buildCastVoteIx,
     buildSettlePollIx,
@@ -226,6 +227,18 @@ export function usePollOperations({
                 const pollId = poll.pollId || Date.now();
                 toast.loading("Creating poll...", { id: "create-poll" });
 
+                // ── Pre-flight: check wallet balance before building tx ──
+                const walletBal = await getWalletBalance(pubkey);
+                // Need enough for creator investment + tx fees (~0.01 SOL buffer)
+                const minRequired = poll.creatorInvestmentLamports + 10_000_000; // investment + ~0.01 SOL for fees/rent
+                if (walletBal < minRequired) {
+                    toast.error(
+                        `Insufficient SOL. You need at least ${((minRequired) / 1e9).toFixed(4)} SOL but have ${(walletBal / 1e9).toFixed(4)} SOL.`,
+                        { id: "create-poll" }
+                    );
+                    return null;
+                }
+
                 // ── Pre-flight + instruction build in parallel ──
                 const [existingUser, createIx] = await Promise.all([
                     fetchUserAccount(pubkey),
@@ -241,8 +254,31 @@ export function usePollOperations({
                 }
                 instructions.push(createIx);
 
-                // ── On-chain transaction (MANDATORY — real SOL) ──
-                const sig = await sendTransaction(instructions, pubkey, signTransaction!);
+                // ── On-chain transaction (MANDATORY — real SOL) with retry ──
+                let sig: string = "";
+                const MAX_TX_RETRIES = 2;
+                let lastTxError: any;
+                for (let attempt = 0; attempt <= MAX_TX_RETRIES; attempt++) {
+                    try {
+                        if (attempt > 0) {
+                            toast.loading(`Retrying (attempt ${attempt + 1})...`, { id: "create-poll" });
+                            await new Promise(r => setTimeout(r, 1500 * attempt));
+                            // Rebuild instructions with fresh blockhash
+                        }
+                        sig = await sendTransaction(instructions, pubkey, signTransaction!);
+                        lastTxError = null;
+                        break;
+                    } catch (retryErr: any) {
+                        lastTxError = retryErr;
+                        const msg = (retryErr?.message || "").toLowerCase();
+                        // Don't retry user rejections or balance errors
+                        if (msg.includes("rejected") || msg.includes("denied") || msg.includes("cancelled") || msg.includes("insufficient")) {
+                            throw retryErr;
+                        }
+                        if (attempt >= MAX_TX_RETRIES) throw retryErr;
+                    }
+                }
+                if (lastTxError) throw lastTxError;
 
                 const [pollPDA] = getPollPDA(pubkey, pollId);
                 const platformFee = Math.max(Math.floor(poll.creatorInvestmentLamports / 100), 1);
@@ -334,14 +370,32 @@ export function usePollOperations({
             const admin = isAdminWallet(walletAddress);
             if (!admin) {
                 // HIGH-01 FIX: Release lock before early returns to avoid permanent lock leak.
-                if (poll.creator !== walletAddress) { operationLock.current.delete(lockKey); return false; }
-                if (poll.status !== PollStatus.Active) { operationLock.current.delete(lockKey); return false; }
+                if (poll.creator !== walletAddress) {
+                    toast.error("You can only edit polls you created.", { id: "edit-poll" });
+                    operationLock.current.delete(lockKey); return false;
+                }
+                if (poll.status !== PollStatus.Active) {
+                    toast.error("This poll is no longer active and cannot be edited.", { id: "edit-poll" });
+                    operationLock.current.delete(lockKey); return false;
+                }
                 const now = Math.floor(Date.now() / 1000);
-                if (now >= poll.endTime) { operationLock.current.delete(lockKey); return false; }
+                if (now >= poll.endTime) {
+                    toast.error("This poll has ended and cannot be edited.", { id: "edit-poll" });
+                    operationLock.current.delete(lockKey); return false;
+                }
                 const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
-                if (totalVotes > 0) { operationLock.current.delete(lockKey); return false; }
-                if (updates.options && updates.options.length !== poll.options.length) { operationLock.current.delete(lockKey); return false; }
-                if (updates.endTime && updates.endTime <= now) { operationLock.current.delete(lockKey); return false; }
+                if (totalVotes > 0) {
+                    toast.error("Cannot edit a poll that already has votes.", { id: "edit-poll" });
+                    operationLock.current.delete(lockKey); return false;
+                }
+                if (updates.options && updates.options.length !== poll.options.length) {
+                    toast.error("Cannot change the number of options.", { id: "edit-poll" });
+                    operationLock.current.delete(lockKey); return false;
+                }
+                if (updates.endTime && updates.endTime <= now) {
+                    toast.error("New end time must be in the future.", { id: "edit-poll" });
+                    operationLock.current.delete(lockKey); return false;
+                }
             }
 
             const updatedPoll: DemoPoll = {
@@ -357,16 +411,69 @@ export function usePollOperations({
 
             try {
                 const pubkey = new PublicKey(walletAddress);
-                toast.loading("Editing poll on Solana...", { id: "edit-poll" });
 
-                // ── On-chain transaction (MANDATORY) ──
-                const ix = await buildEditPollIx(
-                    pubkey, poll.pollId,
-                    updates.title ?? poll.title, updates.description ?? poll.description,
-                    updates.category ?? poll.category, updates.imageUrl ?? poll.imageUrl,
-                    updates.options ?? poll.options, updates.endTime ?? poll.endTime
-                );
-                await sendTransaction([ix], pubkey, signTransaction!);
+                // ── Determine if on-chain edit is possible ──
+                // The on-chain edit_poll instruction requires:
+                //   1. Creator's signature (PDA seeded by creator)
+                //   2. Poll is active (not settled)
+                //   3. Poll has not ended
+                //   4. No votes cast
+                // Admin edits on ended/voted/non-owned polls bypass on-chain
+                // and only update Supabase + local state.
+                const isCreator = poll.creator === walletAddress;
+                const now = Math.floor(Date.now() / 1000);
+                const pollEnded = now >= poll.endTime;
+                const hasVotes = poll.voteCounts.reduce((a, b) => a + b, 0) > 0;
+                const canEditOnChain = isCreator && poll.status === PollStatus.Active && !pollEnded && !hasVotes;
+
+                // ── Pre-flight balance check ──
+                const bal = await getWalletBalance(pubkey);
+                if (bal !== undefined && bal < 0.001) {
+                    toast.error("Insufficient SOL for transaction fee. Please add at least 0.001 SOL to your wallet.", { id: "edit-poll" });
+                    return false;
+                }
+
+                let sig: string;
+
+                if (canEditOnChain) {
+                    toast.loading("Editing poll on Solana...", { id: "edit-poll" });
+
+                    // ── Creator on-chain edit ──
+                    const ix = await buildEditPollIx(
+                        pubkey, poll.pollId,
+                        updates.title ?? poll.title, updates.description ?? poll.description,
+                        updates.category ?? poll.category, updates.imageUrl ?? poll.imageUrl,
+                        updates.options ?? poll.options, updates.endTime ?? poll.endTime
+                    );
+                    sig = await sendTransaction([ix], pubkey, signTransaction!);
+                } else if (admin) {
+                    toast.loading("Admin editing poll on Solana...", { id: "edit-poll" });
+
+                    // ── Admin on-chain edit (bypasses ended/votes/creator checks) ──
+                    const pollCreator = new PublicKey(poll.creator);
+                    const ix = await buildAdminEditPollIx(
+                        pubkey, pollCreator, poll.pollId,
+                        updates.title ?? poll.title, updates.description ?? poll.description,
+                        updates.category ?? poll.category, updates.imageUrl ?? poll.imageUrl,
+                        updates.options ?? poll.options, updates.endTime ?? poll.endTime
+                    );
+                    sig = await sendTransaction([ix], pubkey, signTransaction!);
+                } else {
+                    // Non-admin can't edit — guards above should have caught this
+                    toast.error("Cannot edit this poll.", { id: "edit-poll" });
+                    return false;
+                }
+
+                // ── Background: confirm tx landed on-chain ──
+                confirmTransactionBg(sig).then(confirmed => {
+                    if (!confirmed) {
+                        console.warn("Edit poll tx not confirmed — will re-sync on next fetch");
+                    }
+                }).catch(e => console.warn("Background confirm failed:", e));
+
+                // ── Apply update optimistically ──
+                setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
+                markMutation();
 
                 // ── Sync to Supabase (non-blocking stats cache) ──
                 if (isSupabaseConfigured) {
@@ -381,10 +488,6 @@ export function usePollOperations({
                         p_end_time: updates.endTime ?? poll.endTime,
                     }).catch(e => console.warn("Supabase edit-poll sync failed (on-chain succeeded):", e));
                 }
-
-                // ── Apply update after on-chain succeeds ──
-                setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
-                markMutation();
 
                 toast.success("Poll edited!", { id: "edit-poll" });
                 return true;

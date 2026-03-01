@@ -54,6 +54,7 @@ export {
   buildInitializeUserIx,
   buildCreatePollIx,
   buildEditPollIx,
+  buildAdminEditPollIx,
   buildDeletePollIx,
   buildCastVoteIx,
   buildSettlePollIx,
@@ -111,43 +112,36 @@ export async function sendTransaction(
  * logs a warning instead. Throws only if the tx actually failed on-chain.
  */
 export async function confirmTransactionBg(sig: string): Promise<boolean> {
-  try {
-    const { blockhash, lastValidBlockHeight } =
-      await connection.getLatestBlockhash("confirmed");
-    await connection.confirmTransaction(
-      { signature: sig, blockhash, lastValidBlockHeight },
-      "confirmed"
-    );
-    return true;
-  } catch (confirmErr: any) {
-    // Websocket timed out — poll getSignatureStatuses as fallback
-    console.warn("confirmTransaction failed, polling status as fallback:", confirmErr?.message);
-    const POLL_INTERVAL = 2_000;
-    const POLL_TIMEOUT = 30_000;
-    const deadline = Date.now() + POLL_TIMEOUT;
+  // Poll getSignatureStatuses directly — this avoids the blockhash-mismatch
+  // issue that occurs when confirmTransaction uses a different blockhash
+  // than the one the transaction was originally signed with.
+  const POLL_INTERVAL = 2_000;
+  const POLL_TIMEOUT = 60_000;
+  const deadline = Date.now() + POLL_TIMEOUT;
 
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, POLL_INTERVAL));
-      try {
-        const { value } = await connection.getSignatureStatuses([sig]);
-        const status = value?.[0];
-        if (status) {
-          if (status.err) {
-            console.error("Transaction failed on-chain:", sig, status.err);
-            return false;
-          }
-          if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") {
-            console.log("Transaction confirmed via polling:", sig);
-            return true;
-          }
+  while (Date.now() < deadline) {
+    try {
+      const { value } = await connection.getSignatureStatuses([sig]);
+      const status = value?.[0];
+      if (status) {
+        if (status.err) {
+          console.error("Transaction failed on-chain:", sig, status.err);
+          return false;
         }
-      } catch {
-        // polling error — keep trying until deadline
+        if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") {
+          console.log("Transaction confirmed via polling:", sig);
+          return true;
+        }
       }
+    } catch (e) {
+      // polling error — keep trying until deadline
+      console.warn("Signature status poll error:", e);
     }
-    console.warn("Transaction confirmation timed out (bg):", sig);
-    return false;
+    await new Promise(r => setTimeout(r, POLL_INTERVAL));
   }
+
+  console.warn("Transaction confirmation timed out (bg):", sig);
+  return false;
 }
 
 /** Get wallet SOL balance in lamports */

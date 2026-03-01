@@ -97,4 +97,21 @@ pub mod instinctfi {
     ) -> Result<()> {
         instructions::admin_settle_poll::handler(ctx, poll_id, winning_option)
     }
+
+    /// Admin-edit a poll (including ended polls). Only PLATFORM_ADMIN can call.
+    /// Allows extending deadlines, fixing text, etc. Cannot edit settled polls.
+    pub fn admin_edit_poll(
+        ctx: Context<AdminEditPoll>,
+        poll_id: u64,
+        title: String,
+        description: String,
+        category: String,
+        image_url: String,
+        options: Vec<String>,
+        end_time: i64,
+    ) -> Result<()> {
+        instructions::admin_edit_poll::handler(
+            ctx, poll_id, title, description, category, image_url, options, end_time,
+        )
+    }
 }

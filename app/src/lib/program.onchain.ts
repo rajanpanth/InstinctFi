@@ -380,6 +380,42 @@ export async function buildEditPollIx(
     });
 }
 
+/** Build AdminEditPoll instruction — admin can edit any poll including ended ones */
+export async function buildAdminEditPollIx(
+    admin: PublicKey,
+    pollCreator: PublicKey,
+    pollId: number | bigint,
+    title: string,
+    description: string,
+    category: string,
+    imageUrl: string,
+    options: string[],
+    endTime: number | bigint
+): Promise<TransactionInstruction> {
+    const disc = await ixDiscriminator("admin_edit_poll");
+    const [pollPDA] = getPollPDA(pollCreator, pollId);
+
+    const writer = new BorshWriter();
+    writer.writeU64(pollId);
+    writer.writeString(title);
+    writer.writeString(description);
+    writer.writeString(category);
+    writer.writeString(imageUrl);
+    writer.writeVecString(options);
+    writer.writeI64(endTime);
+
+    const data = Buffer.concat([Buffer.from(disc), writer.toBuffer()]);
+
+    return new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+            { pubkey: admin, isSigner: true, isWritable: true },
+            { pubkey: pollPDA, isSigner: false, isWritable: true },
+        ],
+        data,
+    });
+}
+
 /** Build DeletePoll instruction */
 export async function buildDeletePollIx(
     creator: PublicKey,
