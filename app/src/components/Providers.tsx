@@ -16,6 +16,7 @@ import { useWalletManager } from "@/lib/hooks/useWalletManager";
 import { useDataFetcher, type MutationTracker } from "@/lib/hooks/useDataFetcher";
 import { usePollOperations } from "@/lib/hooks/usePollOperations";
 import { useRealtimePolls } from "@/lib/hooks/useRealtimePolls";
+import { SEED_POLLS } from "@/lib/seedPolls";
 
 // ── Re-export types & constants from shared modules ──────────────────────
 // This maintains backward compatibility for all existing imports
@@ -158,6 +159,18 @@ export function Providers({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletConnected, walletAddress]);
 
+  // ── Expose polls: merge seed data when the database is empty so the
+  //    site always looks populated for new visitors. Seed polls are
+  //    automatically hidden once real data exists.
+  const displayPolls = useMemo(() => {
+    // During loading, return whatever we have (might be []) to avoid flicker
+    if (isLoading) return polls;
+    // If real polls exist, use them exclusively
+    if (polls.length > 0) return polls;
+    // Otherwise show seed/demo polls
+    return SEED_POLLS;
+  }, [polls, isLoading]);
+
   // #22: Memoize context value to prevent re-renders of all consumers
   const contextValue = useMemo<AppContextType>(() => ({
     walletConnected,
@@ -168,7 +181,7 @@ export function Providers({ children }: { children: ReactNode }) {
     signup,
     claimDailyReward,
     isLoading,
-    polls,
+    polls: displayPolls,
     votes,
     createPoll,
     editPoll,
@@ -180,7 +193,7 @@ export function Providers({ children }: { children: ReactNode }) {
     recentlyVotedPollIds,
   }), [
     walletConnected, walletAddress, connectWallet, disconnectWallet,
-    userAccount, signup, claimDailyReward, isLoading, polls, votes,
+    userAccount, signup, claimDailyReward, isLoading, displayPolls, votes,
     createPoll, editPoll, deletePoll, castVote, settlePoll, claimReward,
     users, recentlyVotedPollIds,
   ]);

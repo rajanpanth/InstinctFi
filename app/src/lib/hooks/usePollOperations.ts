@@ -89,96 +89,98 @@ export function usePollOperations({
         if (!walletAddress) return;
         if (!initialFetchDone.current) return;
 
-        if (!PROGRAM_DEPLOYED) {
-            if (isSupabaseConfigured) {
-                try {
-                    await authenticatedFetch("/api/rpc/signup");
-                } catch (e) {
-                    console.warn("Failed to sync user to Supabase:", e);
-                }
+        // ── Always sync with Supabase first (source of truth for user data) ──
+        if (isSupabaseConfigured) {
+            try {
+                await authenticatedFetch("/api/rpc/signup");
+            } catch (e) {
+                console.warn("Failed to sync user to Supabase:", e);
+            }
 
-                // Credit devnet wallet balance on top of the 5 SOL signup bonus (one-time)
-                const creditKey = `instinctfi_devnet_credited_${walletAddress}`;
-                if (typeof window !== "undefined" && !localStorage.getItem(creditKey)) {
-                    try {
-                        const devnetBal = await getWalletBalance(new PublicKey(walletAddress));
-                        if (devnetBal > 0) {
-                            await authenticatedFetch("/api/rpc/credit-balance", {
-                                p_amount: devnetBal,
-                            });
-                        }
-                        localStorage.setItem(creditKey, "1");
-                    } catch (e) {
-                        console.warn("Failed to credit devnet balance:", e);
-                    }
-                }
-
-                // Re-fetch the user from Supabase so the UI shows the correct combined balance
+            // Credit devnet wallet balance on top of the 5 SOL signup bonus (one-time)
+            const creditKey = `instinctfi_devnet_credited_${walletAddress}`;
+            if (typeof window !== "undefined" && !localStorage.getItem(creditKey)) {
                 try {
-                    const { data } = await supabase.from("users").select("*").eq("wallet", walletAddress).single();
-                    if (data) {
-                        const fresh = rowToUserAccount(data);
-                        setUsers(prev => {
-                            const exists = prev.find(u => u.wallet === walletAddress);
-                            if (exists) return prev.map(u => u.wallet === walletAddress ? fresh : u);
-                            return [...prev, fresh];
+                    const devnetBal = await getWalletBalance(new PublicKey(walletAddress));
+                    if (devnetBal > 0) {
+                        await authenticatedFetch("/api/rpc/credit-balance", {
+                            p_amount: devnetBal,
                         });
                     }
-                } catch { }
+                    localStorage.setItem(creditKey, "1");
+                } catch (e) {
+                    console.warn("Failed to credit devnet balance:", e);
+                }
             }
-            const currentUsers = usersRef.current;
-            const existingUser = currentUsers.find(u => u.wallet === walletAddress);
-            if (existingUser && !existingUser.signupBonusClaimed) {
-                setUsers(prev => prev.map(u =>
-                    u.wallet === walletAddress
-                        ? { ...u, signupBonusClaimed: true, lastWeeklyRewardTs: Date.now() }
-                        : u
-                ));
-            }
-            return;
+
+            // Re-fetch the user from Supabase so the UI shows the correct combined balance
+            try {
+                const { data } = await supabase.from("users").select("*").eq("wallet", walletAddress).single();
+                if (data) {
+                    const fresh = rowToUserAccount(data);
+                    setUsers(prev => {
+                        const exists = prev.find(u => u.wallet === walletAddress);
+                        if (exists) return prev.map(u => u.wallet === walletAddress ? fresh : u);
+                        return [...prev, fresh];
+                    });
+                }
+            } catch { }
         }
 
-        try {
-            const existing = await fetchUserAccount(new PublicKey(walletAddress));
-            if (existing) {
-                const bal = await getWalletBalance(new PublicKey(walletAddress));
-                const user = onChainUserToAccount(existing, bal);
-                setUsers(prev => {
-                    if (prev.find(u => u.wallet === walletAddress)) {
-                        return prev.map(u => u.wallet === walletAddress ? user : u);
-                    }
-                    return [...prev, user];
-                });
-                return;
-            }
-        } catch (e) {
-            console.warn("Failed to check user account:", e);
+        const currentUsers = usersRef.current;
+        const existingUser = currentUsers.find(u => u.wallet === walletAddress);
+        if (existingUser && !existingUser.signupBonusClaimed) {
+            setUsers(prev => prev.map(u =>
+                u.wallet === walletAddress
+                    ? { ...u, signupBonusClaimed: true, lastWeeklyRewardTs: Date.now() }
+                    : u
+            ));
         }
 
-        try {
-            const pubkey = new PublicKey(walletAddress);
-            const ix = await buildInitializeUserIx(pubkey);
-            const sig = await sendTransaction([ix], pubkey, signTransaction!);
-            console.log("User initialized on-chain:", sig);
-            toast.success("Account created on Solana!");
-
-            const bal = await getWalletBalance(pubkey);
-            const onChainUser = await fetchUserAccount(pubkey);
-            if (onChainUser) {
-                const user = onChainUserToAccount(onChainUser, bal);
-                setUsers(prev => [...prev.filter(u => u.wallet !== walletAddress), user]);
+        // ── Also try on-chain initialization (non-blocking, best-effort) ──
+        if (PROGRAM_DEPLOYED) {
+            try {
+                const existing = await fetchUserAccount(new PublicKey(walletAddress));
+                if (existing) {
+                    const bal = await getWalletBalance(new PublicKey(walletAddress));
+                    const user = onChainUserToAccount(existing, bal);
+                    setUsers(prev => {
+                        if (prev.find(u => u.wallet === walletAddress)) {
+                            return prev.map(u => u.wallet === walletAddress ? user : u);
+                        }
+                        return [...prev, user];
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.warn("Failed to check on-chain user account:", e);
             }
-        } catch (e: any) {
-            console.error("Signup failed:", e);
-            if (e?.message?.includes("already in use") || e?.message?.includes("0x0")) {
-                const bal = await getWalletBalance(new PublicKey(walletAddress));
-                const onChainUser = await fetchUserAccount(new PublicKey(walletAddress));
+
+            try {
+                const pubkey = new PublicKey(walletAddress);
+                const ix = await buildInitializeUserIx(pubkey);
+                const sig = await sendTransaction([ix], pubkey, signTransaction!);
+                console.log("User initialized on-chain:", sig);
+                toast.success("Account created on Solana!");
+
+                const bal = await getWalletBalance(pubkey);
+                const onChainUser = await fetchUserAccount(pubkey);
                 if (onChainUser) {
                     const user = onChainUserToAccount(onChainUser, bal);
                     setUsers(prev => [...prev.filter(u => u.wallet !== walletAddress), user]);
                 }
-            } else {
-                toast.error("Failed to create account — make sure you have SOL for gas");
+            } catch (e: any) {
+                // On-chain init failed — that's OK, Supabase user is already created above
+                if (e?.message?.includes("already in use") || e?.message?.includes("0x0")) {
+                    const bal = await getWalletBalance(new PublicKey(walletAddress));
+                    const onChainUser = await fetchUserAccount(new PublicKey(walletAddress));
+                    if (onChainUser) {
+                        const user = onChainUserToAccount(onChainUser, bal);
+                        setUsers(prev => [...prev.filter(u => u.wallet !== walletAddress), user]);
+                    }
+                } else {
+                    console.warn("On-chain account creation failed (Supabase account OK):", e?.message);
+                }
             }
         }
     }, [walletAddress, setUsers, usersRef, initialFetchDone, signTransaction]);
@@ -564,9 +566,27 @@ export function usePollOperations({
                     const pollCreator = new PublicKey(poll.creator);
                     toast.loading("Casting vote...", { id: "cast-vote" });
 
+                    // ── On-chain transaction (best-effort) ──
+                    // Supabase is the source of truth. If the on-chain tx fails
+                    // (e.g. PDA not found, program mismatch), we log a warning
+                    // but still proceed with the Supabase vote.
                     if (PROGRAM_DEPLOYED) {
-                        const ix = await buildCastVoteIx(pubkey, pollCreator, poll.pollId, optionIndex, numCoins);
-                        await sendTransaction([ix], pubkey, signTransaction!);
+                        try {
+                            const ix = await buildCastVoteIx(pubkey, pollCreator, poll.pollId, optionIndex, numCoins);
+                            await sendTransaction([ix], pubkey, signTransaction!);
+                        } catch (onChainErr: any) {
+                            // Wallet rejection = hard fail (user intentionally cancelled)
+                            const errMsg = (onChainErr?.message || "").toLowerCase();
+                            if (
+                                errMsg.includes("user rejected") ||
+                                errMsg.includes("user denied") ||
+                                errMsg.includes("cancelled")
+                            ) {
+                                toast.error("Transaction was rejected in your wallet.", { id: "cast-vote" });
+                                return false;
+                            }
+                            console.warn("On-chain cast_vote failed (proceeding with Supabase):", onChainErr?.message);
+                        }
                     }
 
                     // ── Persist to Supabase FIRST (source of truth) ──

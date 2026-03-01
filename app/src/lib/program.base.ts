@@ -15,7 +15,7 @@ export const PROGRAM_ID = new PublicKey(
     "3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En"
 );
 
-export const PROGRAM_DEPLOYED = true;
+export const PROGRAM_DEPLOYED = false;
 
 export const CLUSTER = "devnet" as "devnet" | "mainnet-beta" | "localnet";
 export const RPC_URL =

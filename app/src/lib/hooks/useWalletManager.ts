@@ -11,6 +11,7 @@ import {
 import { createPlaceholderUser } from "@/lib/dataConverters";
 import { type UserAccount } from "@/lib/types";
 import { setAuthToken, clearAuthToken, isAuthTokenValid } from "@/lib/supabase";
+import { setReauthenticateCallback, clearReauthenticateCallback } from "@/lib/apiClient";
 import toast from "react-hot-toast";
 
 /**
@@ -125,6 +126,21 @@ export function useWalletManager(
             fetchBalWithRetry();
         }
     }, [setUsers]);
+
+    // ── Register re-auth callback so authenticatedFetch can auto-refresh expired JWTs ──
+    useEffect(() => {
+        if (connected && publicKey && signMessage) {
+            setReauthenticateCallback(async () => {
+                try {
+                    const verified = await verifyWalletOwnership(publicKey);
+                    return verified;
+                } catch {
+                    return false;
+                }
+            });
+        }
+        return () => clearReauthenticateCallback();
+    }, [connected, publicKey, signMessage, verifyWalletOwnership]);
 
     // ── Sync wallet adapter state to our local state ──
     useEffect(() => {

@@ -99,41 +99,91 @@ export function useDataFetcher(
 
         try {
             if (PROGRAM_DEPLOYED) {
-                const [onChainPolls, onChainUsers] = await Promise.all([
-                    fetchAllPolls(),
-                    fetchAllUsers(),
-                ]);
+                // Try on-chain first
+                let onChainPollsLoaded = false;
+                try {
+                    const [onChainPolls, onChainUsers] = await Promise.all([
+                        fetchAllPolls(),
+                        fetchAllUsers(),
+                    ]);
 
-                const demoPolls = onChainPolls.map((p) =>
-                    onChainPollToDemo(p)
-                );
+                    const demoPolls = onChainPolls.map((p) =>
+                        onChainPollToDemo(p)
+                    );
 
-                const usersWithBalances = await Promise.all(
-                    onChainUsers.map(async (u) => {
+                    const usersWithBalances = await Promise.all(
+                        onChainUsers.map(async (u) => {
+                            try {
+                                const bal = await getWalletBalance(u.authority);
+                                return onChainUserToAccount(u, bal);
+                            } catch {
+                                return onChainUserToAccount(u, 0);
+                            }
+                        })
+                    );
+
+                    const onChainFiltered = tracker.deletedPollIds.current.size > 0
+                        ? demoPolls.filter(p => !tracker.deletedPollIds.current.has(p.id))
+                        : demoPolls;
+
+                    if (onChainFiltered.length > 0 && gen === tracker.mutationGeneration.current) {
+                        setPolls(onChainFiltered);
+                        setUsers(usersWithBalances);
+                        onChainPollsLoaded = true;
+                    }
+
+                    if (walletAddress && gen === tracker.mutationGeneration.current) {
                         try {
-                            const bal = await getWalletBalance(u.authority);
-                            return onChainUserToAccount(u, bal);
-                        } catch {
-                            return onChainUserToAccount(u, 0);
+                            const userVotes = await fetchVotesForUser(new PublicKey(walletAddress));
+                            if (userVotes.length > 0) {
+                                setVotes(userVotes.map(onChainVoteToDemo));
+                            }
+                        } catch (e) {
+                            console.warn("Failed to fetch on-chain votes:", e);
                         }
-                    })
-                );
-
-                const onChainFiltered = tracker.deletedPollIds.current.size > 0
-                    ? demoPolls.filter(p => !tracker.deletedPollIds.current.has(p.id))
-                    : demoPolls;
-
-                if (gen === tracker.mutationGeneration.current) {
-                    setPolls(onChainFiltered);
-                    setUsers(usersWithBalances);
+                    }
+                } catch (e) {
+                    console.warn("On-chain fetch failed, falling back to Supabase:", e);
                 }
 
-                if (walletAddress && gen === tracker.mutationGeneration.current) {
+                // Fallback / supplement: also load from Supabase if on-chain returned nothing
+                if (!onChainPollsLoaded && isSupabaseConfigured) {
                     try {
-                        const userVotes = await fetchVotesForUser(new PublicKey(walletAddress));
-                        setVotes(userVotes.map(onChainVoteToDemo));
+                        const [pollsRes, votesRes] = await Promise.all([
+                            supabase.from("polls").select("*").order("created_at", { ascending: false }),
+                            supabase.from("votes").select("*"),
+                        ]);
+
+                        if (pollsRes.data) {
+                            const fetched = pollsRes.data.map(rowToDemoPoll);
+                            const filtered = tracker.deletedPollIds.current.size > 0
+                                ? fetched.filter((p: DemoPoll) => !tracker.deletedPollIds.current.has(p.id))
+                                : fetched;
+
+                            if (gen === tracker.mutationGeneration.current) {
+                                setPolls(filtered);
+                            }
+                        }
+                        if (votesRes.data && gen === tracker.mutationGeneration.current) {
+                            setVotes(votesRes.data.map(rowToDemoVote));
+                        }
+
+                        if (walletAddress && gen === tracker.mutationGeneration.current) {
+                            const usersRes = await supabase
+                                .from("users")
+                                .select("*")
+                                .eq("wallet", walletAddress)
+                                .single();
+                            if (usersRes.data) {
+                                const currentUser = rowToUserAccount(usersRes.data);
+                                setUsers(prev => {
+                                    const others = prev.filter(u => u.wallet !== walletAddress);
+                                    return [...others, currentUser];
+                                });
+                            }
+                        }
                     } catch (e) {
-                        console.warn("Failed to fetch votes:", e);
+                        console.warn("Supabase fallback also failed:", e);
                     }
                 }
             } else {

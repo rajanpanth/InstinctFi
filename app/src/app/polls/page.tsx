@@ -175,11 +175,9 @@ function PollsPage() {
     <div>
       <div className="flex items-center justify-between mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("polls")}</h1>
-        {walletConnected && (
-          <Link href="/create" className="px-4 sm:px-6 py-2 sm:py-2.5 bg-brand-500 hover:bg-brand-600 rounded-xl font-semibold transition-all text-sm sm:text-base active:scale-[0.97]">
-            {t("createPollPlus")}
-          </Link>
-        )}
+        <Link href="/create" className="px-4 sm:px-6 py-2 sm:py-2.5 bg-brand-500 hover:bg-brand-600 rounded-xl font-semibold transition-all text-sm sm:text-base active:scale-[0.97]">
+          {t("createPollPlus")}
+        </Link>
       </div>
 
       {/* Search */}
@@ -272,11 +270,9 @@ function PollsPage() {
           </div>
           <p className="text-gray-400 text-lg mb-2 font-medium">{t("noPollsFound")}</p>
           <p className="text-gray-600 text-sm mb-5">{t("noPollsHint")}</p>
-          {walletConnected && (
-            <Link href="/create" className="inline-flex items-center gap-1.5 text-brand-400 hover:text-brand-300 font-medium transition-colors">
-              {t("createFirstPoll")} <span className="text-lg">→</span>
-            </Link>
-          )}
+          <Link href="/create" className="inline-flex items-center gap-1.5 text-brand-400 hover:text-brand-300 font-medium transition-colors">
+            {t("createFirstPoll")} <span className="text-lg">→</span>
+          </Link>
         </div>
       ) : (
         <>

@@ -110,14 +110,17 @@ export function Navbar() {
           <div className="flex items-center justify-between h-14 md:h-[3.75rem]">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2 shrink-0 group">
-              <Image
-                src="/logo.svg"
-                alt="InstinctFi"
-                width={28}
-                height={28}
-                priority
-                className="rounded-lg transition-transform group-hover:scale-105"
-              />
+              <div className="relative w-8 h-8 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-xl bg-brand-500/10 group-hover:bg-brand-500/20 transition-colors" />
+                <Image
+                  src="/icon-512.png"
+                  alt="InstinctFi"
+                  width={30}
+                  height={30}
+                  priority
+                  className="relative z-10 rounded-xl object-contain transition-transform group-hover:scale-105"
+                />
+              </div>
               <span className="text-lg font-heading font-bold text-neutral-100">
                 Instinct<span className="text-brand-500">Fi</span>
               </span>

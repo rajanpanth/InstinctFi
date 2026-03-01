@@ -389,16 +389,17 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
 }
 
 .loading-logo {
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
+  border-radius: 20px;
   background: rgba(0, 212, 170, 0.08);
   border: 1px solid rgba(0, 212, 170, 0.15);
   position: relative;
   animation: sectionFadeUp 0.5s ease-out both;
+  overflow: hidden;
 }
 
 .loading-logo-glow {

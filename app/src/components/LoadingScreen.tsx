@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useApp } from "./Providers";
-import { Zap } from "lucide-react";
+import Image from "next/image";
 
 /**
  * Premium loading splash with pulsing logo glow, text reveal,
@@ -57,7 +57,14 @@ export default function LoadingScreen() {
         {/* Logo icon with pulsing glow ring */}
         <div className="loading-logo">
           <div className="loading-logo-glow" />
-          <Zap size={24} className="text-brand-500 loading-icon-bounce" />
+          <Image
+            src="/icon-512.png"
+            alt="InstinctFi"
+            width={40}
+            height={40}
+            priority
+            className="relative z-10 rounded-2xl object-contain loading-icon-bounce"
+          />
         </div>
 
         {/* Brand name with clip-path reveal */}

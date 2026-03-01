@@ -109,10 +109,36 @@ function HomeContent() {
   return (
     <div className="space-y-10">
       {/* ── Hero Section ── */}
-      {!walletConnected ? (
-        <section className="section-animate">
+      <section className="section-animate">
+        {walletConnected && userAccount ? (
+          /* ── Connected: compact welcome bar ── */
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-8 lg:py-12">
+            <div>
+              <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-100 mb-1">
+                {t("welcomeBack")}
+              </h1>
+              <p className="text-neutral-500 text-sm">
+                {t("balance")}: <span className="text-brand-400 font-semibold">{formatDollars(userAccount.balance)}</span>
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/polls"
+                className="px-6 py-3 bg-brand-500 hover:bg-brand-600 rounded-lg font-semibold text-sm text-white transition-colors active:scale-[0.97]"
+              >
+                {t("browsePolls")}
+              </Link>
+              <Link
+                href="/create"
+                className="px-6 py-3 bg-surface-100 hover:bg-surface-200 border border-border rounded-lg font-semibold text-sm text-neutral-300 transition-colors active:scale-[0.97]"
+              >
+                {t("createPollPlus")}
+              </Link>
+            </div>
+          </div>
+        ) : (
+          /* ── Disconnected: full hero ── */
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12 py-8 lg:py-14">
-            {/* Left side — Text */}
             <div className="lg:col-span-3 flex flex-col justify-center">
               <p className="text-brand-500 text-xs font-semibold tracking-widest uppercase mb-4">
                 {t("heroTagline")}
@@ -172,37 +198,8 @@ function HomeContent() {
               )}
             </div>
           </div>
-        </section>
-      ) : (
-        <section className="section-animate py-4 sm:py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="font-heading text-2xl sm:text-3xl font-bold text-neutral-100 mb-1">
-                {t("welcomeBack")}
-              </h1>
-              {userAccount && (
-                <p className="text-neutral-500 text-sm">
-                  {t("balance")}: <span className="text-brand-400 font-semibold">{formatDollars(userAccount.balance)}</span>
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Link
-                href="/polls"
-                className="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 rounded-lg font-semibold text-sm text-white transition-colors active:scale-[0.97]"
-              >
-                {t("browsePolls")}
-              </Link>
-              <Link
-                href="/create"
-                className="px-5 py-2.5 bg-surface-100 hover:bg-surface-200 border border-border rounded-lg font-semibold text-sm text-neutral-300 transition-colors active:scale-[0.97]"
-              >
-                {t("createPollPlus")}
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* ── Category Filter Pills ── */}
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-2" role="tablist" aria-label="Category filters">
@@ -249,11 +246,9 @@ function HomeContent() {
             <div className="text-center py-16 text-neutral-500">
               <p className="text-sm mb-1">No polls in {tCat(catFilter!, lang)}</p>
               <p className="text-xs text-neutral-600 mb-4">Be the first to create one!</p>
-              {walletConnected && (
-                <Link href="/create" className="inline-flex items-center gap-1.5 text-brand-400 hover:text-brand-300 font-medium text-sm transition-colors">
-                  Create a Poll <span className="text-lg">+</span>
-                </Link>
-              )}
+              <Link href="/create" className="inline-flex items-center gap-1.5 text-brand-400 hover:text-brand-300 font-medium text-sm transition-colors">
+                Create a Poll <span className="text-lg">+</span>
+              </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -372,21 +367,22 @@ function HomeContent() {
           <BarChart3 size={32} className="text-neutral-700 mx-auto mb-4" />
           <h2 className="font-heading text-lg font-semibold mb-2 text-neutral-300">{t("noPollsYet")}</h2>
           <p className="text-neutral-500 text-sm mb-6">{t("beFirstToCreate")}</p>
-          {walletConnected ? (
+          <div className="flex items-center justify-center gap-3">
+            {!walletConnected && (
+              <button
+                onClick={connectWallet}
+                className="px-6 py-3 bg-brand-500 hover:bg-brand-600 rounded-lg font-semibold text-sm text-white transition-colors active:scale-[0.97]"
+              >
+                {t("connectPhantom")}
+              </button>
+            )}
             <Link
               href="/create"
-              className="px-6 py-3 bg-brand-500 hover:bg-brand-600 rounded-lg font-semibold text-sm text-white transition-colors active:scale-[0.97]"
+              className="px-6 py-3 bg-surface-100 hover:bg-surface-200 border border-border rounded-lg font-semibold text-sm text-neutral-300 transition-colors active:scale-[0.97]"
             >
               {t("createPoll")}
             </Link>
-          ) : (
-            <button
-              onClick={connectWallet}
-              className="px-6 py-3 bg-brand-500 hover:bg-brand-600 rounded-lg font-semibold text-sm text-white transition-colors active:scale-[0.97]"
-            >
-              {t("connectWalletToStart")}
-            </button>
-          )}
+          </div>
         </section>
       )}
 

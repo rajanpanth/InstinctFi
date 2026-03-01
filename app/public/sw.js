@@ -93,8 +93,8 @@ self.addEventListener("push", (event) => {
     const data = event.data.json();
     const options = {
       body: data.body || "Something happened on InstinctFi",
-      icon: "/logo.svg",
-      badge: "/logo.svg",
+      icon: "/icon-512.png",
+      badge: "/icon-512.png",
       tag: data.tag || "instinctfi-notification",
       data: {
         url: data.url || "/",
