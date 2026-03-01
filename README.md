@@ -23,6 +23,7 @@
 ## Table of Contents
 
 - [About the Project](#about-the-project)
+- [Civic Engagement & Janamat (जनमत)](#civic-engagement--janamat-जनमत)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
@@ -57,6 +58,30 @@ All poll creation, voting, settlement, and reward distribution logic runs **enti
 | No audit trail for votes or fund distribution | Every vote and transfer recorded on Solana |
 | Free polls → low-quality predictions | Real SOL stakes → skin in the game |
 | No financial incentive | Winners take the entire losing pool |
+
+---
+
+## Civic Engagement & Janamat (जनमत)
+
+InstinctFi isn't just a prediction market — it's a **decentralized civic engagement platform**. Traditional opinion polls are cheap: anyone can click a button without consequence. Prediction markets flip this by requiring participants to **stake real value**, ensuring opinions are informed and genuine.
+
+This makes InstinctFi a powerful tool for **Janamat (जनमत — public opinion)** collection:
+
+| Use Case | How InstinctFi Helps |
+|----------|---------------------|
+| **Policy Forecasting** | Will a proposed policy succeed? Citizens stake their conviction with real SOL. |
+| **Community Governance** | DAOs and local bodies can gauge informed public sentiment through prediction polls. |
+| **Accountability Tracking** | Track whether elected officials deliver on promises via community-driven markets. |
+| **Decentralized Janamat Sangrah (जनमत संग्रह)** | On-chain, transparent, tamper-proof public opinion collection — no central authority can censor or manipulate results. |
+
+> **Why prediction markets > traditional polls?**
+> Research consistently shows that prediction markets produce more accurate forecasts than surveys or expert panels, because participants have *skin in the game*. InstinctFi brings this proven mechanism on-chain with Solana's speed and transparency.
+
+**Example civic polls:**
+- 🇳🇵 "Should Kathmandu implement an odd-even vehicle rule?"
+- 🏗️ "Will Nepal's digital ID rollout complete by 2027?"
+- 🗳️ "Should ward-level budgets be decided by community polls?"
+- ✈️ "Will Pokhara International Airport reach 1M passengers by 2028?"
 
 ---
 
@@ -307,10 +332,10 @@ instinctfi/
 ### Program ID
 
 ```
-Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS
+3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En
 ```
 
-> *Update this after running `anchor deploy` with your own keypair.*
+> Deployed to Solana devnet on 2026-03-01.
 
 ---
 

@@ -115,12 +115,12 @@ jobs:
 
       - name: Update declare_id in Rust source
         run: |
-          sed -i "s/declare_id!(\"Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS\")/declare_id!(\"${{ steps.program-id.outputs.PROGRAM_ID }}\")/" programs/instinctfi/src/lib.rs
+          sed -i "s/declare_id!(\"3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En\")/declare_id!(\"${{ steps.program-id.outputs.PROGRAM_ID }}\")/" programs/instinctfi/src/lib.rs
           grep declare_id programs/instinctfi/src/lib.rs
 
       - name: Update Anchor.toml
         run: |
-          sed -i "s/instinctfi = \"Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS\"/instinctfi = \"${{ steps.program-id.outputs.PROGRAM_ID }}\"/g" Anchor.toml
+          sed -i "s/instinctfi = \"3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En\"/instinctfi = \"${{ steps.program-id.outputs.PROGRAM_ID }}\"/g" Anchor.toml
           grep instinctfi Anchor.toml
 
       - name: Rebuild with real Program ID

@@ -15,7 +15,7 @@ describe("InstinctFi E2E", () => {
 
   // ── Program ID (must match declare_id! in instinctfi program) ──
   // All instructions (user, poll, vote, settlement) live in a single program.
-  const INSTINCTFI_PROGRAM_ID = new PublicKey("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+  const INSTINCTFI_PROGRAM_ID = new PublicKey("3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En");
 
   const creator = anchor.web3.Keypair.generate();
   const voter1 = anchor.web3.Keypair.generate();

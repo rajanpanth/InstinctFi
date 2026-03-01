@@ -6,10 +6,8 @@ pub mod instructions;
 
 use instructions::*;
 
-// TODO(#16): Replace this placeholder program ID with a real keypair before deployment.
-// Generate with: `solana-keygen grind --starts-with IF:1`
-// Then update this declare_id! and all cross-program references.
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+// Deployed to Solana devnet on 2026-03-01
+declare_id!("3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En");
 
 #[program]
 pub mod instinctfi {

@@ -12,10 +12,10 @@ import {
 
 // ─── Program Configuration ─────────────────────────────────────────────────
 export const PROGRAM_ID = new PublicKey(
-    "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+    "3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En"
 );
 
-export const PROGRAM_DEPLOYED = false;
+export const PROGRAM_DEPLOYED = true;
 
 export const CLUSTER = "devnet" as "devnet" | "mainnet-beta" | "localnet";
 export const RPC_URL =

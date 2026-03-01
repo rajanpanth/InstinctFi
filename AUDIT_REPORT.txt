@@ -139,9 +139,8 @@ Total Issues Found: 71
 #16 Placeholder Program IDs in All Solana Programs
     Files: All programs (instinctfi, poll_program, vote_program, etc.)
     ──────────────────────────────────────────────────────────────
-    Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS (Anchor default) and
-    fake multi-program IDs. Deploying with these will conflict or fail.
-    FIX: Generate real keypairs and update all program IDs before deployment.
+    RESOLVED: Program deployed to devnet with ID 3RAY4WxQREyvDvZwCc4LJeXYhQmxnqDghqq4groQ16En
+    on 2026-03-01. Placeholder IDs replaced across all files.
 
 #17 Reset-After-Credit Ordering Bug
     File: programs/user_program/src/instructions/credit_balance.rs
