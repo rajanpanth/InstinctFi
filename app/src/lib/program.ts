@@ -58,6 +58,7 @@ export {
   buildDeletePollIx,
   buildCastVoteIx,
   buildSettlePollIx,
+  buildAdminSettlePollIx,
   buildClaimRewardIx,
   SPL_TOKEN_PROGRAM_ID,
   getVoteMintPDA,

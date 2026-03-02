@@ -477,7 +477,7 @@ export async function buildCastVoteIx(
     });
 }
 
-/** Build SettlePoll instruction */
+/** Build SettlePoll instruction (permissionless — blocked during 7-day admin grace period) */
 export async function buildSettlePollIx(
     settler: PublicKey,
     pollCreator: PublicKey,
@@ -496,6 +496,36 @@ export async function buildSettlePollIx(
         programId: PROGRAM_ID,
         keys: [
             { pubkey: settler, isSigner: true, isWritable: true },
+            { pubkey: pollCreator, isSigner: false, isWritable: true },
+            { pubkey: pollPDA, isSigner: false, isWritable: true },
+            { pubkey: treasuryPDA, isSigner: false, isWritable: true },
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data,
+    });
+}
+
+/** Build AdminSettlePoll instruction (admin-only, declares real-world outcome) */
+export async function buildAdminSettlePollIx(
+    admin: PublicKey,
+    pollCreator: PublicKey,
+    pollId: number | bigint,
+    winningOption: number
+): Promise<TransactionInstruction> {
+    const disc = await ixDiscriminator("admin_settle_poll");
+    const [pollPDA] = getPollPDA(pollCreator, pollId);
+    const [treasuryPDA] = getTreasuryPDA(pollPDA);
+
+    const writer = new BorshWriter();
+    writer.writeU64(pollId);
+    writer.writeU8(winningOption);
+
+    const data = Buffer.concat([Buffer.from(disc), writer.toBuffer()]);
+
+    return new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+            { pubkey: admin, isSigner: true, isWritable: true },
             { pubkey: pollCreator, isSigner: false, isWritable: true },
             { pubkey: pollPDA, isSigner: false, isWritable: true },
             { pubkey: treasuryPDA, isSigner: false, isWritable: true },

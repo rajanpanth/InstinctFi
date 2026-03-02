@@ -15,6 +15,7 @@ import {
     buildDeletePollIx,
     buildCastVoteIx,
     buildSettlePollIx,
+    buildAdminSettlePollIx,
     buildClaimRewardIx,
     getPollPDA,
     connection,
@@ -48,6 +49,8 @@ interface PollOpsArgs {
     initialFetchDone: React.MutableRefObject<boolean>;
     addNotification: (n: any) => void;
     signTransaction: ((tx: Transaction) => Promise<Transaction>) | undefined;
+    /** Callback to increment data version counter — triggers re-fetches in dependent pages */
+    bumpDataVersion: () => void;
 }
 
 /**
@@ -69,6 +72,7 @@ export function usePollOperations({
     initialFetchDone,
     addNotification,
     signTransaction,
+    bumpDataVersion,
 }: PollOpsArgs) {
 
     // ── Helper: bump mutation tracking ──
@@ -506,26 +510,52 @@ export function usePollOperations({
     // ── Delete poll ──
     const deletePoll = useCallback(
         async (pollId: string): Promise<boolean> => {
-            if (!walletAddress) return false;
+            if (!walletAddress) {
+                toast.error("Connect your wallet first", { id: "delete-poll" });
+                return false;
+            }
             const lockKey = `delete:${pollId}`;
-            if (operationLock.current.has(lockKey)) return false;
+            if (operationLock.current.has(lockKey)) {
+                toast.error("Delete already in progress", { id: "delete-poll" });
+                return false;
+            }
             operationLock.current.add(lockKey);
 
             const currentPolls = pollsRef.current;
             const currentVotes = votesRef.current;
             const currentUsers = usersRef.current;
             const poll = currentPolls.find((p) => p.id === pollId);
-            if (!poll) { operationLock.current.delete(lockKey); return false; }
+            if (!poll) {
+                operationLock.current.delete(lockKey);
+                toast.error("Poll not found", { id: "delete-poll" });
+                return false;
+            }
 
             const admin = isAdminWallet(walletAddress);
             if (!admin) {
                 // HIGH-01 FIX: Release lock before early returns to avoid permanent lock leak.
-                if (poll.creator !== walletAddress) { operationLock.current.delete(lockKey); return false; }
-                if (poll.status !== PollStatus.Active) { operationLock.current.delete(lockKey); return false; }
+                if (poll.creator !== walletAddress) {
+                    operationLock.current.delete(lockKey);
+                    toast.error("You can only delete your own polls", { id: "delete-poll" });
+                    return false;
+                }
+                if (poll.status !== PollStatus.Active) {
+                    operationLock.current.delete(lockKey);
+                    toast.error("Only active polls can be deleted", { id: "delete-poll" });
+                    return false;
+                }
                 const now = Math.floor(Date.now() / 1000);
-                if (now >= poll.endTime) { operationLock.current.delete(lockKey); return false; }
+                if (now >= poll.endTime) {
+                    operationLock.current.delete(lockKey);
+                    toast.error("Cannot delete ended polls", { id: "delete-poll" });
+                    return false;
+                }
                 const totalVotes = poll.voteCounts.reduce((a, b) => a + b, 0);
-                if (totalVotes > 0) { operationLock.current.delete(lockKey); return false; }
+                if (totalVotes > 0) {
+                    operationLock.current.delete(lockKey);
+                    toast.error("Cannot delete polls with votes", { id: "delete-poll" });
+                    return false;
+                }
             }
 
             const prevPolls = currentPolls;
@@ -541,14 +571,25 @@ export function usePollOperations({
                 const ix = await buildDeletePollIx(pubkey, poll.pollId);
                 const sig = await sendTransaction([ix], pubkey, signTransaction!);
 
+                // ── Wait for on-chain confirmation before updating UI ──
+                toast.loading("Confirming deletion on-chain...", { id: "delete-poll" });
+                const confirmed = await confirmTransactionBg(sig);
+                if (!confirmed) {
+                    throw new Error("Delete transaction failed or timed out on-chain");
+                }
+
                 tracker.deletedPollIds.current.add(pollId);
                 markMutation();
 
-                // ── Sync to Supabase (non-blocking stats cache) ──
+                // ── Sync to Supabase (AWAIT to ensure data consistency) ──
                 if (isSupabaseConfigured) {
-                    authenticatedFetch("/api/rpc/delete-poll", {
-                        p_poll_id: pollId,
-                    }).catch(e => console.warn("Supabase delete-poll sync failed (on-chain succeeded):", e));
+                    try {
+                        await authenticatedFetch("/api/rpc/delete-poll", {
+                            p_poll_id: pollId,
+                        });
+                    } catch (e) {
+                        console.warn("Supabase delete-poll sync failed (on-chain succeeded):", e);
+                    }
                 }
 
                 try {
@@ -581,16 +622,17 @@ export function usePollOperations({
                 const refundTotal = poll.creatorInvestmentLamports + pollVotes.reduce((s, v) => s + v.totalStakedLamports, 0);
                 toast.success(`Poll deleted! ${formatSOL(refundTotal)} refunded.`, { id: "delete-poll" });
 
-                // ── Background: confirm tx + refresh real balance ──
-                confirmTransactionBg(sig).then(() =>
-                    refreshOnChainBalance(walletAddress).then(freshBal => {
-                        if (freshBal !== undefined) {
-                            setUsers(prev => prev.map(u =>
-                                u.wallet === walletAddress ? { ...u, balance: freshBal } : u
-                            ));
-                        }
-                    })
-                ).catch(e => console.warn("Background confirm/refresh failed:", e));
+                // Notify dependent pages (e.g. polls listing) to re-fetch
+                bumpDataVersion();
+
+                // ── Refresh real balance (tx already confirmed above) ──
+                refreshOnChainBalance(walletAddress).then(freshBal => {
+                    if (freshBal !== undefined) {
+                        setUsers(prev => prev.map(u =>
+                            u.wallet === walletAddress ? { ...u, balance: freshBal } : u
+                        ));
+                    }
+                }).catch(e => console.warn("Balance refresh failed:", e));
                 return true;
             } catch (e: any) {
                 tracker.deletedPollIds.current.delete(pollId);
@@ -605,7 +647,7 @@ export function usePollOperations({
             }
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [walletAddress, setPolls, setVotes, setUsers, markMutation, signTransaction]
+        [walletAddress, setPolls, setVotes, setUsers, markMutation, signTransaction, bumpDataVersion]
     );
 
     // ── Cast vote ──
@@ -775,17 +817,27 @@ export function usePollOperations({
     const settlePoll = useCallback(
         async (pollId: string, winningOption?: number): Promise<boolean> => {
             const lockKey = `settle:${pollId}`;
-            if (operationLock.current.has(lockKey)) return false;
+            if (operationLock.current.has(lockKey)) {
+                toast.error("Settlement already in progress", { id: "settle-poll" });
+                return false;
+            }
             operationLock.current.add(lockKey);
 
             const currentPolls = pollsRef.current;
             const poll = currentPolls.find((p) => p.id === pollId);
-            if (!poll || poll.status !== PollStatus.Active) {
+            if (!poll) {
                 operationLock.current.delete(lockKey);
+                toast.error("Poll not found", { id: "settle-poll" });
+                return false;
+            }
+            if (poll.status !== PollStatus.Active) {
+                operationLock.current.delete(lockKey);
+                toast.error("Poll is already settled", { id: "settle-poll" });
                 return false;
             }
             if (!walletAddress) {
                 operationLock.current.delete(lockKey);
+                toast.error("Connect your wallet first", { id: "settle-poll" });
                 return false;
             }
 
@@ -796,10 +848,7 @@ export function usePollOperations({
                 const pollCreator = new PublicKey(poll.creator);
                 toast.loading("Settling poll...", { id: "settle-poll" });
 
-                // ── On-chain transaction (MANDATORY — real SOL) ──
-                const ix = await buildSettlePollIx(pubkey, pollCreator, poll.pollId);
-                const sig = await sendTransaction([ix], pubkey, signTransaction!);
-
+                // Determine the winning option
                 let finalWinningOption: number;
                 if (winningOption !== undefined && winningOption >= 0 && winningOption < poll.options.length) {
                     finalWinningOption = winningOption;
@@ -812,11 +861,42 @@ export function usePollOperations({
                     finalWinningOption = maxVotes > 0 ? winningIdx : WINNING_OPTION_UNSET;
                 }
 
-                // ── Sync to Supabase (non-blocking stats cache) ──
+                // ── On-chain transaction (MANDATORY — real SOL) ──
+                // Admin uses admin_settle_poll (bypasses 7-day grace period, passes winning_option).
+                // Non-admin uses settle_poll (permissionless fallback after 7-day grace).
+                let ix;
+                const admin = isAdminWallet(walletAddress);
+                console.log("[Settle] wallet:", walletAddress, "isAdmin:", admin, "winningOption:", finalWinningOption);
+                if (admin && finalWinningOption !== WINNING_OPTION_UNSET) {
+                    console.log("[Settle] Using admin_settle_poll instruction");
+                    ix = await buildAdminSettlePollIx(pubkey, pollCreator, poll.pollId, finalWinningOption);
+                } else {
+                    console.log("[Settle] Using permissionless settle_poll instruction (7-day grace applies)");
+                    ix = await buildSettlePollIx(pubkey, pollCreator, poll.pollId);
+                }
+                const sig = await sendTransaction([ix], pubkey, signTransaction!);
+                console.log("[Settle] Transaction sent:", sig);
+
+                // ── Wait for on-chain confirmation before updating UI ──
+                // Settlement is critical — we must verify the tx actually succeeded
+                // on-chain before declaring success. Otherwise a silently-failed tx
+                // looks like it worked but reverts on refresh.
+                toast.loading("Confirming settlement on-chain...", { id: "settle-poll" });
+                const confirmed = await confirmTransactionBg(sig);
+                console.log("[Settle] On-chain confirmation result:", confirmed, "sig:", sig);
+                if (!confirmed) {
+                    throw new Error("Settlement transaction failed or timed out on-chain. Check explorer: " + sig);
+                }
+
+                // ── Sync to Supabase (AWAIT to ensure data consistency) ──
                 if (isSupabaseConfigured) {
-                    authenticatedFetch("/api/rpc/settle-poll", {
-                        p_poll_id: pollId,
-                    }).catch(e => console.warn("Supabase settle-poll sync failed (on-chain succeeded):", e));
+                    try {
+                        await authenticatedFetch("/api/rpc/settle-poll", {
+                            p_poll_id: pollId,
+                        });
+                    } catch (e) {
+                        console.warn("Supabase settle-poll sync failed (on-chain succeeded):", e);
+                    }
                 }
 
                 // ── Apply UI updates after on-chain success ──
@@ -843,16 +923,17 @@ export function usePollOperations({
 
                 toast.success("Poll settled!", { id: "settle-poll" });
 
-                // ── Background: confirm tx + refresh real balance ──
-                confirmTransactionBg(sig).then(() =>
-                    refreshOnChainBalance(walletAddress!).then(freshBal => {
-                        if (freshBal !== undefined) {
-                            setUsers(prev => prev.map(u =>
-                                u.wallet === walletAddress ? { ...u, balance: freshBal } : u
-                            ));
-                        }
-                    })
-                ).catch(e => console.warn("Background confirm/refresh failed:", e));
+                // Notify dependent pages (e.g. polls listing) to re-fetch
+                bumpDataVersion();
+
+                // ── Refresh real balance (tx already confirmed above) ──
+                refreshOnChainBalance(walletAddress!).then(freshBal => {
+                    if (freshBal !== undefined) {
+                        setUsers(prev => prev.map(u =>
+                            u.wallet === walletAddress ? { ...u, balance: freshBal } : u
+                        ));
+                    }
+                }).catch(e => console.warn("Balance refresh failed:", e));
 
                 const winnerLabel = finalWinningOption < poll.options.length ? poll.options[finalWinningOption] : "N/A";
                 addNotification({
@@ -885,7 +966,7 @@ export function usePollOperations({
             }
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [walletAddress, setPolls, setUsers, addNotification, markMutation, signTransaction]
+        [walletAddress, setPolls, setUsers, addNotification, markMutation, signTransaction, bumpDataVersion]
     );
 
     // ── Claim reward ──

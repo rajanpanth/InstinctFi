@@ -95,13 +95,17 @@ export async function GET(req: NextRequest) {
         const total = count ?? 0;
         const totalPages = Math.max(1, Math.ceil(total / limit));
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             polls: data || [],
             total,
             page,
             pageSize: limit,
             totalPages,
         });
+        // Prevent browser/CDN caching — always serve fresh data
+        response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+        response.headers.set("Pragma", "no-cache");
+        return response;
     } catch (e) {
         log.error("polls_unexpected", { error: (e as Error).message });
         return NextResponse.json(

@@ -118,4 +118,6 @@ export type AppContextType = {
   claimReward: (pollId: string) => Promise<number>;
   allUsers: UserAccount[];
   recentlyVotedPollIds: Set<string>;
+  /** Counter that increments after every mutation — used to trigger re-fetches in dependent pages */
+  dataVersion: number;
 };

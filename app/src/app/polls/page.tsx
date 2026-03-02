@@ -8,6 +8,7 @@ import PollCard from "@/components/PollCard";
 import SkeletonCard from "@/components/SkeletonCard";
 import { CATEGORIES as CONST_CATEGORIES } from "@/lib/constants";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { PROGRAM_DEPLOYED } from "@/lib/program";
 import { rowToDemoPoll } from "@/lib/dataConverters";
 import { useLanguage } from "@/lib/languageContext";
 import { tCat } from "@/lib/translations";
@@ -70,7 +71,7 @@ export default function PollsPageWrapper() {
  * Falls back to client-side filtering/pagination when not configured (demo mode).
  */
 function PollsPage() {
-  const { polls: contextPolls, walletConnected, isLoading: contextLoading } = useApp();
+  const { polls: contextPolls, walletConnected, isLoading: contextLoading, dataVersion } = useApp();
   const { t, lang } = useLanguage();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -94,7 +95,9 @@ function PollsPage() {
   const [serverPolls, setServerPolls] = useState<DemoPoll[]>([]);
   const [serverTotal, setServerTotal] = useState(0);
   const [serverLoading, setServerLoading] = useState(false);
-  const useServerPagination = isSupabaseConfigured;
+  // When the on-chain program is deployed, ALWAYS use context data (on-chain = source of truth).
+  // Server pagination from Supabase is only used in demo mode (no on-chain program).
+  const useServerPagination = isSupabaseConfigured && !PROGRAM_DEPLOYED;
 
   // Sync filters to URL
   useEffect(() => {
@@ -149,7 +152,7 @@ function PollsPage() {
       .finally(() => setServerLoading(false));
 
     return () => controller.abort();
-  }, [useServerPagination, page, selectedCategory, statusFilter, sortBy, debouncedSearch]);
+  }, [useServerPagination, page, selectedCategory, statusFilter, sortBy, debouncedSearch, dataVersion]);
 
   // ─── Client-side fallback (demo mode) ─────────────────────────────────
   const filtered = useMemo(() => contextPolls.filter((p) => {

@@ -53,6 +53,8 @@ type DataContextType = {
   userAccount: UserAccount | null;
   allUsers: UserAccount[];
   recentlyVotedPollIds: Set<string>;
+  /** Counter that increments after every mutation — pages watch this to re-fetch */
+  dataVersion: number;
 };
 
 type OpsContextType = {
@@ -175,6 +177,10 @@ export function Providers({ children }: { children: ReactNode }) {
     deletedPollIds,
   }), []);
 
+  // ── Mutation version counter (used by polls page to trigger re-fetch) ──
+  const [dataVersion, setDataVersion] = useState(0);
+  const bumpDataVersion = useCallback(() => setDataVersion(v => v + 1), []);
+
   // ── Wallet management ──
   const { walletConnected, walletAddress, connectWallet, disconnectWallet, signTransaction } =
     useWalletManager(users, setUsers);
@@ -200,6 +206,7 @@ export function Providers({ children }: { children: ReactNode }) {
       setPolls, setVotes, setUsers,
       tracker, usersRef, pollsRef, votesRef, initialFetchDone,
       addNotification, signTransaction,
+      bumpDataVersion,
     });
 
   // ── Auto-signup / balance sync when connected ──
@@ -250,7 +257,8 @@ export function Providers({ children }: { children: ReactNode }) {
     userAccount,
     allUsers: users,
     recentlyVotedPollIds,
-  }), [isLoading, displayPolls, votes, userAccount, users, recentlyVotedPollIds]);
+    dataVersion,
+  }), [isLoading, displayPolls, votes, userAccount, users, recentlyVotedPollIds, dataVersion]);
 
   const opsValue = useMemo<OpsContextType>(() => ({
     signup,
