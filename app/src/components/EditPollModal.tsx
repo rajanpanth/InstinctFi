@@ -35,6 +35,14 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
   const [imageUrl, setImageUrl] = useState(poll.imageUrl);
   const [uploading, setUploading] = useState(false);
 
+  // Option image state
+  const [optionImageFiles, setOptionImageFiles] = useState<(File | null)[]>(
+    poll.options.map(() => null)
+  );
+  const [optionImagePreviews, setOptionImagePreviews] = useState<(string | null)[]>(
+    poll.optionImages?.map(url => url ? sanitizeImageUrl(url) : null) ?? poll.options.map(() => null)
+  );
+
   // Reset form when poll changes or modal opens
   useEffect(() => {
     if (isOpen) {
@@ -47,6 +55,10 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
       setImageUrl(poll.imageUrl);
       setSaving(false);
       setUploading(false);
+      setOptionImageFiles(poll.options.map(() => null));
+      setOptionImagePreviews(
+        poll.optionImages?.map(url => url ? sanitizeImageUrl(url) : null) ?? poll.options.map(() => null)
+      );
 
       // Convert endTime (unix seconds) to local date/time
       const d = new Date(poll.endTime * 1000);
@@ -77,6 +89,27 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
     setImageFile(null);
     setImagePreview(null);
     setImageUrl("");
+  };
+
+  const handleOptionImageSelect = (index: number) => (file: File) => {
+    const newFiles = [...optionImageFiles];
+    newFiles[index] = file;
+    setOptionImageFiles(newFiles);
+
+    const newPreviews = [...optionImagePreviews];
+    if (newPreviews[index]?.startsWith("blob:")) URL.revokeObjectURL(newPreviews[index]!);
+    newPreviews[index] = URL.createObjectURL(file);
+    setOptionImagePreviews(newPreviews);
+  };
+
+  const handleOptionImageRemove = (index: number) => () => {
+    if (optionImagePreviews[index]?.startsWith("blob:")) URL.revokeObjectURL(optionImagePreviews[index]!);
+    const newFiles = [...optionImageFiles];
+    newFiles[index] = null;
+    setOptionImageFiles(newFiles);
+    const newPreviews = [...optionImagePreviews];
+    newPreviews[index] = null;
+    setOptionImagePreviews(newPreviews);
   };
 
   const handleOptionChange = (index: number, value: string) => {
@@ -114,6 +147,25 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
       setUploading(false);
     }
 
+    // Upload option images
+    const optionImageUrls: string[] = [];
+    for (let i = 0; i < options.length; i++) {
+      const file = optionImageFiles[i];
+      if (file) {
+        try {
+          const url = await uploadPollImage(file);
+          optionImageUrls.push(url);
+        } catch {
+          toast.error(`Option ${i + 1} image upload failed`);
+          setSaving(false);
+          return;
+        }
+      } else {
+        // Keep existing image URL or empty
+        optionImageUrls.push(poll.optionImages?.[i] || "");
+      }
+    }
+
     const cleanTitle = sanitizeTitle(title);
     const cleanDesc = sanitizeDescription(description);
     const cleanOptions = sanitizeOptions(options);
@@ -125,6 +177,7 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
         description: cleanDesc,
         category: category.trim(),
         imageUrl: finalImageUrl,
+        optionImages: optionImageUrls,
         options: cleanOptions,
         endTime,
       });
@@ -231,18 +284,29 @@ export default function EditPollModal({ isOpen, onClose, poll }: Props) {
             <p className="text-xs text-gray-400 mb-3">
               You can rename options but cannot add or remove them.
             </p>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {options.map((opt, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="text-sm text-gray-400 font-mono w-6">{String.fromCharCode(65 + i)}.</span>
-                  <input
-                    type="text"
-                    value={opt}
-                    onChange={(e) => handleOptionChange(i, e.target.value)}
-                    maxLength={32}
-                    className="flex-1 px-4 py-2.5 bg-surface-0 border border-border rounded-xl focus:border-brand-500 outline-none text-white placeholder-gray-500"
-                    placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                  />
+                <div key={i} className="space-y-1.5">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-400 font-mono w-6">{String.fromCharCode(65 + i)}.</span>
+                    <input
+                      type="text"
+                      value={opt}
+                      onChange={(e) => handleOptionChange(i, e.target.value)}
+                      maxLength={32}
+                      className="flex-1 px-4 py-2.5 bg-surface-0 border border-border rounded-xl focus:border-brand-500 outline-none text-white placeholder-gray-500"
+                      placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                    />
+                  </div>
+                  <div className="ml-9">
+                    <ImageUpload
+                      imagePreview={optionImagePreviews[i]}
+                      onFileSelect={handleOptionImageSelect(i)}
+                      onRemove={handleOptionImageRemove(i)}
+                      uploading={false}
+                      compact
+                    />
+                  </div>
                 </div>
               ))}
             </div>

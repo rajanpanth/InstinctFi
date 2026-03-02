@@ -14,6 +14,8 @@ type Props = {
   uploading?: boolean;
   /** Error message to display */
   error?: string | null;
+  /** Compact mode for inline option images */
+  compact?: boolean;
 };
 
 export default function ImageUpload({
@@ -22,6 +24,7 @@ export default function ImageUpload({
   onRemove,
   uploading = false,
   error = null,
+  compact = false,
 }: Props) {
   const [dragActive, setDragActive] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -74,6 +77,27 @@ export default function ImageUpload({
 
   // ── Render: Image preview ──
   if (imagePreview) {
+    if (compact) {
+      return (
+        <div className="relative group inline-flex items-center gap-2">
+          <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-border bg-surface-50 shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imagePreview} alt="Option image" className="w-full h-full object-cover" />
+          </div>
+          {!uploading && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-xs text-red-400 hover:text-red-300 transition-colors"
+              aria-label="Remove image"
+            >
+              Remove
+            </button>
+          )}
+          {displayError && <p className="text-xs text-red-400">{displayError}</p>}
+        </div>
+      );
+    }
     return (
       <div className="relative group">
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-border bg-surface-50">
@@ -114,6 +138,33 @@ export default function ImageUpload({
   }
 
   // ── Render: Drop zone ──
+  if (compact) {
+    return (
+      <div className="inline-flex items-center">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="text-xs text-gray-400 hover:text-brand-400 transition-colors flex items-center gap-1.5 px-2 py-1 border border-dashed border-gray-600 rounded-lg hover:border-brand-500/50"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="18" height="18" rx="3" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="M21 15l-5-5L5 21" />
+          </svg>
+          Add image
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleInputChange}
+          className="hidden"
+          aria-hidden="true"
+        />
+        {displayError && <p className="ml-2 text-xs text-red-400">{displayError}</p>}
+      </div>
+    );
+  }
   return (
     <div>
       <div

@@ -3,9 +3,11 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import type { DemoPoll } from "@/components/Providers";
+import ImageUpload from "@/components/ImageUpload";
+import { uploadPollImage, sanitizeImageUrl } from "@/lib/uploadImage";
 
 type EditUpdates = Partial<
-  Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "options" | "endTime">
+  Pick<DemoPoll, "title" | "description" | "category" | "imageUrl" | "optionImages" | "options" | "endTime">
 >;
 
 export default function AdminEditModal({
@@ -34,6 +36,34 @@ export default function AdminEditModal({
   });
   const [saving, setSaving] = useState(false);
 
+  // Option image state
+  const [optionImageFiles, setOptionImageFiles] = useState<(File | null)[]>(
+    poll.options.map(() => null)
+  );
+  const [optionImagePreviews, setOptionImagePreviews] = useState<(string | null)[]>(
+    poll.optionImages?.map(url => url ? sanitizeImageUrl(url) : null) ?? poll.options.map(() => null)
+  );
+
+  const handleOptionImageSelect = (index: number) => (file: File) => {
+    const newFiles = [...optionImageFiles];
+    newFiles[index] = file;
+    setOptionImageFiles(newFiles);
+    const newPreviews = [...optionImagePreviews];
+    if (newPreviews[index]?.startsWith("blob:")) URL.revokeObjectURL(newPreviews[index]!);
+    newPreviews[index] = URL.createObjectURL(file);
+    setOptionImagePreviews(newPreviews);
+  };
+
+  const handleOptionImageRemove = (index: number) => () => {
+    if (optionImagePreviews[index]?.startsWith("blob:")) URL.revokeObjectURL(optionImagePreviews[index]!);
+    const newFiles = [...optionImageFiles];
+    newFiles[index] = null;
+    setOptionImageFiles(newFiles);
+    const newPreviews = [...optionImagePreviews];
+    newPreviews[index] = null;
+    setOptionImagePreviews(newPreviews);
+  };
+
   const handleSave = async () => {
     if (!title.trim()) {
       toast.error("Title is required");
@@ -45,11 +75,30 @@ export default function AdminEditModal({
     }
     setSaving(true);
     try {
+      // Upload option images
+      const optionImageUrls: string[] = [];
+      for (let i = 0; i < options.length; i++) {
+        const file = optionImageFiles[i];
+        if (file) {
+          try {
+            const url = await uploadPollImage(file);
+            optionImageUrls.push(url);
+          } catch {
+            toast.error(`Option ${i + 1} image upload failed`);
+            setSaving(false);
+            return;
+          }
+        } else {
+          optionImageUrls.push(poll.optionImages?.[i] || "");
+        }
+      }
+
       const ok = await onSave({
         title: title.trim(),
         description: description.trim(),
         category,
         imageUrl: imageUrl.trim(),
+        optionImages: optionImageUrls,
         options: options.map((o) => o.trim()),
         endTime: Math.floor(new Date(endDate).getTime() / 1000),
       });
@@ -124,19 +173,30 @@ export default function AdminEditModal({
         {/* Options */}
         <div>
           <label className="block text-xs text-gray-400 mb-1">Options</label>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {options.map((opt, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-5">{i + 1}.</span>
-                <input
-                  value={opt}
-                  onChange={(e) => {
-                    const next = [...options];
-                    next[i] = e.target.value;
-                    setOptions(next);
-                  }}
-                  className="flex-1 px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
-                />
+              <div key={i} className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 w-5">{i + 1}.</span>
+                  <input
+                    value={opt}
+                    onChange={(e) => {
+                      const next = [...options];
+                      next[i] = e.target.value;
+                      setOptions(next);
+                    }}
+                    className="flex-1 px-3 py-2 bg-surface-0 border border-gray-600/50 rounded-lg text-sm text-white focus:outline-none focus:border-brand-500/50"
+                  />
+                </div>
+                <div className="ml-7">
+                  <ImageUpload
+                    imagePreview={optionImagePreviews[i]}
+                    onFileSelect={handleOptionImageSelect(i)}
+                    onRemove={handleOptionImageRemove(i)}
+                    uploading={false}
+                    compact
+                  />
+                </div>
               </div>
             ))}
           </div>
