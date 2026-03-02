@@ -303,21 +303,63 @@ export function usePollOperations({
                     createdAt: Math.floor(Date.now() / 1000),
                 };
 
-                // ── On-chain succeeded — sync to Supabase (non-blocking stats cache) ──
+                // ── On-chain succeeded — sync to Supabase (AWAIT — option images are Supabase-only) ──
                 if (isSupabaseConfigured) {
-                    authenticatedFetch("/api/rpc/create-poll", {
-                        p_id: newPoll.id,
-                        p_poll_id: pollId,
-                        p_title: newPoll.title,
-                        p_description: newPoll.description,
-                        p_category: newPoll.category,
-                        p_image_url: newPoll.imageUrl,
-                        p_option_images: newPoll.optionImages,
-                        p_options: newPoll.options,
-                        p_unit_price_cents: newPoll.unitPriceLamports,
-                        p_end_time: newPoll.endTime,
-                        p_creator_investment_cents: newPoll.creatorInvestmentLamports,
-                    }).catch(e => console.warn("Supabase create-poll sync failed (on-chain succeeded):", e));
+                    let syncOk = false;
+                    try {
+                        const rpcResult = await authenticatedFetch("/api/rpc/create-poll", {
+                            p_id: newPoll.id,
+                            p_poll_id: pollId,
+                            p_title: newPoll.title,
+                            p_description: newPoll.description,
+                            p_category: newPoll.category,
+                            p_image_url: newPoll.imageUrl,
+                            p_option_images: newPoll.optionImages,
+                            p_options: newPoll.options,
+                            p_unit_price_cents: newPoll.unitPriceLamports,
+                            p_end_time: newPoll.endTime,
+                            p_creator_investment_cents: newPoll.creatorInvestmentLamports,
+                        });
+                        syncOk = rpcResult.success === true;
+                        if (!syncOk) {
+                            console.warn("Supabase create-poll RPC returned failure:", rpcResult.error);
+                        }
+                    } catch (e) {
+                        console.warn("Supabase create-poll sync threw:", e);
+                    }
+
+                    // Fallback: if the RPC failed (e.g. balance mismatch), use the
+                    // sync-poll endpoint which does a direct upsert (no balance check).
+                    if (!syncOk) {
+                        try {
+                            const fallbackResult = await authenticatedFetch("/api/rpc/sync-poll", {
+                                id: newPoll.id,
+                                poll_id: pollId,
+                                title: newPoll.title,
+                                description: newPoll.description,
+                                category: newPoll.category,
+                                image_url: newPoll.imageUrl,
+                                option_images: newPoll.optionImages,
+                                options: newPoll.options,
+                                unit_price_cents: newPoll.unitPriceLamports,
+                                end_time: newPoll.endTime,
+                                total_pool_cents: newPoll.totalPoolLamports,
+                                creator_investment_cents: newPoll.creatorInvestmentLamports,
+                                platform_fee_cents: newPoll.platformFeeLamports,
+                                creator_reward_cents: newPoll.creatorRewardLamports,
+                                created_at: newPoll.createdAt,
+                            });
+                            if (fallbackResult.success) {
+                                console.log("Supabase fallback sync succeeded for poll", newPoll.id);
+                            } else {
+                                console.warn("Supabase fallback sync returned failure:", fallbackResult.error);
+                                toast.error("Poll created on-chain but image sync failed. Option images may not persist after refresh.", { id: "create-poll-sync" });
+                            }
+                        } catch (fallbackErr) {
+                            console.warn("Supabase fallback sync threw:", fallbackErr);
+                            toast.error("Poll created on-chain but image sync failed. Option images may not persist after refresh.", { id: "create-poll-sync" });
+                        }
+                    }
                 }
 
                 // ── Apply optimistic UI updates immediately ──
@@ -479,18 +521,59 @@ export function usePollOperations({
                 setPolls(prev => prev.map(p => p.id === pollId ? updatedPoll : p));
                 markMutation();
 
-                // ── Sync to Supabase (non-blocking stats cache) ──
+                // ── Sync to Supabase (AWAIT — option images are Supabase-only) ──
                 if (isSupabaseConfigured) {
-                    authenticatedFetch("/api/rpc/edit-poll", {
-                        p_poll_id: pollId,
-                        p_title: updates.title ?? poll.title,
-                        p_description: updates.description ?? poll.description,
-                        p_category: updates.category ?? poll.category,
-                        p_image_url: updates.imageUrl ?? poll.imageUrl,
-                        p_option_images: updates.optionImages ?? poll.optionImages,
-                        p_options: updates.options ?? poll.options,
-                        p_end_time: updates.endTime ?? poll.endTime,
-                    }).catch(e => console.warn("Supabase edit-poll sync failed (on-chain succeeded):", e));
+                    let editSyncOk = false;
+                    try {
+                        const editResult = await authenticatedFetch("/api/rpc/edit-poll", {
+                            p_poll_id: pollId,
+                            p_title: updates.title ?? poll.title,
+                            p_description: updates.description ?? poll.description,
+                            p_category: updates.category ?? poll.category,
+                            p_image_url: updates.imageUrl ?? poll.imageUrl,
+                            p_option_images: updates.optionImages ?? poll.optionImages,
+                            p_options: updates.options ?? poll.options,
+                            p_end_time: updates.endTime ?? poll.endTime,
+                        });
+                        editSyncOk = editResult.success === true;
+                        if (!editSyncOk) {
+                            console.warn("Supabase edit-poll RPC returned failure:", editResult.error);
+                        }
+                    } catch (e) {
+                        console.warn("Supabase edit-poll sync threw:", e);
+                    }
+
+                    // Fallback: direct update for images/metadata if RPC failed
+                    if (!editSyncOk) {
+                        try {
+                            const fallbackResult = await authenticatedFetch("/api/rpc/sync-poll", {
+                                id: pollId,
+                                poll_id: poll.pollId,
+                                title: updates.title ?? poll.title,
+                                description: updates.description ?? poll.description,
+                                category: updates.category ?? poll.category,
+                                image_url: updates.imageUrl ?? poll.imageUrl,
+                                option_images: updates.optionImages ?? poll.optionImages,
+                                options: updates.options ?? poll.options,
+                                unit_price_cents: poll.unitPriceLamports,
+                                end_time: updates.endTime ?? poll.endTime,
+                                total_pool_cents: poll.totalPoolLamports,
+                                creator_investment_cents: poll.creatorInvestmentLamports,
+                                platform_fee_cents: poll.platformFeeLamports,
+                                creator_reward_cents: poll.creatorRewardLamports,
+                                created_at: poll.createdAt,
+                            });
+                            if (fallbackResult.success) {
+                                console.log("Supabase fallback sync succeeded for edit", pollId);
+                            } else {
+                                console.warn("Supabase fallback sync returned failure:", fallbackResult.error);
+                                toast.error("Edit saved on-chain but image sync failed. Images may not persist after refresh.", { id: "edit-poll-sync" });
+                            }
+                        } catch (fallbackErr) {
+                            console.warn("Supabase fallback sync threw:", fallbackErr);
+                            toast.error("Edit saved on-chain but image sync failed. Images may not persist after refresh.", { id: "edit-poll-sync" });
+                        }
+                    }
                 }
 
                 toast.success("Poll edited!", { id: "edit-poll" });
