@@ -49,6 +49,7 @@ export default function OptionAvatar({
         alt={label}
         width={px}
         height={px}
+        unoptimized
         className={`${dim} rounded-full object-cover shrink-0 border border-border`}
       />
     );

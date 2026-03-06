@@ -319,7 +319,7 @@ export default function PollDetailClient() {
                                                 // eslint-disable-next-line @next/next/no-img-element
                                                 <img src={optImage} alt={opt} className="w-8 h-8 rounded-full object-cover border border-border" />
                                             ) : (
-                                                <Image src={optImage} alt={opt} width={32} height={32} className="w-8 h-8 rounded-full object-cover border border-border" />
+                                                <Image src={optImage} alt={opt} width={32} height={32} unoptimized className="w-8 h-8 rounded-full object-cover border border-border" />
                                             )
                                         ) : (
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white border border-border ${i === 0 ? "bg-blue-600" : i === 1 ? "bg-red-600" : "bg-purple-600"
