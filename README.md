@@ -416,6 +416,3 @@ Distributed under the **MIT License**. See [LICENSE](LICENSE) for details.
 
 ---
 
-<p align="center">
-  Built with ❤️ on <strong>Solana</strong>
-</p>
