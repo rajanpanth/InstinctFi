@@ -97,6 +97,7 @@ export function Navbar() {
   const navItems = [
     { href: "/polls", label: t("polls"), Icon: LayoutGrid },
     { href: "/create", label: t("create"), Icon: Plus },
+    { href: "/?cat=Janamat", label: "Janamat", Icon: Zap, isJanamat: true },
     { href: "/portfolio", label: t("portfolio"), Icon: Briefcase },
     { href: "/leaderboard", label: t("leaderboard"), Icon: Trophy },
     { href: "/activity", label: t("activity"), Icon: Activity },
@@ -129,15 +130,21 @@ export function Navbar() {
             {/* Center: Nav links */}
             <div className="hidden md:flex items-center gap-1">
               {navItems.map((item) => {
-                const active = pathname === item.href;
+                const active = pathname === item.href || (item.href.includes("cat=") && pathname === "/" && typeof window !== "undefined" && window.location.search.includes("cat=Janamat"));
+                const isJanamat = "isJanamat" in item && item.isJanamat;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={item.href === "/profile" ? () => markAllRead() : undefined}
-                    className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${active
-                      ? "bg-brand-500/10 text-brand-400"
-                      : "text-neutral-500 hover:text-neutral-200 hover:bg-surface-200"
+                    className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+                      isJanamat
+                        ? active
+                          ? "bg-red-500/15 text-red-400"
+                          : "text-red-400/80 hover:text-red-300 hover:bg-red-500/10"
+                        : active
+                          ? "bg-brand-500/10 text-brand-400"
+                          : "text-neutral-500 hover:text-neutral-200 hover:bg-surface-200"
                       }`}
                   >
                     <item.Icon size={14} strokeWidth={active ? 2.2 : 1.8} />
@@ -227,12 +234,12 @@ export function Navbar() {
                     </div>
                   ) : (
                     <item.Icon
-                      size={22}
+                      size={24}
                       fill={active ? "currentColor" : "none"}
                       strokeWidth={active ? 1.5 : 1.8}
                     />
                   )}
-                  <span className={`text-[10px] font-medium leading-none ${active ? "text-brand-400" : "text-neutral-500"}`}>
+                  <span className={`text-[11px] font-medium leading-none ${active ? "text-brand-400" : "text-neutral-500"}`}>
                     {item.label}
                   </span>
                 </Link>
@@ -243,8 +250,8 @@ export function Navbar() {
               onClick={() => setShowMoreMenu(prev => !prev)}
               className={`relative flex flex-col items-center gap-1 py-1.5 px-2 rounded-xl transition-all active:scale-95 ${showMoreMenu ? "text-brand-400" : "text-neutral-500"}`}
             >
-              <MoreHorizontal size={22} strokeWidth={showMoreMenu ? 1.5 : 1.8} />
-              <span className={`text-[10px] font-medium leading-none ${showMoreMenu ? "text-brand-400" : "text-neutral-500"}`}>More</span>
+              <MoreHorizontal size={24} strokeWidth={showMoreMenu ? 1.5 : 1.8} />
+              <span className={`text-[11px] font-medium leading-none ${showMoreMenu ? "text-brand-400" : "text-neutral-500"}`}>More</span>
             </button>
           </div>
         </div>

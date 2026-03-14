@@ -27,6 +27,7 @@ type OptionRowsProps = {
     isEnded: boolean;
     isSettled: boolean;
     onOptionClick: (idx: number) => void;
+    maxVisible?: number;
 };
 
 export function PollOptionRows({
@@ -36,12 +37,24 @@ export function PollOptionRows({
     isEnded,
     isSettled,
     onOptionClick,
+    maxVisible,
 }: OptionRowsProps) {
     const badgeColors = OPTION_BADGE_COLORS;
 
+    // When maxVisible is set, show only the top N options by vote count
+    let visibleOptions = optionData;
+    let hiddenCount = 0;
+    if (maxVisible != null && optionData.length > maxVisible) {
+        // Pick top N by votes, then re-sort by original index for consistent display order
+        const sorted = [...optionData].sort((a, b) => b.votes - a.votes);
+        const topN = sorted.slice(0, maxVisible);
+        visibleOptions = topN.sort((a, b) => a.index - b.index);
+        hiddenCount = optionData.length - maxVisible;
+    }
+
     return (
         <div className="space-y-1.5">
-            {optionData.map((opt) => {
+            {visibleOptions.map((opt) => {
                 const bc = badgeColors[opt.index % badgeColors.length];
                 const isWinner = isSettled && poll.winningOption === opt.index;
                 const isVoting = votingOption === opt.index;
@@ -63,7 +76,7 @@ export function PollOptionRows({
                         onClick={() => onOptionClick(opt.index)}
                         disabled={isEnded || isSettled}
                         aria-label={`Vote for ${opt.label}, ${opt.pct}%${isWinner ? ", winner" : ""}`}
-                        className={`option-row-hover relative w-full flex items-center gap-2.5 group/opt transition-all rounded-lg px-3 py-2 overflow-hidden ${isVoting
+                        className={`option-row-hover relative w-full flex items-center gap-2.5 group/opt transition-all rounded-lg px-3 py-2.5 overflow-hidden touch-target ${isVoting
                             ? "ring-1 ring-brand-500/40 bg-brand-500/[0.05]"
                             : isEnded || isSettled
                                 ? "cursor-default bg-surface-50"
@@ -104,6 +117,11 @@ export function PollOptionRows({
                     </button>
                 );
             })}
+            {hiddenCount > 0 && (
+                <div className="text-center text-[11px] text-neutral-500 py-1.5">
+                    +{hiddenCount} more option{hiddenCount > 1 ? "s" : ""}
+                </div>
+            )}
         </div>
     );
 }
@@ -168,7 +186,7 @@ export function PollVotePanel({
                         <button
                             onClick={() => setNumCoins(Math.max(1, numCoins - 1))}
                             aria-label="Decrease coin count"
-                            className="w-7 h-7 rounded-lg bg-surface-200 hover:bg-surface-300 text-neutral-400 flex items-center justify-center transition-colors"
+                            className="w-9 h-9 rounded-lg bg-surface-200 hover:bg-surface-300 text-neutral-400 flex items-center justify-center transition-colors touch-target"
                         >
                             <Minus size={14} />
                         </button>
@@ -180,12 +198,12 @@ export function PollVotePanel({
                             }
                             min={1}
                             aria-label="Number of coins to vote"
-                            className="w-12 text-center text-lg font-semibold bg-transparent outline-none text-neutral-200"
+                            className="w-14 text-center text-lg font-semibold bg-transparent outline-none text-neutral-200"
                         />
                         <button
                             onClick={() => setNumCoins(numCoins + 1)}
                             aria-label="Increase coin count"
-                            className="w-7 h-7 rounded-lg bg-surface-200 hover:bg-surface-300 text-neutral-400 flex items-center justify-center transition-colors"
+                            className="w-9 h-9 rounded-lg bg-surface-200 hover:bg-surface-300 text-neutral-400 flex items-center justify-center transition-colors touch-target"
                         >
                             <Plus size={14} />
                         </button>

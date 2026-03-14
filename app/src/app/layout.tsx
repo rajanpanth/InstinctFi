@@ -113,7 +113,7 @@ export default function RootLayout({
           <InstallPrompt />
           <WebVitals />
           <Toaster
-            position="bottom-right"
+            position="top-center"
             toastOptions={{
               style: {
                 background: "#161616",

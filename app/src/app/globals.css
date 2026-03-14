@@ -117,6 +117,14 @@ a {
   box-shadow: 0 8px 24px -8px rgba(0, 212, 170, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.3);
 }
 
+/* Disable card lift on touch devices — prevents sticky hover states */
+@media (pointer: coarse) {
+  .card-hover:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
 html:not(.dark) .card-hover:hover {
   box-shadow: 0 8px 24px -8px rgba(0, 171, 138, 0.1), 0 2px 8px -2px rgba(0, 0, 0, 0.06);
 }
@@ -240,6 +248,21 @@ html:not(.dark) .card-hover:hover {
   animation: scaleIn 0.2s ease-out;
 }
 
+/* ── Comment auto-scroll (smooth vertical ticker) ── */
+@keyframes commentScroll {
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(var(--scroll-distance));
+  }
+}
+
+.animate-comment-scroll {
+  animation: commentScroll var(--scroll-duration) linear infinite;
+}
+
 /* ── Scrollbar ── */
 .scrollbar-hide {
   -ms-overflow-style: none;
@@ -340,6 +363,20 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
 
   .mobile-content-pad {
     padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Scroll fade hint (right edge) — used by category pills ── */
+.scroll-fade-right {
+  -webkit-mask-image: linear-gradient(to right, #000 85%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 85%, transparent 100%);
+}
+
+/* ── Minimum touch targets on coarse pointer devices ── */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
   }
 }
 

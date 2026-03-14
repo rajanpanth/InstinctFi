@@ -248,7 +248,7 @@ const PollCard = memo(function PollCard({ poll }: Props) {
             </div>
             <button
               onClick={() => setExpanded(!expanded)}
-              className="w-7 h-7 flex items-center justify-center text-neutral-600 hover:text-neutral-300 rounded-lg hover:bg-surface-200 transition-all shrink-0"
+              className="w-8 h-8 flex items-center justify-center text-neutral-600 hover:text-neutral-300 rounded-lg hover:bg-surface-200 transition-all shrink-0 touch-target"
               aria-label={expanded ? "Collapse" : "Expand"}
               aria-expanded={expanded}
             >
@@ -267,10 +267,11 @@ const PollCard = memo(function PollCard({ poll }: Props) {
             isEnded={isEnded}
             isSettled={isSettled}
             onOptionClick={handleOptionClick}
+            maxVisible={2}
           />
 
           {/* Footer stats */}
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+          <div className="flex items-center flex-wrap justify-between mt-3 pt-3 border-t border-border gap-2">
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 text-[10px] text-neutral-500 bg-surface-50 px-2 py-0.5 rounded border border-border">
                 <Zap size={10} className="text-brand-500" />
